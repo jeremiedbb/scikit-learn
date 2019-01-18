@@ -119,7 +119,7 @@ OPENMP_EXTENSIONS = ["sklearn.cluster._k_means_lloyd",
 # custom build_ext command to set OpenMP compile flags depending on os and
 # compiler
 # build_ext has to be imported after setuptools
-from numpy.distutils.command.build_ext import build_ext
+from numpy.distutils.command.build_ext import build_ext  # noqa
 
 
 class build_ext_subclass(build_ext):
