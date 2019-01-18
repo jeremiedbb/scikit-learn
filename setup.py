@@ -109,8 +109,6 @@ def get_openmp_flag(compiler):
         return ['/openmp']
     elif sys.platform == "darwin" and ('icc' in compiler or 'icl' in compiler):
         return ['-openmp']
-    elif sys.platform == "darwin" and ('clang' in compiler or 'gcc' in compiler):
-        return ['-fopenmp=libomp']
     return ['-fopenmp']
 
 
