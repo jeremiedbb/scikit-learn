@@ -109,7 +109,8 @@ def get_openmp_flag(compiler):
         return ['/openmp']
     elif sys.platform == "darwin" and ('icc' in compiler or 'icl' in compiler):
         return ['-openmp']
-    return ['-fopenmp']
+    #return ['-fopenmp']
+    return ''
 
 
 OPENMP_EXTENSIONS = ["sklearn.cluster._k_means_lloyd",
