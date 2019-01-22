@@ -23,6 +23,9 @@ def test_set_thread_limits_dict(clib):
 
     old_limits = get_thread_limits()
 
+    if old_limits['libomp'] is None:
+        assert False
+
     if old_limits[clib] is not None:
         dynamic_scaling = set_thread_limits(limits={clib: 1})
         assert get_thread_limits()[clib] == 1
