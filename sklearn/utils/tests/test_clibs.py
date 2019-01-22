@@ -23,7 +23,7 @@ def test_set_thread_limits_dict(clib):
 
     old_limits = get_thread_limits()
 
-    if old_limits['openmp_llvm'] is None:
+    if old_limits['openmp_llvm'] is None and old_limits['openmp_gnu'] is None and old_limits['openmp_win32'] is None:
         assert False
 
     if old_limits[clib] is not None:
