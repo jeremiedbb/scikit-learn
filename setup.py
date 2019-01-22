@@ -109,8 +109,10 @@ def get_openmp_flag(compiler):
         return ['/openmp']
     elif sys.platform == "darwin" and ('icc' in compiler or 'icl' in compiler):
         return ['-openmp']
-    #return ['-fopenmp']
-    return ''
+    elif sys.platform == "darwin" and 'openmp' in os.getenv('CC', ''):
+        # -fopenmp can't be passed as compile arg when using apple clang
+        return ['']
+    return ['-fopenmp']
 
 
 OPENMP_EXTENSIONS = ["sklearn.cluster._k_means_lloyd",
