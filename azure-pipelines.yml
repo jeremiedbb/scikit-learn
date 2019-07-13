@@ -51,6 +51,7 @@ jobs:
     vmImage: xcode9-macos10.13
     matrix:
       pylatest_conda:
+        SKLEARN_NO_OPENMP: 'TRUE'
         DISTRIB: 'conda'
         PYTHON_VERSION: '*'
         INSTALL_MKL: 'true'
