@@ -129,6 +129,7 @@ try:
             print(os.getenv('SKLEARN_NO_OPENMP'))
             print('#'*200)
             if not os.getenv('SKLEARN_NO_OPENMP'):
+                print('******* WHY AM I HERE ??? *********')
                 openmp_flag = get_openmp_flag(self.compiler)
 
                 for e in self.extensions:
