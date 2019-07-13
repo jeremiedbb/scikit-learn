@@ -125,6 +125,9 @@ try:
         def build_extensions(self):
             from sklearn._build_utils.openmp_helpers import get_openmp_flag
 
+            print('#'*200)
+            print(os.getenv('SKLEARN_NO_OPENMP'))
+            print('#'*200)
             if not os.getenv('SKLEARN_NO_OPENMP'):
                 openmp_flag = get_openmp_flag(self.compiler)
 
