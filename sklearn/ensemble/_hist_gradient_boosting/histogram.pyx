@@ -8,6 +8,7 @@
 
 cimport cython
 from cython.parallel import prange
+from libc.string cimport memset
 
 import numpy as np
 cimport numpy as np
@@ -225,13 +226,14 @@ cdef class HistogramBuilder:
         cdef:
             int feature_idx
             int n_features = self.n_features
-            hist_struct [:, ::1] histograms = np.zeros(
+            hist_struct [:, ::1] histograms = np.empty(
                 shape=(self.n_features, self.max_bins),
                 dtype=HISTOGRAM_DTYPE
             )
 
         for feature_idx in prange(n_features, schedule='static', nogil=True):
             # Compute histogram of each feature
+            memset(&histograms[feature_idx, 0], 0, self.max_bins)
             _subtract_histograms(feature_idx,
                                  self.max_bins,
                                  parent_histograms,
