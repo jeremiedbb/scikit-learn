@@ -357,27 +357,3 @@ def _mini_batch_update_csr(X, np.ndarray[floating, ndim=1] sample_weight,
                                      - centers[center_idx, feature_idx]) ** 2
 
     return squared_diff
-
-
-def _find_best_candidate(floating[::1] closest_dist_sq,
-                         floating[:, ::1] distance_to_candidates):
-    cdef:
-        int n_samples = closest_dist_sq.shape[0]
-        int n_candidates = distance_to_candidates.shape[0]
-        int i, j
-        int best_candidate
-
-    with nogil:
-        for i in prange(n_candidates):
-            for j in range(n_samples):
-                distance_to_candidates[i, j] = fmin(
-                    distance_to_candidates[i, j], closest_dist_sq[j])
-
-    distance_to_candidates_arr = np.asarray(distance_to_candidates)
-    all_pot = distance_to_candidates_arr.sum(axis=1)
-    best_candidate = np.argmin(all_pot)
-
-    for i in range(n_samples):
-        closest_dist_sq[i] = distance_to_candidates[best_candidate, i]
-
-    return best_candidate, all_pot[best_candidate]
