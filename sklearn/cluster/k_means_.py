@@ -32,6 +32,7 @@ from ..exceptions import ConvergenceWarning
 from ._k_means import _inertia_dense
 from ._k_means import _inertia_sparse
 from ._k_means import _mini_batch_update_csr
+from ._k_means import _find_best_candidate
 from ._k_means_lloyd import _lloyd_iter_chunked_dense
 from ._k_means_lloyd import _lloyd_iter_chunked_sparse
 from ._k_means_elkan import _init_bounds_dense
@@ -44,7 +45,240 @@ from ._k_means_elkan import _elkan_iter_chunked_sparse
 # Initialization heuristic
 
 
-def _k_init(X, n_clusters, x_squared_norms, random_state, n_local_trials=None):
+def _k_init(X, n_clusters, x_squared_norms, random_state, n_local_trials=None,
+            subsampling=1):
+    """Init n_clusters seeds according to k-means++
+
+    Parameters
+    ----------
+    X : array or sparse matrix, shape (n_samples, n_features)
+        The data to pick seeds for. To avoid memory copy, the input data
+        should be double precision (dtype=np.float64).
+
+    n_clusters : integer
+        The number of seeds to choose
+
+    x_squared_norms : array, shape (n_samples,)
+        Squared Euclidean norm of each data point.
+
+    random_state : int, RandomState instance
+        The generator used to initialize the centers. Use an int to make the
+        randomness deterministic.
+        See :term:`Glossary <random_state>`.
+
+    n_local_trials : integer or None (default=None)
+        The number of seeding trials for each center (except the first),
+        of which the one reducing inertia the most is greedily chosen.
+        Set to None to make the number of trials depend logarithmically
+        on the number of seeds (2+log(k)); this is the default.
+
+    Notes
+    -----
+    Selects initial cluster centers for k-mean clustering in a smart way
+    to speed up convergence. see: Arthur, D. and Vassilvitskii, S.
+    "k-means++: the advantages of careful seeding". ACM-SIAM symposium
+    on Discrete algorithms. 2007
+
+    Version ported from http://www.stanford.edu/~darthur/kMeansppTest.zip,
+    which is the implementation used in the aforementioned paper.
+    """
+    n_samples, n_features = X.shape
+
+    centers = np.empty((n_clusters, n_features), dtype=X.dtype)
+
+    if subsampling != 1:
+        ids = np.random.choice(
+            np.arange(n_samples),
+            size=max(int(n_samples * subsampling), n_clusters),
+            replace=False)
+        X = X[ids]
+        x_squared_norms = x_squared_norms[ids]
+        n_samples = X.shape[0]
+
+    assert x_squared_norms is not None, 'x_squared_norms None in _k_init'
+
+    # Set the number of local seeding trials if none is given
+    if n_local_trials is None:
+        # This is what Arthur/Vassilvitskii tried, but did not report
+        # specific results for other than mentioning in the conclusion
+        # that it helped.
+        n_local_trials = 2 + int(np.log(n_clusters))
+
+    # Pick first center randomly
+    center_id = random_state.randint(n_samples)
+    if sp.issparse(X):
+        centers[0] = X[center_id].toarray()
+    else:
+        centers[0] = X[center_id]
+
+    # Initialize list of closest distances and calculate current potential
+    # closest_dist_sq = euclidean_distances(
+    #     centers[0, np.newaxis], X, Y_norm_squared=x_squared_norms,
+    #     squared=True)
+    closest_dist_sq = euclidean_distances(
+        X, centers[0, np.newaxis],
+        X_norm_squared=x_squared_norms.reshape(-1, 1),
+        squared=True).reshape(-1)
+    current_pot = closest_dist_sq.sum()
+
+    # Pick the remaining n_clusters-1 points
+    for c in range(1, n_clusters):
+        # Choose center candidates by sampling with probability proportional
+        # to the squared distance to the closest existing center
+
+        # rand_vals = random_state.random_sample(n_local_trials) * current_pot
+        # candidate_ids = np.searchsorted(stable_cumsum(closest_dist_sq),
+                                        # rand_vals)
+        if current_pot > 0:
+            p = closest_dist_sq / current_pot
+        else:
+            p = np.ones_like(closest_dist_sq) / n_samples
+        candidate_ids = random_state.choice(np.arange(n_samples),
+                                            size=n_local_trials,
+                                            p=p)
+
+        # Compute distances to center candidates
+        # distance_to_candidates = euclidean_distances(
+        #     X[candidate_ids], X, Y_norm_squared=x_squared_norms, squared=True)
+        distance_to_candidates = euclidean_distances(
+            X, X[candidate_ids], X_norm_squared=x_squared_norms.reshape(-1, 1), squared=True)
+
+        # # Decide which candidate is the best
+        # best_candidate = None
+        # best_pot = None
+        # best_dist_sq = None
+        # for trial in range(n_local_trials):
+        #     # Compute potential when including center candidate
+        #     new_dist_sq = np.minimum(closest_dist_sq,
+        #                              distance_to_candidates[trial])
+        #     new_pot = new_dist_sq.sum()
+
+        #     # Store result if it is the best local trial so far
+        #     if (best_candidate is None) or (new_pot < best_pot):
+        #         best_candidate = candidate_ids[trial]
+        #         best_pot = new_pot
+        #         best_dist_sq = new_dist_sq
+        best_candidate_id, current_pot = _find_best_candidate(
+            closest_dist_sq, distance_to_candidates)
+        best_candidate = candidate_ids[best_candidate_id]
+
+        # Permanently add best center candidate found in local tries
+        if sp.issparse(X):
+            centers[c] = X[best_candidate].toarray()
+        else:
+            centers[c] = X[best_candidate]
+
+    return centers
+
+
+def _k_init_old(X, n_clusters, x_squared_norms, random_state, n_local_trials=None):
+    """Init n_clusters seeds according to k-means++
+
+    Parameters
+    ----------
+    X : array or sparse matrix, shape (n_samples, n_features)
+        The data to pick seeds for. To avoid memory copy, the input data
+        should be double precision (dtype=np.float64).
+
+    n_clusters : integer
+        The number of seeds to choose
+
+    x_squared_norms : array, shape (n_samples,)
+        Squared Euclidean norm of each data point.
+
+    random_state : int, RandomState instance
+        The generator used to initialize the centers. Use an int to make the
+        randomness deterministic.
+        See :term:`Glossary <random_state>`.
+
+    n_local_trials : integer or None (default=None)
+        The number of seeding trials for each center (except the first),
+        of which the one reducing inertia the most is greedily chosen.
+        Set to None to make the number of trials depend logarithmically
+        on the number of seeds (2+log(k)); this is the default.
+
+    Notes
+    -----
+    Selects initial cluster centers for k-mean clustering in a smart way
+    to speed up convergence. see: Arthur, D. and Vassilvitskii, S.
+    "k-means++: the advantages of careful seeding". ACM-SIAM symposium
+    on Discrete algorithms. 2007
+
+    Version ported from http://www.stanford.edu/~darthur/kMeansppTest.zip,
+    which is the implementation used in the aforementioned paper.
+    """
+    n_samples, n_features = X.shape
+
+    centers = np.empty((n_clusters, n_features), dtype=X.dtype)
+
+    assert x_squared_norms is not None, 'x_squared_norms None in _k_init'
+
+    # Set the number of local seeding trials if none is given
+    if n_local_trials is None:
+        # This is what Arthur/Vassilvitskii tried, but did not report
+        # specific results for other than mentioning in the conclusion
+        # that it helped.
+        n_local_trials = 2 + int(np.log(n_clusters))
+
+    # Pick first center randomly
+    center_id = random_state.randint(n_samples)
+    if sp.issparse(X):
+        centers[0] = X[center_id].toarray()
+    else:
+        centers[0] = X[center_id]
+
+    # Initialize list of closest distances and calculate current potential
+    closest_dist_sq = euclidean_distances(
+        centers[0, np.newaxis], X, Y_norm_squared=x_squared_norms,
+        squared=True)
+    current_pot = closest_dist_sq.sum()
+
+    # Pick the remaining n_clusters-1 points
+    for c in range(1, n_clusters):
+        # Choose center candidates by sampling with probability proportional
+        # to the squared distance to the closest existing center
+        rand_vals = random_state.random_sample(n_local_trials) * current_pot
+        candidate_ids = np.searchsorted(stable_cumsum(closest_dist_sq),
+                                        rand_vals)
+
+        # Compute distances to center candidates
+        distance_to_candidates = euclidean_distances(
+            X[candidate_ids], X, Y_norm_squared=x_squared_norms, squared=True)
+
+        # Decide which candidate is the best
+        # best_candidate = None
+        # best_pot = None
+        # best_dist_sq = None
+        # for trial in range(n_local_trials):
+        #     # Compute potential when including center candidate
+        #     new_dist_sq = np.minimum(closest_dist_sq,
+        #                              distance_to_candidates[trial])
+        #     new_pot = new_dist_sq.sum()
+
+        #     # Store result if it is the best local trial so far
+        #     if (best_candidate is None) or (new_pot < best_pot):
+        #         best_candidate = candidate_ids[trial]
+        #         best_pot = new_pot
+        #         best_dist_sq = new_dist_sq
+
+        candidates_closest_dist_sq = np.minimum(closest_dist_sq,
+                                                distance_to_candidates)
+        candidates_pot = candidates_closest_dist_sq.sum(axis=1)
+        best_candidate = np.argmin(candidates_pot)
+        current_pot = candidates_pot[best_candidate]
+        closest_dist_sq = candidates_closest_dist_sq[best_candidate]
+        best_candidate = candidate_ids[best_candidate]
+
+        # Permanently add best center candidate found in local tries
+        if sp.issparse(X):
+            centers[c] = X[best_candidate].toarray()
+        else:
+            centers[c] = X[best_candidate]
+
+    return centers
+
+
+def _k_init_old_old(X, n_clusters, x_squared_norms, random_state, n_local_trials=None):
     """Init n_clusters seeds according to k-means++
 
     Parameters
@@ -143,6 +377,54 @@ def _k_init(X, n_clusters, x_squared_norms, random_state, n_local_trials=None):
         closest_dist_sq = best_dist_sq
 
     return centers
+
+
+
+
+
+
+
+
+def _k_means_parallel(X, n_clusters, xx, k):
+    n_samples = X.shape[0]
+
+    # pick first cluster
+    center_ids = np.random.randint(n_samples, size=1)
+
+    # initial cost
+    min_dists = euclidean_distances(X[center_ids], X, Y_norm_squared=xx,
+                                    squared=True).reshape(-1)
+    phi = min_dists.sum()
+
+    max_iter = min(np.log(phi), 5)
+    oversampling_factor = k * n_clusters
+
+    n_iter = 0
+    while True:
+        n_iter += 1
+
+        probas = oversampling_factor * min_dists / phi
+        rand_vals = np.random.random_sample(n_samples)
+        new_ids = np.where(rand_vals < probas)[0]
+        if new_ids.size == 0:
+            # no center added this round. Go next round
+            continue
+
+        # guaranteed no duplicates: proba=0 to pick a point already in C
+        center_ids = np.concatenate((center_ids, new_ids))
+
+        if len(center_ids) >= n_clusters and n_iter >= max_iter:
+            break
+
+        new_dists = euclidean_distances(X[new_ids], X,
+                                        Y_norm_squared=xx, squared=True)
+        min_dists = np.minimum(min_dists, new_dists.min(axis=0))
+        phi = min_dists.sum()
+
+    xx_ = row_norms(X[center_ids], squared=True)
+    centers = _k_init(X[center_ids], n_clusters, xx_, np.random.RandomState(0))
+
+    return centers, n_iter
 
 
 ###############################################################################
@@ -371,19 +653,19 @@ def k_means(X, n_clusters, sample_weight=None, init='k-means++',
     if n_jobs is None:
         n_jobs = 1
 
-    with thread_limits_context(limits=1, subset="blas"):
-        for seed in seeds:
-            # run a k-means once
-            labels, inertia, centers, n_iter_ = kmeans_single(
-                X, sample_weight, n_clusters, max_iter=max_iter, init=init,
-                verbose=verbose, tol=tol, x_squared_norms=x_squared_norms,
-                random_state=seed, n_jobs=n_jobs)
-            # determine if these results are the best so far
-            if best_inertia is None or inertia < best_inertia:
-                best_labels = labels.copy()
-                best_centers = centers.copy()
-                best_inertia = inertia
-                best_n_iter = n_iter_
+    # with thread_limits_context(limits=1, subset="blas"):
+    for seed in seeds:
+        # run a k-means once
+        labels, inertia, centers, n_iter_ = kmeans_single(
+            X, sample_weight, n_clusters, max_iter=max_iter, init=init,
+            verbose=verbose, tol=tol, x_squared_norms=x_squared_norms,
+            random_state=seed, n_jobs=n_jobs)
+        # determine if these results are the best so far
+        if best_inertia is None or inertia < best_inertia:
+            best_labels = labels.copy()
+            best_centers = centers.copy()
+            best_inertia = inertia
+            best_n_iter = n_iter_
 
     if not sp.issparse(X):
         if not copy_x:
