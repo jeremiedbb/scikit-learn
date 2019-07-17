@@ -363,25 +363,21 @@ def _find_best_candidate(floating[::1] closest_dist_sq,
                          floating[:, ::1] distance_to_candidates):
     cdef:
         int n_samples = closest_dist_sq.shape[0]
-        int n_candidates = distance_to_candidates.shape[1]
+        int n_candidates = distance_to_candidates.shape[0]
         int i, j
         int best_candidate
-        dtype = np.float32 if floating is float else np.float64
-        new_pot = np.zeros(n_candidates, dtype=dtype)
-        floating[::1] new_pot_view = new_pot
 
     with nogil:
-        for i in prange(n_samples):
-            for j in range(n_candidates):
-                distance_to_candidates[i, j] = fmin(
-                    distance_to_candidates[i, j], closest_dist_sq[i])
-        
         for i in prange(n_candidates):
             for j in range(n_samples):
-                new_pot_view[i] += distance_to_candidates[j, i]
+                distance_to_candidates[i, j] = fmin(
+                    distance_to_candidates[i, j], closest_dist_sq[j])
 
-    best_candidate = np.argmin(new_pot)
+    distance_to_candidates_arr = np.asarray(distance_to_candidates)
+    all_pot = distance_to_candidates_arr.sum(axis=1)
+    best_candidate = np.argmin(all_pot)
+
     for i in range(n_samples):
-        closest_dist_sq[i] = distance_to_candidates[i, best_candidate]
+        closest_dist_sq[i] = distance_to_candidates[best_candidate, i]
 
-    return best_candidate, new_pot[best_candidate]
+    return best_candidate, all_pot[best_candidate]

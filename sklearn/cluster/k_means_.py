@@ -116,8 +116,8 @@ def _k_init(X, n_clusters, x_squared_norms, random_state, n_local_trials=None,
     #     centers[0, np.newaxis], X, Y_norm_squared=x_squared_norms,
     #     squared=True)
     closest_dist_sq = euclidean_distances(
-        X, centers[0, np.newaxis],
-        X_norm_squared=x_squared_norms.reshape(-1, 1),
+        centers[0, np.newaxis], X,
+        Y_norm_squared=x_squared_norms,
         squared=True).reshape(-1)
     current_pot = closest_dist_sq.sum()
 
@@ -141,7 +141,7 @@ def _k_init(X, n_clusters, x_squared_norms, random_state, n_local_trials=None,
         # distance_to_candidates = euclidean_distances(
         #     X[candidate_ids], X, Y_norm_squared=x_squared_norms, squared=True)
         distance_to_candidates = euclidean_distances(
-            X, X[candidate_ids], X_norm_squared=x_squared_norms.reshape(-1, 1), squared=True)
+            X[candidate_ids], X, Y_norm_squared=x_squared_norms, squared=True)
 
         # # Decide which candidate is the best
         # best_candidate = None
