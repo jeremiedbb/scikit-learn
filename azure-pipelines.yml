@@ -38,6 +38,20 @@ jobs:
         CHECK_PYTEST_SOFT_DEPENDENCY: 'true'
         TEST_DOCSTRINGS: 'true'
         CHECK_WARNINGS: 'true'
+      py35_conda_mkl:
+        DISTRIB: 'conda'
+        PYTHON_VERSION: '3.5'
+        INSTALL_MKL: 'true'
+        NUMPY_VERSION: '*'
+        SCIPY_VERSION: '*'
+        PANDAS_VERSION: '*'
+        CYTHON_VERSION: '*'
+        PYTEST_VERSION: '*'
+        PILLOW_VERSION: '4.0.0'
+        MATPLOTLIB_VERSION: '1.5.1'
+        # later version of joblib are not packaged in conda for Python 3.5
+        JOBLIB_VERSION: '0.12.3'
+        COVERAGE: 'true'
 
 - template: build_tools/azure/posix-32.yml
   parameters:
