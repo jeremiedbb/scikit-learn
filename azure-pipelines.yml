@@ -40,7 +40,7 @@ jobs:
         CHECK_WARNINGS: 'true'
       py35_conda_mkl:
         DISTRIB: 'conda'
-        PYTHON_VERSION: '3.5'
+        PYTHON_VERSION: '*'
         INSTALL_MKL: 'true'
         NUMPY_VERSION: '*'
         SCIPY_VERSION: '*'
