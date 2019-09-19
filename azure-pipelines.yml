@@ -38,7 +38,7 @@ jobs:
         CHECK_PYTEST_SOFT_DEPENDENCY: 'true'
         TEST_DOCSTRINGS: 'true'
         CHECK_WARNINGS: 'true'
-      py35_conda_mkl:
+      py37_conda_mkl:
         DISTRIB: 'conda'
         PYTHON_VERSION: '*'
         INSTALL_MKL: 'true'
