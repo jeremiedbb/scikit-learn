@@ -774,7 +774,8 @@ def manhattan_distances(X, Y=None, sum_over_features=True):
         return D
 
     if sum_over_features:
-        D = np.empty(shape=(X.shape[0], Y.shape[0]))
+        # return distance.cdist(X, Y, metric='cityblock')
+        D = np.empty((X.shape[0], Y.shape[0]), dtype=X.dtype)
         _dense_manhattan(X, Y, D)
         return D
 
