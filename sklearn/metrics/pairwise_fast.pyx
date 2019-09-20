@@ -111,7 +111,7 @@ def _dense_manhattan(floating[:, :] X, floating[:, :] Y, floating[:, :] out):
 
     for i in prange(n_samples_x, nogil=True):
         for j in range(n_samples_y):
-            out[i, j] = _manhattan_1d(&X[i, 0], &Y[j, 0], n_features)
+            out[i, j] = _dense_manhattan_1d(&X[i, 0], &Y[j, 0], n_features)
 
 cdef floating _dense_manhattan_1d(floating *x, floating *y,
                                   int n_features) nogil:
