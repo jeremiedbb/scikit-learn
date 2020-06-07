@@ -48,13 +48,13 @@ def get_from_config():
         if not os.path.exists(save_path):
             os.mkdir(save_path)
 
-    base_folder = os.getenv('SKLBENCH_BASE_FOLDER', config['base_folder'])
+    base_commit = os.getenv('SKLBENCH_BASE_COMMIT', config['base_commit'])
 
     bench_predict = os.getenv('SKLBENCH_PREDICT', config['bench_predict'])
     bench_transform = os.getenv('SKLBENCH_TRANSFORM',
                                 config['bench_transform'])
 
-    return (profile, n_jobs_vals, save_estimators, save_folder, base_folder,
+    return (profile, n_jobs_vals, save_estimators, save_folder, base_commit,
             bench_predict, bench_transform)
 
 
@@ -91,7 +91,7 @@ class Benchmark(ABC):
     processes = 1
     timeout = 500
 
-    (profile, n_jobs_vals, save_estimators, save_folder, base_folder,
+    (profile, n_jobs_vals, save_estimators, save_folder, base_commit,
      bench_predict, bench_transform) = get_from_config()
 
     if profile == 'fast':
@@ -198,9 +198,9 @@ class Predictor(ABC):
         def peakmem_predict(self, *args):
             self.estimator.predict(self.X)
 
-        if Benchmark.base_folder is not None:
+        if Benchmark.base_commit is not None:
             def track_same_prediction(self, *args):
-                file_path = get_estimator_path(self, Benchmark.base_folder,
+                file_path = get_estimator_path(self, Benchmark.base_commit,
                                                args, True)
                 with open(file_path, 'rb') as f:
                     estimator_base = pickle.load(f)
@@ -226,9 +226,9 @@ class Transformer(ABC):
         def peakmem_transform(self, *args):
             self.estimator.transform(self.X)
 
-        if Benchmark.base_folder is not None:
+        if Benchmark.base_commit is not None:
             def track_same_transform(self, *args):
-                file_path = get_estimator_path(self, Benchmark.base_folder,
+                file_path = get_estimator_path(self, Benchmark.base_commit,
                                                args, True)
                 with open(file_path, 'rb') as f:
                     estimator_base = pickle.load(f)

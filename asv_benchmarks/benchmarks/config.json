@@ -21,8 +21,8 @@
 
     // Commit hash to compare estimator predictions with.
     // If null, predictions are not compared.
-    // Can be overriden by environment variable SKLBENCH_BASE_FOLDER.
-    "base_folder": null,
+    // Can be overriden by environment variable SKLBENCH_BASE_COMMIT.
+    "base_commit": null,
 
     // If false, the predict (resp. transform) method of the estimators won't
     // be benchmarked.
