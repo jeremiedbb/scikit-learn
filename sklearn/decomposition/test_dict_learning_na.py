@@ -41,6 +41,9 @@ def test_dict_learning_na():
     code, dict_, loss = dict_learning_na(X_na, n_components = 8, alpha = .0001)
     # assert_array_almost_equal(np.dot(code, dict_), X, decimal=2)
 
+    code, dict_, loss = dict_learning_na(X, n_components = 18, alpha = .0001)
+    assert_array_almost_equal(np.dot(code, dict_), X, decimal=2)
+
 
 rng_global = np.random.RandomState(0)
 n_samples, n_features = 10, 8
