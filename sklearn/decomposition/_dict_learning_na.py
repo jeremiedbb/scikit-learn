@@ -97,6 +97,7 @@ def dict_learning_na(X, n_components=12, alpha=1, ro = .01,
     
     n_samples, n_feat = X.shape
     
+    X = np.nan_to_num(X)
     code, S, dictionary = linalg.svd(X, full_matrices=False)
     dictionary = S[:, np.newaxis] * dictionary
     

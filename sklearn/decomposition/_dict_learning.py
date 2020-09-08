@@ -29,91 +29,6 @@ def _check_positive_coding(method, positive):
             )
 
 
-def _sparse_encode_nan(X, dictionary, gram, cov=None, algorithm='lasso_lars',
-                   regularization=None, copy_cov=True,
-                   init=None, max_iter=1000, check_input=True, verbose=0,
-                   positive=False):
-    
-    if X.ndim == 1:
-        X = X[:, np.newaxis]
-    n_samples, n_features = X.shape
-    n_components = dictionary.shape[0]
-    if dictionary.shape[1] != X.shape[1]:
-        raise ValueError("Dictionary and X have different numbers of features:"
-                         "dictionary.shape: {} X.shape{}".format(
-                             dictionary.shape, X.shape))
-    if cov is None and algorithm != 'lasso_cd':
-        # overwriting cov is safe
-        copy_cov = False
-        cov = np.dot(dictionary, X.T)
-
-    _check_positive_coding(algorithm, positive)
-
-    if algorithm == 'lasso_lars':
-        alpha = float(regularization) / n_features  # account for scaling
-        try:
-            err_mgt = np.seterr(all='ignore')
-
-            # Not passing in verbose=max(0, verbose-1) because Lars.fit already
-            # corrects the verbosity level.
-            lasso_lars = LassoLars(alpha=alpha, fit_intercept=False,
-                                   verbose=verbose, normalize=False,
-                                   precompute=gram, fit_path=False,
-                                   positive=positive, max_iter=max_iter)
-            lasso_lars.fit(dictionary.T, X.T, Xy=cov)
-            new_code = lasso_lars.coef_
-        finally:
-            np.seterr(**err_mgt)
-
-    elif algorithm == 'lasso_cd':
-        alpha = float(regularization) / n_features  # account for scaling
-
-        # TODO: Make verbosity argument for Lasso?
-        # sklearn.linear_model.coordinate_descent.enet_path has a verbosity
-        # argument that we could pass in from Lasso.
-        clf = Lasso(alpha=alpha, fit_intercept=False, normalize=False,
-                    precompute=gram, max_iter=max_iter, warm_start=True,
-                    positive=positive)
-
-        if init is not None:
-            clf.coef_ = init
-
-        clf.fit(dictionary.T, X.T, check_input=check_input)
-        new_code = clf.coef_
-
-    elif algorithm == 'lars':
-        try:
-            err_mgt = np.seterr(all='ignore')
-
-            # Not passing in verbose=max(0, verbose-1) because Lars.fit already
-            # corrects the verbosity level.
-            lars = Lars(fit_intercept=False, verbose=verbose, normalize=False,
-                        precompute=gram, n_nonzero_coefs=int(regularization),
-                        fit_path=False)
-            lars.fit(dictionary.T, X.T, Xy=cov)
-            new_code = lars.coef_
-        finally:
-            np.seterr(**err_mgt)
-
-    elif algorithm == 'threshold':
-        new_code = ((np.sign(cov) *
-                    np.maximum(np.abs(cov) - regularization, 0)).T)
-        if positive:
-            np.clip(new_code, 0, None, out=new_code)
-
-    elif algorithm == 'omp':
-        new_code = orthogonal_mp_gram(
-            Gram=gram, Xy=cov, n_nonzero_coefs=int(regularization),
-            tol=None, norms_squared=row_norms(X, squared=True),
-            copy_Xy=copy_cov).T
-    else:
-        raise ValueError('Sparse coding method must be "lasso_lars" '
-                         '"lasso_cd", "lasso", "threshold" or "omp", got %s.'
-                         % algorithm)
-    if new_code.ndim != 2:
-        return new_code.reshape(n_samples, n_components)
-    return new_code
-
 def _sparse_encode(X, dictionary, gram, cov=None, algorithm='lasso_lars',
                    regularization=None, copy_cov=True,
                    init=None, max_iter=1000, check_input=True, verbose=0,
@@ -178,7 +93,7 @@ def _sparse_encode(X, dictionary, gram, cov=None, algorithm='lasso_lars',
 
     Returns
     -------
-    code : array of shape (n_samples, n_features)
+    code : array of shape (n_samples, n_components)
         The sparse codes
 
     See also
