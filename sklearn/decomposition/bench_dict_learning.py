@@ -117,7 +117,9 @@ def bench_sparse_encode(n_samples = 100, n_features=50, n_iter = 10):
     plt.title('sparse encode')
     plt.ylabel('time (s)')
 
-
-bench_sparse_encode()
-bench_dict_learning()
-bench_loss()
+if __name__ == '__main__':
+    bench_sparse_encode()
+    plt.figure()
+    bench_dict_learning()
+    plt.figure()
+    bench_loss()
