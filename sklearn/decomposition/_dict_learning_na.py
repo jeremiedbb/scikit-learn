@@ -74,20 +74,28 @@ def update_dict_na(C, B, e, D, code, Delta, Td = 50):
     assert len(code.shape) == 1
 
     e_temp = e.copy()
-    for td in range(Td):
+    for td in range(Td):        
+        for j in range(len(e)):      
+            D_code = np.dot(D, code)
+            Delta_D_code = np.dot(Delta, D_code)  
+            e_temp[j] = e[j] + code[j] * Delta_D_code
 
-        for j in range(len(e)):
-                D_code = np.dot(D, code)
-                e_temp[j] = e[j] + code[j] * np.dot(Delta, D_code)
-
-        right_part = B[:,j] - e_temp[j] + np.dot(C[j], D[:,j])
-        
-        #FIXME LinalgError if rank(X) < n_components
-        try:
-            u_j = linalg.solve(C[j], right_part)  
-        except np.linalg.LinAlgError:
-            raise
-        D[:, j] = u_j / linalg.norm(D[:, j], ord= 2)
+            right_part = B[:,j] - e_temp[j] + np.dot(C[j], D[:,j])
+            
+            #FIXME LinalgError if rank(X) < n_components
+            if np.max(np.abs(C[j])) == 0:
+                # if C[j] is 0, assign random weight to u_j...
+                print(j, td, 'C_j ==0, use uj = randn')
+                u_j = np.random.randn(D[:, j].shape[0])
+            else:
+                try:
+                    u_j = linalg.solve(C[j], right_part)  
+                except np.linalg.LinAlgError:
+                    # if C[j] is singular, assign random weight to u_j...
+                    print(j, td, 'C_j Singular, use uj = randn')
+                    u_j = np.ones(D[:, j].shape[0])
+                    # raise
+            D[:, j] = u_j / linalg.norm(u_j, ord= 2)
 
     return D
 
