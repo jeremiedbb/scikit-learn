@@ -92,7 +92,7 @@ def update_dict_na(C, B, e, D, code, Delta, Td = 50):
                     u_j = linalg.solve(C[j], right_part)  
                 except np.linalg.LinAlgError:
                     # if C[j] is singular, assign random weight to u_j...
-                    # print(j, td, 'C_j Singular, use uj = randn')
+                    print(j, td, 'C_j Singular, use uj = 1')
                     u_j = np.ones(D[:, j].shape[0])
                     # raise
             D[:, j] = u_j / linalg.norm(u_j, ord= 2)
@@ -123,6 +123,7 @@ def dict_learning_na(X, n_components=12, alpha=1, ro = .01,
     assert D.shape == (n_feat, n_components)
     assert code.shape == (n_samples, n_components)
     
+    
     # init:
     C = []
     e = []
@@ -142,8 +143,12 @@ def dict_learning_na(X, n_components=12, alpha=1, ro = .01,
         code[ii] = this_code
         
         C, B, e = update1(x, D, this_code, C, B, e, Delta, t, ro)
+        assert C[j].shape == (n_feat, n_feat)
+        assert B.shape == (n_feat, n_components)
+
         D = update_dict_na(C, B, e, D, this_code, Delta)
-        
+        assert D.shape == (n_feat, n_components)
+
         #update2
         D_code = np.dot(D, this_code)
         Delta_D_code = np.dot(Delta, D_code)
@@ -152,4 +157,5 @@ def dict_learning_na(X, n_components=12, alpha=1, ro = .01,
         
         loss.append(np.mean(np.abs(X - np.dot(code, D.T))))
 
-    return code, D, loss
+
+    return code, D.T, loss
