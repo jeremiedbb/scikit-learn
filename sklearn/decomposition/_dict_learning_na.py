@@ -43,7 +43,6 @@ def sparse_encode_na(X, dictionary, alpha=1):
 
         code_nan.append(curr_code_nan)
 
-    
     return np.vstack(code_nan)
 
 
@@ -55,6 +54,7 @@ def update1(x, D, code, C, B, e, Delta, t, ro):
 
     gamma = (1 - 1/t)**ro
     
+    # dot product between x and code
     x_code =  np.zeros((len(x), len(code)))
     for i in range(len(x)):
         for j in range(len(code)):
@@ -65,8 +65,8 @@ def update1(x, D, code, C, B, e, Delta, t, ro):
     for j in range(len(C)):
         code_square = code[j]**2
         C[j] = gamma * C[j] + code_square * Delta
-        
-        
+        e[j] = gamma * e[j]
+    
     return C, B, e
 
 def update_dict_na(C, B, e, D, code, Delta, Td = 50):
@@ -77,7 +77,7 @@ def update_dict_na(C, B, e, D, code, Delta, Td = 50):
     for td in range(Td):        
         for j in range(len(e)):      
             D_code = np.dot(D, code)
-            Delta_D_code = np.dot(Delta, D_code)  
+            Delta_D_code = np.dot(Delta, D_code)
             e_temp[j] = e[j] + code[j] * Delta_D_code
 
             right_part = B[:,j] - e_temp[j] + np.dot(C[j], D[:,j])
@@ -85,14 +85,14 @@ def update_dict_na(C, B, e, D, code, Delta, Td = 50):
             #FIXME LinalgError if rank(X) < n_components
             if np.max(np.abs(C[j])) == 0:
                 # if C[j] is 0, assign random weight to u_j...
-                print(j, td, 'C_j ==0, use uj = randn')
+                # print(j, td, 'C_j ==0, use uj = randn')
                 u_j = np.random.randn(D[:, j].shape[0])
             else:
                 try:
                     u_j = linalg.solve(C[j], right_part)  
                 except np.linalg.LinAlgError:
                     # if C[j] is singular, assign random weight to u_j...
-                    print(j, td, 'C_j Singular, use uj = randn')
+                    # print(j, td, 'C_j Singular, use uj = randn')
                     u_j = np.ones(D[:, j].shape[0])
                     # raise
             D[:, j] = u_j / linalg.norm(u_j, ord= 2)
@@ -105,8 +105,8 @@ def dict_learning_na(X, n_components=12, alpha=1, ro = .01,
     
     n_samples, n_feat = X.shape
     
-    X = np.nan_to_num(X)
-    code, S, dictionary = linalg.svd(X, full_matrices=False)
+    X_init = np.nan_to_num(X)
+    code, S, dictionary = linalg.svd(X_init, full_matrices=False)
     dictionary = S[:, np.newaxis] * dictionary
     
     r = len(dictionary)
@@ -145,9 +145,10 @@ def dict_learning_na(X, n_components=12, alpha=1, ro = .01,
         D = update_dict_na(C, B, e, D, this_code, Delta)
         
         #update2
-        for j in range(len(e)):
-            D_code = np.dot(D, this_code)
-            e[j] = e[j] + this_code[j] * np.dot(Delta, D_code)
+        D_code = np.dot(D, this_code)
+        Delta_D_code = np.dot(Delta, D_code)
+        for j in range(len(e)):    
+            e[j] = e[j] + this_code[j] * Delta_D_code
         
         loss.append(np.mean(np.abs(X - np.dot(code, D.T))))
 

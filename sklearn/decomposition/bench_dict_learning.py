@@ -42,7 +42,7 @@ def bench_loss(n_samples = 50, n_features = 25,
     X_na[1,1] = np.nan
 
     for ro in [0, .01, .1, .4]:
-        code_na, D, loss = dict_learning_na(X_na, n_components = n_components,
+        code_na, D, loss = dict_learning_na(X, n_components = n_components,
                                             alpha=0.00001, ro = ro)
         plt.plot(loss, label = str(ro))
 
