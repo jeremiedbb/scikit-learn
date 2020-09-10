@@ -54,7 +54,7 @@ def bench_loss(n_samples = 50, n_features = 25,
     plt.legend()
     plt.title('loss for dict learning na')
     plt.ylabel('loss')
-    plt.ylim((min(loss)*.8, max(loss)*1.3))
+    plt.ylim((min(loss_sklearn)*.8, max(loss_sklearn)*1.3))
     # plt.yscale('log')
     # plt.xscale('log')
 

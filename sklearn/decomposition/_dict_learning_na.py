@@ -87,8 +87,8 @@ def update_dict_na(C, B, e, D, code, Delta, Td = 5):
             if np.max(np.abs(C[j])) == 0:
                 # if C[j] is 0, assign random weight to u_j...
                 # print(j, td, 'C_j ==0, use uj = randn')
-                u_j = np.random.randn(D[:, j].shape[0])
-                # u_j = D[:, j]
+                # u_j = np.random.randn(D[:, j].shape[0])
+                u_j = D[:, j]
             else:
                 try:
                     u_j = linalg.solve(C[j], right_part)  
