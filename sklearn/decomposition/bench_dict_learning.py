@@ -26,34 +26,37 @@ X_na[0,0] = np.nan
 X_na[1,1] = np.nan
 
 n_components = 11
-code, dict_ = dict_learning_online(X, n_components = n_components,
+code, dict_, loss_sklearn = dict_learning_online(X, n_components = n_components,
                                    alpha = .0001)
 
 def bench_loss(n_samples = 50, n_features = 25,
-               rank = 12, n_components = 11):
+               rank = 12, n_components = 11, alpha = 1):
 
 
     U = np.random.randn(n_samples, rank)
     V = np.random.randn(rank, n_features)
-    X = np.dot(U, V)
+    X = np.dot(U, V) + 77
 
     X_na = X.copy()
     X_na[0,0] = np.nan
     X_na[1,1] = np.nan
 
-    for ro in [0, .01, .1, .4]:
+    for ro in [1, 2, 5, 32]:
         code_na, D, loss = dict_learning_na(X, n_components = n_components,
-                                            alpha=0.00001, ro = ro)
+                                            alpha=alpha, ro = ro)
         plt.plot(loss, label = str(ro))
 
-    code, D = dict_learning_online(X, n_components = n_components,
-                                            alpha=0.00001)
+    code, D, loss_sklearn = dict_learning_online(X, n_components = n_components,
+                                            alpha=alpha, batch_size=1, n_iter=150)
 
-    loss_sklearn = np.mean(np.abs(X - np.dot(code, D)))
-    plt.plot([loss_sklearn]*210, label = 'sklearn')
+    # loss_sklearn = np.mean(np.abs(X - np.dot(code, D)))
+    plt.plot(loss_sklearn, '*', label = 'sklearn', ms = 7)
     plt.legend()
     plt.title('loss for dict learning na')
     plt.ylabel('loss')
+    plt.ylim((min(loss)*.8, max(loss)*1.3))
+    # plt.yscale('log')
+    # plt.xscale('log')
 
 def bench_dict_learning():
     

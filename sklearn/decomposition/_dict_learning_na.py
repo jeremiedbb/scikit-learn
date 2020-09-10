@@ -21,6 +21,7 @@ from ..utils.validation import check_is_fitted
 from ..linear_model import Lasso, orthogonal_mp_gram, LassoLars, Lars
 
 from sklearn.decomposition import sparse_encode
+from sklearn.decomposition._dict_learning import get_loss
 
 
 def sparse_encode_na(X, dictionary, alpha=1):
@@ -69,7 +70,7 @@ def update1(x, D, code, C, B, e, Delta, t, ro):
     
     return C, B, e
 
-def update_dict_na(C, B, e, D, code, Delta, Td = 50):
+def update_dict_na(C, B, e, D, code, Delta, Td = 5):
 
     assert len(code.shape) == 1
 
@@ -87,6 +88,7 @@ def update_dict_na(C, B, e, D, code, Delta, Td = 50):
                 # if C[j] is 0, assign random weight to u_j...
                 # print(j, td, 'C_j ==0, use uj = randn')
                 u_j = np.random.randn(D[:, j].shape[0])
+                # u_j = D[:, j]
             else:
                 try:
                     u_j = linalg.solve(C[j], right_part)  
@@ -94,7 +96,7 @@ def update_dict_na(C, B, e, D, code, Delta, Td = 50):
                     # if C[j] is singular, assign random weight to u_j...
                     print(j, td, 'C_j Singular, use uj = 1')
                     u_j = np.ones(D[:, j].shape[0])
-                    # raise
+                    raise
             D[:, j] = u_j / linalg.norm(u_j, ord= 2)
 
     return D
@@ -118,7 +120,6 @@ def dict_learning_na(X, n_components=12, alpha=1, ro = .01,
         dictionary = np.r_[dictionary,
                            np.zeros((n_components - r, dictionary.shape[1]))]
 
-        
     D = dictionary.T
     assert D.shape == (n_feat, n_components)
     assert code.shape == (n_samples, n_components)
@@ -133,6 +134,7 @@ def dict_learning_na(X, n_components=12, alpha=1, ro = .01,
     B = np.zeros((n_feat, n_components))
     
     loss = [] # recod loss
+    loss.append(get_loss(X, code, D.T, alpha))
     for t in range(1, T):
         ii = t%n_samples
         x = X[ii] 
@@ -140,12 +142,13 @@ def dict_learning_na(X, n_components=12, alpha=1, ro = .01,
         
         this_code = sparse_encode_na(x, D.T, alpha)
         this_code = this_code[0] # working with batch 1 (and vector)
-        code[ii] = this_code
+        
         
         C, B, e = update1(x, D, this_code, C, B, e, Delta, t, ro)
         assert C[j].shape == (n_feat, n_feat)
         assert B.shape == (n_feat, n_components)
 
+        # print(C)
         D = update_dict_na(C, B, e, D, this_code, Delta)
         assert D.shape == (n_feat, n_components)
 
@@ -155,7 +158,7 @@ def dict_learning_na(X, n_components=12, alpha=1, ro = .01,
         for j in range(len(e)):    
             e[j] = e[j] + this_code[j] * Delta_D_code
         
-        loss.append(np.mean(np.abs(X - np.dot(code, D.T))))
-
+        code = sparse_encode_na(X, D.T, alpha)
+        loss.append(get_loss(X, code, D.T, alpha))
 
     return code, D.T, loss

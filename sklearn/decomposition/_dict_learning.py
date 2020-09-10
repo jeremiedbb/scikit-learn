@@ -20,6 +20,8 @@ from ..utils.extmath import randomized_svd, row_norms
 from ..utils.validation import check_is_fitted
 from ..linear_model import Lasso, orthogonal_mp_gram, LassoLars, Lars
 
+def get_loss(X, code, dictionary, alpha):
+    return .5*np.mean((X-np.dot(code, dictionary))**2) + alpha * np.mean(np.abs(code))
 
 def _check_positive_coding(method, positive):
     if positive and method in ["omp", "lars"]:
@@ -573,6 +575,8 @@ def dict_learning(X, n_components, alpha, max_iter=100, tol=1e-8,
     # If max_iter is 0, number of iterations returned should be zero
     ii = -1
 
+    loss = []
+    loss.append(get_loss(X, code, dictionary, alpha))
     for ii in range(max_iter):
         dt = (time.time() - t0)
         if verbose == 1:
@@ -594,6 +598,7 @@ def dict_learning(X, n_components, alpha, max_iter=100, tol=1e-8,
                                              positive=positive_dict)
         dictionary = dictionary.T
 
+
         # Cost function
         current_cost = 0.5 * residuals + alpha * np.sum(np.abs(code))
         errors.append(current_cost)
@@ -614,7 +619,8 @@ def dict_learning(X, n_components, alpha, max_iter=100, tol=1e-8,
     if return_n_iter:
         return code, dictionary, errors, ii + 1
     else:
-        return code, dictionary, errors
+        loss.append(get_loss(X, code, dictionary, alpha))
+        return code, dictionary, loss
 
 
 def dict_learning_online(X, n_components=2, alpha=1, n_iter=100,
@@ -807,6 +813,12 @@ def dict_learning_online(X, n_components=2, alpha=1, n_iter=100,
     # If n_iter is zero, we need to return zero.
     ii = iter_offset - 1
 
+    loss = []
+    code = sparse_encode(X, dictionary.T, algorithm=method, alpha=alpha,
+                             n_jobs=n_jobs, check_input=False,
+                             positive=positive_code, max_iter=method_max_iter,
+                             verbose=verbose)
+    loss.append(get_loss(X, code, dictionary.T, alpha))
     for ii, batch in zip(range(iter_offset, iter_offset + n_iter), batches):
         this_X = X_train[batch]
         dt = (time.time() - t0)
@@ -842,6 +854,13 @@ def dict_learning_online(X, n_components=2, alpha=1, n_iter=100,
                                   positive=positive_dict)
         # XXX: Can the residuals be of any use?
 
+
+        code = sparse_encode(X, dictionary.T, algorithm=method, alpha=alpha,
+                             n_jobs=n_jobs, check_input=False,
+                             positive=positive_code, max_iter=method_max_iter,
+                             verbose=verbose)
+        loss.append(get_loss(X, code, dictionary.T, alpha))
+        
         # Maybe we need a stopping criteria based on the amount of
         # modification in the dictionary
         if callback is not None:
@@ -867,7 +886,8 @@ def dict_learning_online(X, n_components=2, alpha=1, n_iter=100,
         if return_n_iter:
             return code, dictionary.T, ii - iter_offset + 1
         else:
-            return code, dictionary.T
+            loss.append(get_loss(X, code, dictionary.T, alpha))
+            return code, dictionary.T, loss
 
     if return_n_iter:
         return dictionary.T, ii - iter_offset + 1
