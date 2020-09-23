@@ -43,20 +43,22 @@ def sparse_encode_na(X, observed_mask, dictionary, alpha=1):
     return code_nan
 
 
-def update1(X, code, C, B, e, X_mask, t, ro):
+def update1(X, code, C, B, e, observed_mask, t, ro):
     """Update C, B, e inplace"""
     gamma = (1 - 1/t)**ro
 
     # update B
-    # B <- gamma * B + x_obs . code^T
+    # Bkj <- gamma * Bkj + x_obs_k . code_j^T
     B *= gamma
     B += np.outer(X, code)
 
     # update C
+    # Cjk <- gamma * Cjk + mask_k * code_j²
     C *= gamma
-    C += np.outer(code ** 2, X_mask)
+    C += np.outer(code ** 2, observed_mask)
 
     # update e, part I
+    # e_jk <- gamma * e_jk
     e *= gamma
 
 
@@ -134,6 +136,7 @@ def dict_learning_na(X, n_components=12, alpha=1, ro = .01,
         update_dict_na(C, B, e, D, this_code, observed_mask_minibatch)
 
         # update e, part II
+        # e_jk <- e_jk + mask_k * code_j * (D.code)_k
         D_code = D @ this_code
         e += np.outer(this_code, np.multiply(observed_mask_minibatch, D_code))
 
