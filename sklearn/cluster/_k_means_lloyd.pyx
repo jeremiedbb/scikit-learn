@@ -81,6 +81,7 @@ def lloyd_iter_chunked_dense(
         int n_samples = X.shape[0]
         int n_features = X.shape[1]
         int n_clusters = centers_old.shape[0]
+        int dummy
 
         # hard-coded number of samples per chunk. Appeared to be close to
         # optimal in all situations.
