@@ -56,7 +56,7 @@ from ._k_means_elkan import elkan_iter_chunked_sparse
 
 
 ###############################################################################
-# Initialization heuristic
+# Initialization heuristic !
 
 
 @validate_params(
