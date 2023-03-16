@@ -2,7 +2,7 @@ name: CircleCI artifacts redirector
 on: [status]
 
 # Restrict the permissions granted to the use of secrets.GITHUB_TOKEN in this
-# github actions workflow:
+# github actions workflow:)
 # https://docs.github.com/en/actions/security-guides/automatic-token-authentication
 permissions: read-all
 
