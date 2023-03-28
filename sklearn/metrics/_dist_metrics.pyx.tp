@@ -1113,6 +1113,7 @@ cdef class ManhattanDistance{{name_suffix}}(DistanceMetric{{name_suffix}}):
     """
     def __init__(self):
         self.p = 1
+
     cdef inline DTYPE_t dist(
         self,
         const {{INPUT_DTYPE_t}}* x1,
