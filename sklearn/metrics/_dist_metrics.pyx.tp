@@ -1200,7 +1200,7 @@ cdef class ManhattanDistance{{name_suffix}}(DistanceMetric{{name_suffix}}):
         cdef DTYPE_t d = 0
         cdef cnp.intp_t j, simd_width = 16 / sizeof({{INPUT_DTYPE_t}})
         cdef cnp.intp_t remainder = size % simd_width
-        if HAS_SIMD and sizeof({{INPUT_DTYPE_t}}) == 8:
+        if HAS_SIMD:
             d = <DTYPE_t> simd_manhattan{{name_suffix}}(x1, x2, size)
         else:
             for j in range(size):
