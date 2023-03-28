@@ -47,6 +47,75 @@ cdef inline double fmax(double a, double b) noexcept nogil:
     return max(a, b)
 
 
+cdef extern from *:
+    """
+    #ifdef __SSE3__
+        #define HAS_SIMD 1
+
+        #include <emmintrin.h>
+        #include <xmmintrin.h>
+        #include <pmmintrin.h>
+
+        typedef __m128d simd_float64_t;
+        typedef __m128 simd_float32_t;
+
+        inline simd_float32_t abs_ps(simd_float32_t x) {
+            const simd_float32_t sign_mask = _mm_set1_ps(-0.f); // -0.f = 1 << 31
+            return _mm_andnot_ps(sign_mask, x);
+        }
+
+        // NUMPY VARIANT
+        inline simd_float64_t abs_pd(simd_float64_t x) {
+            // !sign_mask & x where sign_mask = -0. = 1 << 63
+            return _mm_and_pd(
+                x,
+                _mm_castsi128_pd(_mm_set1_epi64x(0x7fffffffffffffffLL))
+            );
+        }
+
+        float simd_manhattan32(const float* x, const float* y, ssize_t t) {
+            simd_float32_t* simd_x = (simd_float32_t*) x;
+            simd_float32_t* simd_y = (simd_float32_t*) y;
+
+            simd_float32_t sum1 = _mm_setzero_ps();
+            simd_float32_t sum2 = _mm_setzero_ps();
+            for(int k = 0; k < t/4; k+=2) {
+                sum1 += abs_ps(_mm_sub_ps(simd_x[k], simd_y[k]));
+                sum2 += abs_ps(_mm_sub_ps(simd_x[k+1], simd_y[k+1]));
+            }
+
+            simd_float32_t sum = _mm_add_ps(sum1, sum2);
+            simd_float32_t hsum = _mm_hadd_ps(sum, sum);
+            return *(float*)&hsum;
+        }
+
+        double simd_manhattan(const double* x, const double* y, ssize_t t) {
+            simd_float64_t* simd_x = (simd_float64_t*) x;
+            simd_float64_t* simd_y = (simd_float64_t*) y;
+
+            simd_float64_t sum1 = _mm_setzero_pd();
+            simd_float64_t sum2 = _mm_setzero_pd();
+            for(int k = 0; k < t/2; k+=2) {
+                sum1 += abs_pd(_mm_sub_pd(simd_x[k], simd_y[k]));
+                sum2 += abs_pd(_mm_sub_pd(simd_x[k+1], simd_y[k+1]));
+            }
+
+            simd_float64_t sum = _mm_add_pd(sum1, sum2);
+            simd_float64_t hsum = _mm_hadd_pd(sum, sum);
+            return *(double*)&hsum;
+        }
+    #else
+        #define HAS_SIMD 0
+
+        double simd_manhattan(double* x, double* y, ssize_t t) {return -1.f;}
+        float simd_manhattan32(float* x, float* y, ssize_t t) {return -1.;}
+    #endif
+
+    """
+    cdef bint HAS_SIMD
+    cdef DTYPE_t simd_manhattan(DTYPE_t * x, DTYPE_t * y, ITYPE_t t) nogil
+    cdef cnp.float32_t simd_manhattan32(cnp.float32_t * x, cnp.float32_t * y, ITYPE_t t) nogil
+
 ######################################################################
 # newObj function
 #  this is a helper function for pickling
@@ -1116,9 +1185,13 @@ cdef class ManhattanDistance{{name_suffix}}(DistanceMetric{{name_suffix}}):
         ITYPE_t size,
     ) except -1 nogil:
         cdef DTYPE_t d = 0
-        cdef cnp.intp_t j
-        for j in range(size):
-            d += fabs(x1[j] - x2[j])
+        cdef cnp.intp_t j, simd_width = 16 / sizeof({{INPUT_DTYPE_t}})
+        cdef cnp.intp_t remainder = size % simd_width
+        if HAS_SIMD and sizeof({{INPUT_DTYPE_t}}) == 8:
+            d = <DTYPE_t> simd_manhattan{{name_suffix}}(x1, x2, size)
+        else:
+            for j in range(size):
+                d += fabs(x1[j] - x2[j])
         return d
 
     cdef inline DTYPE_t dist_csr(
