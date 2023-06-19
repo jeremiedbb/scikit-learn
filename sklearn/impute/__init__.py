@@ -3,13 +3,16 @@ import typing
 
 from ._base import MissingIndicator, SimpleImputer
 from ._knn import KNNImputer
+from ._iterative_svd import IterativeSVDImputer
+from ._soft_impute import SoftImputer
+
 
 if typing.TYPE_CHECKING:
     # Avoid errors in type checkers (e.g. mypy) for experimental estimators.
     # TODO: remove this check once the estimator is no longer experimental.
     from ._iterative import IterativeImputer  # noqa
 
-__all__ = ["MissingIndicator", "SimpleImputer", "KNNImputer"]
+__all__ = ["MissingIndicator", "SimpleImputer", "KNNImputer", "IterativeSVDImputer", "SoftImputer"]
 
 
 # TODO: remove this check once the estimator is no longer experimental.

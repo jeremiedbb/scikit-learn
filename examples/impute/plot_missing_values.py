@@ -46,16 +46,21 @@ import numpy as np
 
 from sklearn.datasets import fetch_california_housing
 from sklearn.datasets import load_diabetes
+from sklearn.datasets import fetch_openml
 
 
 rng = np.random.RandomState(42)
 
 X_diabetes, y_diabetes = load_diabetes(return_X_y=True)
 X_california, y_california = fetch_california_housing(return_X_y=True)
-X_california = X_california[:300]
-y_california = y_california[:300]
-X_diabetes = X_diabetes[:300]
-y_diabetes = y_diabetes[:300]
+# X_california = X_california[:300]
+# y_california = y_california[:300]
+# X_diabetes = X_diabetes[:300]
+# y_diabetes = y_diabetes[:300]
+X_endo, y_endo = fetch_openml(data_id="1142", parser="pandas", as_frame=False, return_X_y=True)
+from sklearn.preprocessing import LabelEncoder
+le = LabelEncoder()
+y_endo = le.fit_transform(y_endo)
 
 
 def add_missing_values(X_full, y_full):
@@ -77,9 +82,25 @@ def add_missing_values(X_full, y_full):
     return X_missing, y_missing
 
 
+def add_missing_values(X_full, y_full):
+    X_missing = X_full.copy()
+    mask = np.abs(X_full - X_full.mean(axis=0)) > 0.5 * X_full.std(axis=0)
+    X_missing[mask] = np.nan
+    y_missing = y_full.copy()
+
+    return X_missing, y_missing
+
+
+
 X_miss_california, y_miss_california = add_missing_values(X_california, y_california)
 
 X_miss_diabetes, y_miss_diabetes = add_missing_values(X_diabetes, y_diabetes)
+
+X_miss_endo, y_miss_endo = add_missing_values(X_endo, y_endo)
+
+mask = np.isnan(X_miss_endo)
+print(X_endo[mask].mean(), X_endo[mask].std(), X_endo[mask].min(), X_endo[mask].max())
+print(mask.sum() / mask.size)
 
 
 # %%
@@ -96,12 +117,18 @@ from sklearn.ensemble import RandomForestRegressor
 # To use the experimental IterativeImputer, we need to explicitly ask for it:
 from sklearn.experimental import enable_iterative_imputer  # noqa
 from sklearn.impute import SimpleImputer, KNNImputer, IterativeImputer
+from sklearn.impute import IterativeSVDImputer
+from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import cross_val_score
 from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import StandardScaler, MaxAbsScaler
 
 
-N_SPLITS = 4
+N_SPLITS = 10
 regressor = RandomForestRegressor(random_state=0)
+classifier = LogisticRegression(random_state=0, max_iter=1000, C=0.1)
+preprocessor = MaxAbsScaler()
+
 
 # %%
 # Missing information
@@ -113,19 +140,21 @@ regressor = RandomForestRegressor(random_state=0)
 
 
 def get_scores_for_imputer(imputer, X_missing, y_missing):
-    estimator = make_pipeline(imputer, regressor)
+    estimator = make_pipeline(preprocessor, imputer, classifier)
     impute_scores = cross_val_score(
-        estimator, X_missing, y_missing, scoring="neg_mean_squared_error", cv=N_SPLITS
+        estimator, X_missing, y_missing, scoring="neg_log_loss", cv=N_SPLITS, error_score="raise"
     )
     return impute_scores
 
 
 x_labels = []
 
-mses_california = np.zeros(5)
-stds_california = np.zeros(5)
-mses_diabetes = np.zeros(5)
-stds_diabetes = np.zeros(5)
+mses_california = np.zeros(6)
+stds_california = np.zeros(6)
+mses_diabetes = np.zeros(6)
+stds_diabetes = np.zeros(6)
+mses_endo = np.zeros(6)
+stds_endo = np.zeros(6)
 
 # %%
 # Estimate the score
@@ -133,17 +162,20 @@ stds_diabetes = np.zeros(5)
 # First, we want to estimate the score on the original data:
 #
 
-
 def get_full_score(X_full, y_full):
+    pipeline = make_pipeline(preprocessor, classifier)
     full_scores = cross_val_score(
-        regressor, X_full, y_full, scoring="neg_mean_squared_error", cv=N_SPLITS
+        pipeline, X_full, y_full, scoring="neg_log_loss", cv=N_SPLITS, error_score="raise"
     )
     return full_scores.mean(), full_scores.std()
 
-
-mses_california[0], stds_california[0] = get_full_score(X_california, y_california)
-mses_diabetes[0], stds_diabetes[0] = get_full_score(X_diabetes, y_diabetes)
+print("full - start")
+# mses_california[0], stds_california[0] = get_full_score(X_california, y_california)
+# mses_diabetes[0], stds_diabetes[0] = get_full_score(X_diabetes, y_diabetes)
+mses_endo[0], stds_endo[0] = get_full_score(X_endo, y_endo)
 x_labels.append("Full data")
+print(mses_endo[0], stds_endo[0])
+print("full - end")
 
 
 # %%
@@ -158,19 +190,22 @@ x_labels.append("Full data")
 def get_impute_zero_score(X_missing, y_missing):
 
     imputer = SimpleImputer(
-        missing_values=np.nan, add_indicator=True, strategy="constant", fill_value=0
+        missing_values=np.nan, add_indicator=False, strategy="constant", fill_value=0
     )
     zero_impute_scores = get_scores_for_imputer(imputer, X_missing, y_missing)
     return zero_impute_scores.mean(), zero_impute_scores.std()
 
-
-mses_california[1], stds_california[1] = get_impute_zero_score(
-    X_miss_california, y_miss_california
-)
-mses_diabetes[1], stds_diabetes[1] = get_impute_zero_score(
-    X_miss_diabetes, y_miss_diabetes
-)
+print("zero - start")
+# mses_california[1], stds_california[1] = get_impute_zero_score(
+#     X_miss_california, y_miss_california
+# )
+# mses_diabetes[1], stds_diabetes[1] = get_impute_zero_score(
+#     X_miss_diabetes, y_miss_diabetes
+# )
+mses_endo[1], stds_endo[1] = get_impute_zero_score(X_miss_endo, y_miss_endo)
 x_labels.append("Zero imputation")
+print(mses_endo[1], stds_endo[1])
+print("zero - end")
 
 
 # %%
@@ -187,13 +222,16 @@ def get_impute_knn_score(X_missing, y_missing):
     return knn_impute_scores.mean(), knn_impute_scores.std()
 
 
-mses_california[2], stds_california[2] = get_impute_knn_score(
-    X_miss_california, y_miss_california
-)
-mses_diabetes[2], stds_diabetes[2] = get_impute_knn_score(
-    X_miss_diabetes, y_miss_diabetes
-)
+print("knn - start")
+# mses_california[2], stds_california[2] = get_impute_knn_score(
+#     X_miss_california, y_miss_california
+# )
+# mses_diabetes[2], stds_diabetes[2] = get_impute_knn_score(
+#     X_miss_diabetes, y_miss_diabetes
+# )
+mses_endo[2], stds_endo[2] = get_impute_knn_score(X_miss_endo, y_miss_endo)
 x_labels.append("KNN Imputation")
+print("knn - end")
 
 
 # %%
@@ -208,12 +246,36 @@ def get_impute_mean(X_missing, y_missing):
     return mean_impute_scores.mean(), mean_impute_scores.std()
 
 
-mses_california[3], stds_california[3] = get_impute_mean(
-    X_miss_california, y_miss_california
-)
-mses_diabetes[3], stds_diabetes[3] = get_impute_mean(X_miss_diabetes, y_miss_diabetes)
+print("mean - start")
+# mses_california[3], stds_california[3] = get_impute_mean(
+#     X_miss_california, y_miss_california
+# )
+# mses_diabetes[3], stds_diabetes[3] = get_impute_mean(X_miss_diabetes, y_miss_diabetes)
+mses_endo[3], stds_endo[3] = get_impute_mean(X_miss_endo, y_miss_endo)
 x_labels.append("Mean Imputation")
+print("mean - end")
 
+
+# %%
+# Impute missing values with iterative svd
+# ----------------------------------------
+#
+
+
+def get_impute_iterative_svd(X_missing, y_missing):
+    imputer = IterativeSVDImputer(rank=50, verbose=True)
+    mean_impute_scores = get_scores_for_imputer(imputer, X_missing, y_missing)
+    return mean_impute_scores.mean(), mean_impute_scores.std()
+
+
+print("iterative svd - start")
+# mses_california[4], stds_california[4] = get_impute_iterative_svd(
+#     X_miss_california, y_miss_california
+# )
+# mses_diabetes[4], stds_diabetes[4] = get_impute_iterative_svd(X_miss_diabetes, y_miss_diabetes)
+mses_endo[4], stds_endo[4] = get_impute_iterative_svd(X_miss_endo, y_miss_endo)
+x_labels.append("Iterative SVD Imputation")
+print("iterative svd - end")
 
 # %%
 # Iterative imputation of the missing values
@@ -241,16 +303,18 @@ def get_impute_iterative(X_missing, y_missing):
     return iterative_impute_scores.mean(), iterative_impute_scores.std()
 
 
-mses_california[4], stds_california[4] = get_impute_iterative(
-    X_miss_california, y_miss_california
-)
-mses_diabetes[4], stds_diabetes[4] = get_impute_iterative(
-    X_miss_diabetes, y_miss_diabetes
-)
-x_labels.append("Iterative Imputation")
+# mses_california[5], stds_california[5] = get_impute_iterative(
+#     X_miss_california, y_miss_california
+# )
+# mses_diabetes[5], stds_diabetes[5] = get_impute_iterative(
+#     X_miss_diabetes, y_miss_diabetes
+# )
+# mses_endo[5], stds_endo[5] = get_impute_iterative(X_miss_endo, y_miss_endo)
+# x_labels.append("Iterative Imputation")
 
 mses_diabetes = mses_diabetes * -1
 mses_california = mses_california * -1
+mses_endo = mses_endo * -1
 
 # %%
 # Plot the results
@@ -262,48 +326,67 @@ mses_california = mses_california * -1
 import matplotlib.pyplot as plt
 
 
-n_bars = len(mses_diabetes)
+n_bars = len(mses_diabetes) -1
 xval = np.arange(n_bars)
 
-colors = ["r", "g", "b", "orange", "black"]
+colors = ["r", "g", "b", "orange", "black", "purple"]
 
 # plot diabetes results
 plt.figure(figsize=(12, 6))
-ax1 = plt.subplot(121)
-for j in xval:
-    ax1.barh(
-        j,
-        mses_diabetes[j],
-        xerr=stds_diabetes[j],
-        color=colors[j],
-        alpha=0.6,
-        align="center",
-    )
+# ax1 = plt.subplot(221)
+# for j in xval:
+#     ax1.barh(
+#         j,
+#         mses_diabetes[j],
+#         xerr=stds_diabetes[j],
+#         color=colors[j],
+#         alpha=0.6,
+#         align="center",
+#     )
 
-ax1.set_title("Imputation Techniques with Diabetes Data")
-ax1.set_xlim(left=np.min(mses_diabetes) * 0.9, right=np.max(mses_diabetes) * 1.1)
-ax1.set_yticks(xval)
-ax1.set_xlabel("MSE")
-ax1.invert_yaxis()
-ax1.set_yticklabels(x_labels)
+# ax1.set_title("Imputation Techniques with Diabetes Data")
+# ax1.set_xlim(left=np.min(mses_diabetes) * 0.9, right=np.max(mses_diabetes) * 1.1)
+# ax1.set_yticks(xval)
+# ax1.set_xlabel("MSE")
+# ax1.invert_yaxis()
+# ax1.set_yticklabels(x_labels)
 
 # plot california dataset results
-ax2 = plt.subplot(122)
+# ax2 = plt.subplot(222)
+# for j in xval:
+#     ax2.barh(
+#         j,
+#         mses_california[j],
+#         xerr=stds_california[j],
+#         color=colors[j],
+#         alpha=0.6,
+#         align="center",
+#     )
+
+# ax2.set_title("Imputation Techniques with California Data")
+# ax2.set_yticks(xval)
+# ax2.set_xlabel("MSE")
+# ax2.invert_yaxis()
+# ax2.set_yticklabels([""] * n_bars)
+
+# plot endo dataset results
+ax = plt.subplot(111)
 for j in xval:
-    ax2.barh(
+    ax.barh(
         j,
-        mses_california[j],
-        xerr=stds_california[j],
+        mses_endo[j],
+        xerr=stds_endo[j],
         color=colors[j],
         alpha=0.6,
         align="center",
     )
 
-ax2.set_title("Imputation Techniques with California Data")
-ax2.set_yticks(xval)
-ax2.set_xlabel("MSE")
-ax2.invert_yaxis()
-ax2.set_yticklabels([""] * n_bars)
+ax.set_title("Imputation Techniques with Endo Data")
+ax.set_xlim(left=np.min(mses_endo) * 0.9, right=np.max(mses_endo) * 1.1)
+ax.set_yticks(xval)
+ax.set_xlabel("MSE")
+ax.invert_yaxis()
+ax.set_yticklabels(x_labels)
 
 plt.show()
 
