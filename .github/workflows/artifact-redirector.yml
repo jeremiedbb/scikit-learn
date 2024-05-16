@@ -2,17 +2,18 @@ name: CircleCI artifacts redirector
 on: [status]
 
 # Restrict the permissions granted to the use of secrets.GITHUB_TOKEN in this
-# github actions workflow:
+# github actions workflow:)
 # https://docs.github.com/en/actions/security-guides/automatic-token-authentication
-permissions:
-  statuses: write
+permissions: read-all
 
 jobs:
   circleci_artifacts_redirector_job:
     runs-on: ubuntu-latest
     # For testing this action on a fork, remove the "github.repository =="" condition.
-    if: "github.repository == 'scikit-learn/scikit-learn' && github.event.context == 'ci/circleci: doc'"
+    if: "github.event.context == 'ci/circleci: doc'"
     name: Run CircleCI artifacts redirector
+    permissions:
+      statuses: write
     steps:
       - name: GitHub Action step
         uses: larsoner/circleci-artifacts-redirector-action@master
