@@ -232,7 +232,6 @@ class KNNImputer(_BaseImputer):
             accept_sparse=False,
             dtype=FLOAT_DTYPES,
             force_all_finite=force_all_finite,
-            copy=self.copy,
         )
 
         self._fit_X = X
