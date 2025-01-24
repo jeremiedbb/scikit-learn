@@ -51,7 +51,7 @@ from ._k_means_lloyd import lloyd_iter_chunked_dense, lloyd_iter_chunked_sparse
 from ._k_means_minibatch import _minibatch_update_dense, _minibatch_update_sparse
 
 ###############################################################################
-# Initialization heuristic
+# Initialization heuristic !
 
 
 @validate_params(
