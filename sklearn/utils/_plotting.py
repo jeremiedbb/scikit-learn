@@ -13,7 +13,7 @@ from .multiclass import type_of_target
 from .validation import _check_pos_label_consistency, _num_samples
 
 AGGREGATE_ERROR_MESSAGE = (
-    "'fold_line_kwargs' must be a single dictionary to be applied to all curves "
+    "'line_kwargs' must be a single dictionary to be applied to all curves "
     "when {param_value}, as only one legend entry will be added."
 )
 
@@ -84,7 +84,7 @@ class _BinaryClassifierCurveDisplayMixin:
         sample_weight,
         pos_label,
         name,
-        fold_line_kwargs,
+        line_kwargs,
         show_aggregate_score,
     ):
         check_matplotlib_support(f"{cls.__name__}.from_predictions")
@@ -130,7 +130,7 @@ class _BinaryClassifierCurveDisplayMixin:
                     "will be added."
                 )
             # Should we allow a list of length 1 (in addition to single dict) ??
-            if isinstance(fold_line_kwargs, list):
+            if isinstance(line_kwargs, list):
                 raise ValueError(
                     AGGREGATE_ERROR_MESSAGE.format(
                         param_value="'show_aggregate_score' is True"
@@ -165,8 +165,7 @@ class _BinaryClassifierCurveDisplayMixin:
         name,
         summary_value,
         summary_value_name,
-        fold_line_kwargs,
-        default_line_kwargs=None,
+        line_kwargs,
         **kwargs,
     ):
         """Get validated line kwargs for each curve.
@@ -186,7 +185,7 @@ class _BinaryClassifierCurveDisplayMixin:
         summary_value_name : str or None
             Name of the summary value provided in `summary_values`.
 
-        fold_line_kwargs : dict or list of dict
+        line_kwargs : dict or list of dict
             Dictionary with keywords passed to the matplotlib's `plot` function
             to draw the individual ROC curves. If a list is provided, the
             parameters are applied to the ROC curves sequentially. If a single
@@ -194,31 +193,28 @@ class _BinaryClassifierCurveDisplayMixin:
             curves. Ignored for single curve plots - pass as `**kwargs` for
             single curve plots.
 
-        default_line_kwargs : dict, default=None
-            Default line kwargs to be used in all curves, unless overridden by
-            `fold_line_kwargs`.
-
         **kwargs : dict
             For a single curve plots only, keyword arguments to be passed to
-            matplotlib's `plot`. Ignored for multi-curve plots - use `fold_line_kwargs`
+            matplotlib's `plot`. Ignored for multi-curve plots - use `line_kwargs`
             for multi-curve plots.
         """
         # Ensure parameters are of the correct length
         name_ = [None] * n_curves if name is None else name
         summary_value_ = [None] * n_curves if summary_value is None else summary_value
-        # `fold_line_kwargs` ignored for single curve plots
-        # `kwargs` ignored for multi-curve plots
-        if n_curves == 1:
-            fold_line_kwargs = [kwargs]
-        else:
-            # Should we add an extra check ensuring `fold_line_kwargs` is the
-            # same when `summary_value` is (mean, std) ? or allow this flexibility
-            # when using `plot` - note this is checked and prevented in
-            # `from_cv_results`
-            fold_line_kwargs = cls._validate_line_kwargs(n_curves, fold_line_kwargs)
 
-        if default_line_kwargs is None:
-            default_line_kwargs = {}
+        # Can't have both `line_kwargs` and `kwargs`
+        if line_kwargs and kwargs:
+            raise ValueError(
+                "Cannot provide both `line_kwargs` and `kwargs`. Pass all "
+                "matplotlib arguments to `line_kwargs`."
+            )
+        if kwargs:
+            warnings.warn(
+                "Passing `**kwargs` is deprecated and will be removed in 1.9. "
+                "Use `line_kwargs` instead.",
+                FutureWarning,
+            )
+            line_kwargs = kwargs
 
         labels = []
         if isinstance(summary_value_, tuple):
@@ -235,80 +231,58 @@ class _BinaryClassifierCurveDisplayMixin:
                     )
                 )
 
-        line_kwargs = []
-        for fold_idx, label in enumerate(labels):
-            default_line_kwargs["label"] = label
-            line_kwargs.append(
-                _validate_style_kwargs(default_line_kwargs, fold_line_kwargs[fold_idx])
-            )
+        if line_kwargs is None and n_curves > 1:
+            default_line_kwargs = {"alpha": 0.5, "linestyle": "-", "color": "blue"}
+        else:
+            default_line_kwargs = {}
+
+        default_line_kwargs = [
+            {**default_line_kwargs, "label": label} for label in labels
+        ]
+
+        line_kwargs = _validate_line_kwargs(n_curves, default_line_kwargs, line_kwargs)
+
         return line_kwargs
 
-    # TODO: if useful for non binary displays (e.g.,`LearningCurveDisplay`,
-    # `ValidationCurveDisplay`) amend to function
-    @classmethod
-    def _validate_line_kwargs(
-        cls,
-        n_curves,
-        fold_line_kwargs=None,
-        default_line_kwargs=None,
-        aggregate_error=False,
-    ):
-        """Ensure `fold_line_kwargs` length and incorporate default kwargs.
 
-        * If `fold_line_kwargs` is None:
-          * If `default_line_kwargs` is None, list of `n_curves` empty dictionaries
-            is returned.
-          * If `default_line_kwargs` is not None, list of `n_curves` dictionaries
-            of `default_line_kwargs` returned.
-        * If `fold_line_kwargs` is a single dictionary, it is incorporated with
-          `default_line_kwargs` using `_validate_style_kwargs`, and the resulting
-          dictionary is repeated `n_curves` times and returned.
-        * If `fold_line_kwargs` is a list of length `n_curves`, each dict is
-          incorporated with `default_line_kwargs` using `_validate_style_kwargs` and
-          returned as list of `n_curves` dictionaries.
+def _validate_line_kwargs(n_curves, default_line_kwargs, line_kwargs):
+    """Validate `line_kwargs` length and keys.
 
-        If `fold_line_kwargs` is a list not of length `n_curves`, an error is raised.
+    Parameters
+    ----------
+    n_curves : int
+        Number of curves.
 
-        Parameters
-        ----------
-        n_curves : int
-            Number of curves.
+    default_line_kwargs : list of dict
+        Default keywords arguments to be passed to matplotlib's `plot` function
+        to draw ROC curves.
 
-        fold_line_kwargs : dict or list of dict, default=None
-            Keywords arguments to be passed to matplotlib's `plot` function
-            to draw ROC curves.
+    line_kwargs : dict, list of dict or None
+        Keywords arguments to be passed to matplotlib's `plot` function
+        to draw ROC curves.
 
-        default_line_kwargs : dict, default=None
-            Default line kwargs to be used in all curves, unless overridden by
-            `fold_line_kwargs`.
+    Returns
+    -------
+    line_kwargs : list of dict
+        List of `n_curves` dictionaries.
+    """
+    if line_kwargs is None:
+        line_kwargs = [{}] * n_curves
+    elif isinstance(line_kwargs, Mapping):
+        line_kwargs = [line_kwargs] * n_curves
 
-        Returns
-        -------
-        fold_line_kwargs : list of dict
-            List of `n_curves` dictionaries.
-        """
-        if fold_line_kwargs is None and default_line_kwargs is None:
-            fold_line_kwargs = [{}] * n_curves
-        elif fold_line_kwargs is None and default_line_kwargs is not None:
-            fold_line_kwargs = default_line_kwargs
+    if len(line_kwargs) != n_curves:
+        raise ValueError(
+            f"'line_kwargs' must be a list of length {n_curves} or a "
+            f"single dictionary. Got list of length: {len(line_kwargs)}."
+        )
 
-        if isinstance(fold_line_kwargs, Mapping):
-            fold_line_kwargs = [fold_line_kwargs] * n_curves
-        elif len(fold_line_kwargs) != n_curves:
-            raise ValueError(
-                f"'fold_line_kwargs' must be a list of length {n_curves} or a "
-                f"single dictionary. Got list of length: {len(fold_line_kwargs)}."
-            )
-        else:
-            fold_line_kwargs = fold_line_kwargs
+    line_kwargs = [
+        _validate_style_kwargs(default_lkw, lkw)
+        for default_lkw, lkw in zip(default_line_kwargs, line_kwargs)
+    ]
 
-        if default_line_kwargs is not None:
-            fold_line_kwargs = [
-                _validate_style_kwargs(default_line_kwargs, single_kwargs)
-                for single_kwargs in fold_line_kwargs
-            ]
-
-        return fold_line_kwargs
+    return line_kwargs
 
 
 def _validate_score_name(score_name, scoring, negate_score):

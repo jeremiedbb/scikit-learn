@@ -189,7 +189,7 @@ class RocCurveDisplay(_BinaryClassifierCurveDisplayMixin):
         plot_chance_level=False,
         chance_level_kw=None,
         despine=False,
-        fold_line_kwargs=None,
+        line_kwargs=None,
         **kwargs,
     ):
         """Plot visualization.
@@ -226,20 +226,23 @@ class RocCurveDisplay(_BinaryClassifierCurveDisplayMixin):
 
             .. versionadded:: 1.6
 
-        fold_line_kwargs : dict or list of dict, default=None
+        line_kwargs : dict or list of dict, default=None
             Dictionary with keywords passed to the matplotlib's `plot` function
             to draw the individual ROC curves. If a list is provided, the
             parameters are applied to the ROC curves sequentially. If a single
             dictionary is provided, the same parameters are applied to all ROC
-            curves. Ignored for single curve plots - pass as `**kwargs` for
-            single curve plots.
+            curves.
 
             .. versionadded:: 1.7
 
         **kwargs : dict
             For a single curve plots only, keyword arguments to be passed to
-            matplotlib's `plot`. Ignored for multi-curve plots - use `fold_line_kwargs`
+            matplotlib's `plot`. Ignored for multi-curve plots - use `line_kwargs`
             for multi-curve plots.
+
+            .. deprecated:: 1.7
+            `kwargs` is deprecared in 1.7 and will be removed in version 1.9. Pass all
+            matplotlib keyword arguments to `line_kwargs` instead.
 
         Returns
         -------
@@ -261,7 +264,7 @@ class RocCurveDisplay(_BinaryClassifierCurveDisplayMixin):
             self.name_,
             summary_value,
             summary_value_name,
-            fold_line_kwargs=fold_line_kwargs,
+            line_kwargs=line_kwargs,
             **kwargs,
         )
 
@@ -330,6 +333,7 @@ class RocCurveDisplay(_BinaryClassifierCurveDisplayMixin):
         plot_chance_level=False,
         chance_level_kw=None,
         despine=False,
+        line_kwargs=None,
         **kwargs,
     ):
         """Create a ROC Curve display from an estimator.
@@ -389,8 +393,18 @@ class RocCurveDisplay(_BinaryClassifierCurveDisplayMixin):
 
             .. versionadded:: 1.6
 
+        line_kwargs : dict, default=None
+            Dictionary with keywords passed to the matplotlib's `plot` function
+            to draw the ROC curve.
+
+            .. versionadded:: 1.7
+
         **kwargs : dict
             Keyword arguments to be passed to matplotlib's `plot`.
+
+            .. deprecated:: 1.7
+            `kwargs` is deprecared in 1.7 and will be removed in version 1.9. Pass all
+            matplotlib keyword arguments to `line_kwargs` instead.
 
         Returns
         -------
@@ -440,6 +454,7 @@ class RocCurveDisplay(_BinaryClassifierCurveDisplayMixin):
             plot_chance_level=plot_chance_level,
             chance_level_kw=chance_level_kw,
             despine=despine,
+            line_kwargs=line_kwargs,
             **kwargs,
         )
 
@@ -457,6 +472,7 @@ class RocCurveDisplay(_BinaryClassifierCurveDisplayMixin):
         plot_chance_level=False,
         chance_level_kw=None,
         despine=False,
+        line_kwargs=None,
         **kwargs,
     ):
         """Plot ROC curve given the true and predicted values.
@@ -512,8 +528,18 @@ class RocCurveDisplay(_BinaryClassifierCurveDisplayMixin):
 
             .. versionadded:: 1.6
 
+        line_kwargs : dict, default=None
+            Dictionary with keywords passed to the matplotlib's `plot` function
+            to draw the ROC curve.
+
+            .. versionadded:: 1.7
+
         **kwargs : dict
-            Additional keywords arguments passed to matplotlib `plot` function.
+            Keyword arguments to be passed to matplotlib's `plot`.
+
+            .. deprecated:: 1.7
+            `kwargs` is deprecared in 1.7 and will be removed in version 1.9. Pass all
+            matplotlib keyword arguments to `line_kwargs` instead.
 
         Returns
         -------
@@ -570,6 +596,7 @@ class RocCurveDisplay(_BinaryClassifierCurveDisplayMixin):
             plot_chance_level=plot_chance_level,
             chance_level_kw=chance_level_kw,
             despine=despine,
+            line_kwargs=line_kwargs,
             **kwargs,
         )
 
@@ -586,7 +613,7 @@ class RocCurveDisplay(_BinaryClassifierCurveDisplayMixin):
         pos_label=None,
         ax=None,
         name=None,
-        fold_line_kwargs=None,
+        line_kwargs=None,
         show_aggregate_score=True,
         plot_chance_level=False,
         chance_level_kwargs=None,
@@ -640,7 +667,7 @@ class RocCurveDisplay(_BinaryClassifierCurveDisplayMixin):
             To label all curves using a single legend entry, provide a str
             or list of length one. If `None`, no name is shown in the legend.
 
-        fold_line_kwargs : dict or list of dict, default=None
+        line_kwargs : dict or list of dict, default=None
             Keywords arguments to be passed to matplotlib's `plot` function
             to draw individual ROC curves. If a list is provided, the
             parameters are applied to the ROC curves of each CV fold
@@ -650,7 +677,7 @@ class RocCurveDisplay(_BinaryClassifierCurveDisplayMixin):
         show_aggregate_score : bool, default=True
             Whether to show the ROC AUC mean and standard deviation of curves from
             all folds as a single legend entry. If `True`, `name` should be a single
-            string and `fold_line_kwargs` should be a single dictionary, to prevent
+            string and `line_kwargs` should be a single dictionary, to prevent
             confusion in the legend. If `False`, `name` should be None or a list the
             same length as the number of cross-validation folds.
 
@@ -700,14 +727,8 @@ class RocCurveDisplay(_BinaryClassifierCurveDisplayMixin):
             sample_weight=sample_weight,
             pos_label=pos_label,
             name=name,
-            fold_line_kwargs=fold_line_kwargs,
+            line_kwargs=line_kwargs,
             show_aggregate_score=show_aggregate_score,
-        )
-
-        fold_line_kwargs_ = cls._validate_line_kwargs(
-            len(cv_results["estimator"]),
-            fold_line_kwargs,
-            default_line_kwargs={"alpha": 0.5, "linestyle": "--"},
         )
 
         fpr_all = []
@@ -759,5 +780,5 @@ class RocCurveDisplay(_BinaryClassifierCurveDisplayMixin):
             plot_chance_level=plot_chance_level,
             chance_level_kw=chance_level_kwargs,
             despine=despine,
-            fold_line_kwargs=fold_line_kwargs_,
+            line_kwargs=line_kwargs,
         )

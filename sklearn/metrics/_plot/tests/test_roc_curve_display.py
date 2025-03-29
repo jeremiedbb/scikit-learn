@@ -192,21 +192,19 @@ def test_roc_curve_from_cv_results_param_validation(pyplot, data_binary, data):
         RocCurveDisplay.from_cv_results(
             cv_results, X, y, name=["fold"], show_aggregate_score=False
         )
-    # `fold_line_kwargs` incorrect length
+    # `line_kwargs` incorrect length
     with pytest.raises(
-        ValueError, match="'fold_line_kwargs' must be a single dictionary to"
+        ValueError, match="'line_kwargs' must be a single dictionary to"
     ):
-        RocCurveDisplay.from_cv_results(
-            cv_results, X, y, fold_line_kwargs=[{"alpha": 1}]
-        )
+        RocCurveDisplay.from_cv_results(cv_results, X, y, line_kwargs=[{"alpha": 1}])
 
 
 # @pytest.mark.parametrize(
-#     "fold_line_kwargs",
+#     "line_kwargs",
 #     [None, {"alpha": 0.2}, [{"alpha": 0.2}, {"alpha": 0.3}, {"alpha": 0.4}]],
 # )
 # def test_roc_curve_display_from_cv_results_validate_line_kwargs(
-#     pyplot, data_binary, fold_line_kwargs
+#     pyplot, data_binary, line_kwargs
 # ):
 #     """Check `_validate_line_kwargs` correctly validates line kwargs."""
 #     X, y = data_binary
@@ -219,18 +217,18 @@ def test_roc_curve_from_cv_results_param_validation(pyplot, data_binary, data):
 #         cv_results,
 #         X,
 #         y,
-#         fold_line_kwargs=fold_line_kwargs,
+#         line_kwargs=line_kwargs,
 #     )
-#     if fold_line_kwargs is None:
+#     if line_kwargs is None:
 #         # Default `alpha` used
 #         assert all(line.get_alpha() == 0.5 for line in display.line_)
-#     elif isinstance(fold_line_kwargs, Mapping):
+#     elif isinstance(line_kwargs, Mapping):
 #         # `alpha` from dict used for all curves
 #         assert all(line.get_alpha() == 0.2 for line in display.line_)
 #     else:
 #         # Different `alpha` used for each curve
 #         assert all(
-#             line.get_alpha() == fold_line_kwargs[i]["alpha"]
+#             line.get_alpha() == line_kwargs[i]["alpha"]
 #             for i, line in enumerate(display.line_)
 #         )
 
@@ -358,30 +356,28 @@ def test_roc_curve_display_plotting_from_cv_results(
 
 
 @pytest.mark.parametrize(
-    "fold_line_kwargs",
+    "line_kwargs",
     [None, {"color": "red"}, [{"c": "red"}, {"c": "green"}, {"c": "yellow"}]],
 )
-def test_roc_curve_from_cv_results_line_kwargs(pyplot, data_binary, fold_line_kwargs):
+def test_roc_curve_from_cv_results_line_kwargs(pyplot, data_binary, line_kwargs):
     """Check line kwargs passed correctly in `from_cv_results`."""
-    import matplotlib as mpl
 
     X, y = data_binary
     cv_results = cross_validate(
         LogisticRegression(), X, y, cv=3, return_estimator=True, return_indices=True
     )
     display = RocCurveDisplay.from_cv_results(
-        cv_results, X, y, fold_line_kwargs=fold_line_kwargs, show_aggregate_score=False
+        cv_results, X, y, line_kwargs=line_kwargs, show_aggregate_score=False
     )
 
-    mpl_default_colors = mpl.rcParams["axes.prop_cycle"].by_key()["color"]
     for idx, line in enumerate(display.line_):
         color = line.get_color()
-        if fold_line_kwargs is None:
-            assert color == mpl_default_colors[idx]
-        elif isinstance(fold_line_kwargs, Mapping):
+        if line_kwargs is None:
+            assert color == "blue"
+        elif isinstance(line_kwargs, Mapping):
             assert color == "red"
         else:
-            assert color == fold_line_kwargs[idx]["c"]
+            assert color == line_kwargs[idx]["c"]
 
 
 def _check_chance_level(plot_chance_level, chance_level_kw, display):
@@ -501,13 +497,13 @@ def test_roc_curve_chance_level_line(
     ],
 )
 # To ensure both curve line kwargs and change line kwargs passed correctly
-@pytest.mark.parametrize("fold_line_kwargs", [None, {"alpha": 0.8}])
+@pytest.mark.parametrize("line_kwargs", [None, {"alpha": 0.8}])
 def test_roc_curve_chance_level_line_from_cv_results(
     pyplot,
     data_binary,
     plot_chance_level,
     chance_level_kw,
-    fold_line_kwargs,
+    line_kwargs,
 ):
     """Check chance level plotting behavior with `from_cv_results`."""
     X, y = data_binary
@@ -522,13 +518,13 @@ def test_roc_curve_chance_level_line_from_cv_results(
         y,
         plot_chance_level=plot_chance_level,
         chance_level_kwargs=chance_level_kw,
-        fold_line_kwargs=fold_line_kwargs,
+        line_kwargs=line_kwargs,
     )
 
     import matplotlib as mpl
 
     assert all(isinstance(line, mpl.lines.Line2D) for line in display.line_)
-    if fold_line_kwargs:
+    if line_kwargs:
         assert all(line.get_alpha() == 0.8 for line in display.line_)
     assert isinstance(display.ax_, mpl.axes.Axes)
     assert isinstance(display.figure_, mpl.figure.Figure)
