@@ -13,7 +13,7 @@ from .multiclass import type_of_target
 from .validation import _check_pos_label_consistency, _num_samples
 
 AGGREGATE_ERROR_MESSAGE = (
-    "'line_kwargs' must be a single dictionary to be applied to all curves "
+    "'roc_line_kwargs' must be a single dictionary to be applied to all curves "
     "when {param_value}, as only one legend entry will be added."
 )
 
@@ -84,7 +84,7 @@ class _BinaryClassifierCurveDisplayMixin:
         sample_weight,
         pos_label,
         name,
-        line_kwargs,
+        roc_line_kwargs,
         show_aggregate_score,
     ):
         check_matplotlib_support(f"{cls.__name__}.from_predictions")
@@ -130,7 +130,7 @@ class _BinaryClassifierCurveDisplayMixin:
                     "will be added."
                 )
             # Should we allow a list of length 1 (in addition to single dict) ??
-            if isinstance(line_kwargs, list):
+            if isinstance(roc_line_kwargs, list):
                 raise ValueError(
                     AGGREGATE_ERROR_MESSAGE.format(
                         param_value="'show_aggregate_score' is True"
@@ -159,13 +159,13 @@ class _BinaryClassifierCurveDisplayMixin:
         return label
 
     @classmethod
-    def _get_line_kwargs(
+    def _get_roc_line_kwargs(
         cls,
         n_curves,
         name,
         summary_value,
         summary_value_name,
-        line_kwargs,
+        roc_line_kwargs,
         **kwargs,
     ):
         """Get validated line kwargs for each curve.
@@ -185,7 +185,7 @@ class _BinaryClassifierCurveDisplayMixin:
         summary_value_name : str or None
             Name of the summary value provided in `summary_values`.
 
-        line_kwargs : dict or list of dict
+        roc_line_kwargs : dict or list of dict
             Dictionary with keywords passed to the matplotlib's `plot` function
             to draw the individual ROC curves. If a list is provided, the
             parameters are applied to the ROC curves sequentially. If a single
@@ -195,26 +195,26 @@ class _BinaryClassifierCurveDisplayMixin:
 
         **kwargs : dict
             For a single curve plots only, keyword arguments to be passed to
-            matplotlib's `plot`. Ignored for multi-curve plots - use `line_kwargs`
+            matplotlib's `plot`. Ignored for multi-curve plots - use `roc_line_kwargs`
             for multi-curve plots.
         """
         # Ensure parameters are of the correct length
         name_ = [None] * n_curves if name is None else name
         summary_value_ = [None] * n_curves if summary_value is None else summary_value
 
-        # Can't have both `line_kwargs` and `kwargs`
-        if line_kwargs and kwargs:
+        # Can't have both `roc_line_kwargs` and `kwargs`
+        if roc_line_kwargs and kwargs:
             raise ValueError(
-                "Cannot provide both `line_kwargs` and `kwargs`. Pass all "
-                "matplotlib arguments to `line_kwargs`."
+                "Cannot provide both `roc_line_kwargs` and `kwargs`. `**kwargs` is "
+                "deprecated. Pass all matplotlib arguments to `roc_line_kwargs`."
             )
         if kwargs:
             warnings.warn(
                 "Passing `**kwargs` is deprecated and will be removed in 1.9. "
-                "Use `line_kwargs` instead.",
+                "Use `roc_line_kwargs` instead.",
                 FutureWarning,
             )
-            line_kwargs = kwargs
+            roc_line_kwargs = kwargs
 
         labels = []
         if isinstance(summary_value_, tuple):
@@ -231,58 +231,60 @@ class _BinaryClassifierCurveDisplayMixin:
                     )
                 )
 
-        if line_kwargs is None and n_curves > 1:
-            default_line_kwargs = {"alpha": 0.5, "linestyle": "-", "color": "blue"}
+        if roc_line_kwargs is None and n_curves > 1:
+            default_roc_line_kwargs = {"alpha": 0.5, "linestyle": "-", "color": "blue"}
         else:
-            default_line_kwargs = {}
+            default_roc_line_kwargs = {}
 
-        default_line_kwargs = [
-            {**default_line_kwargs, "label": label} for label in labels
+        default_roc_line_kwargs = [
+            {**default_roc_line_kwargs, "label": label} for label in labels
         ]
 
-        line_kwargs = _validate_line_kwargs(n_curves, default_line_kwargs, line_kwargs)
+        roc_line_kwargs = _validate_roc_line_kwargs(
+            n_curves, default_roc_line_kwargs, roc_line_kwargs
+        )
 
-        return line_kwargs
+        return roc_line_kwargs
 
 
-def _validate_line_kwargs(n_curves, default_line_kwargs, line_kwargs):
-    """Validate `line_kwargs` length and keys.
+def _validate_roc_line_kwargs(n_curves, default_roc_line_kwargs, roc_line_kwargs):
+    """Validate `roc_line_kwargs` length and keys.
 
     Parameters
     ----------
     n_curves : int
         Number of curves.
 
-    default_line_kwargs : list of dict
+    default_roc_line_kwargs : list of dict
         Default keywords arguments to be passed to matplotlib's `plot` function
         to draw ROC curves.
 
-    line_kwargs : dict, list of dict or None
+    roc_line_kwargs : dict, list of dict or None
         Keywords arguments to be passed to matplotlib's `plot` function
         to draw ROC curves.
 
     Returns
     -------
-    line_kwargs : list of dict
+    roc_line_kwargs : list of dict
         List of `n_curves` dictionaries.
     """
-    if line_kwargs is None:
-        line_kwargs = [{}] * n_curves
-    elif isinstance(line_kwargs, Mapping):
-        line_kwargs = [line_kwargs] * n_curves
+    if roc_line_kwargs is None:
+        roc_line_kwargs = [{}] * n_curves
+    elif isinstance(roc_line_kwargs, Mapping):
+        roc_line_kwargs = [roc_line_kwargs] * n_curves
 
-    if len(line_kwargs) != n_curves:
+    if len(roc_line_kwargs) != n_curves:
         raise ValueError(
-            f"'line_kwargs' must be a list of length {n_curves} or a "
-            f"single dictionary. Got list of length: {len(line_kwargs)}."
+            f"'roc_line_kwargs' must be a list of length {n_curves} or a "
+            f"single dictionary. Got list of length: {len(roc_line_kwargs)}."
         )
 
-    line_kwargs = [
+    roc_line_kwargs = [
         _validate_style_kwargs(default_lkw, lkw)
-        for default_lkw, lkw in zip(default_line_kwargs, line_kwargs)
+        for default_lkw, lkw in zip(default_roc_line_kwargs, roc_line_kwargs)
     ]
 
-    return line_kwargs
+    return roc_line_kwargs
 
 
 def _validate_score_name(score_name, scoring, negate_score):
