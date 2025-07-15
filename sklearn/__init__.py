@@ -43,7 +43,7 @@ logger = logging.getLogger(__name__)
 # 'X.Y.dev0' is the canonical version of 'X.Y.dev'
 #
 __version__ = "1.8.dev0"
-
+# some diff
 
 # On OSX, we can get a runtime error due to multiple OpenMP libraries loaded
 # simultaneously. This can happen for instance when calling BLAS inside a
