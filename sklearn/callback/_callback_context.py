@@ -166,7 +166,7 @@ class CallbackContext:
 
     def _to_dict(self):
         """Return attributes and parent as parent's _to_dict."""
-        context_dict = {
+        return {
             "estimator_name": self.estimator_name,
             "depth": self.depth,
             "task_name": self.task_name,
@@ -177,7 +177,6 @@ class CallbackContext:
             "prev_task_name": self.prev_task_name,
             "parent": None if self.parent is None else self.parent._to_dict(),
         }
-        return context_dict
 
     @property
     def depth(self):
