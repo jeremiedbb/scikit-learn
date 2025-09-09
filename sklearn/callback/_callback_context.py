@@ -2,16 +2,80 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from . import AutoPropagatedProtocol
-from ._task_tree import TaskNode
 
 
 class CallbackContext:
     """Task level context for the callbacks.
 
-    This class is responsible for managing the callbacks and task tree of an estimator.
+    This class is responsible for managing the callbacks and holding the tree structure
+    of an estimator's tasks.
 
     Instances of this class should be created using the `init_callback_context` method
     of the estimator.
+
+    The computations performed by an estimator have an inherent tree structure, with
+    each node representing a task. Each loop in the estimator represents a parent task
+    node and each iteration of that loop represents a child task node. Usually the root
+    task node represents the whole fit task and leaves the innermost loop iterations.
+
+    For instance, a KMeans estimator has two nested loops: the outer loop is controlled
+    by `n_init` and the inner loop is controlled by `max_iter`. Its task tree looks like
+    this:
+
+    KMeans fit
+    ├── init 0
+    │   ├── iter 0
+    │   ├── iter 1
+    │   ├── ...
+    │   └── iter n
+    ├── init 1
+    │   ├── iter 0
+    │   ├── ...
+    │   └── iter n
+    └── init 2
+        ├── iter 0
+        ├── ...
+        └── iter n
+
+    When the estimator is a meta-estimator, a task leaf usually correspond to fitting
+    a sub-estimator. Therefore this leaf and the root task of the sub-estimator actually
+    represent the same task. In this case the leaf task node of the meta-estimator and
+    the root task node of the sub-estimator are merged into a single task node.
+
+    For instance a `Pipeline` would have a task tree that looks like this:
+
+    Pipeline fit
+    ├── step 0 | preprocessor fit
+    │   └── <insert preprocessor task tree here>
+    └── step 1 | estimator fit
+        └── <insert estimator task tree here>
+
+    The task tree is created dynamically, by initializing it with a root task node and
+    then adding the child task nodes as the fitting process goes on.
+
+    Attributes
+    ----------
+    parent : CallbackContext instance or None
+        The parent node of the task tree. None means this is the root.
+
+        Note that it is a dynamic attribute since the root task of an estimator can
+        become an intermediate node of a meta-estimator.
+
+    children_map : dict
+        A mapping from the task_id of a child to the child node
+        `{task_id: CallbackContext}`. For a leaf, it's an empty dictionary.
+
+    max_subtasks : int or None
+        The maximum number of subtasks of this node of the task tree. 0 means it's a
+        leaf. None means the maximum number of subtasks is not known in advance.
+
+    prev_estimator_name : str or None
+        The estimator name of the node this node was merged with. None if it was not
+        merged with another node.
+
+    prev_task_name : str
+        The task name of the node this node was merged with. None if it was not
+        merged with another node.
     """
 
     @classmethod
@@ -38,14 +102,15 @@ class CallbackContext:
         # We don't store the estimator in the context to avoid circular references
         # because the estimator already holds a reference to the context.
         new_ctx._callbacks = getattr(estimator, "_skl_callbacks", [])
-        new_ctx._estimator_name = estimator.__class__.__name__
-
-        new_ctx._task_node = TaskNode(
-            task_name=task_name,
-            task_id=task_id,
-            max_tasks=max_tasks,
-            estimator_name=new_ctx._estimator_name,
-        )
+        new_ctx.estimator_name = estimator.__class__.__name__
+        new_ctx.task_name = task_name
+        new_ctx.task_id = task_id
+        new_ctx.max_tasks = max_tasks
+        new_ctx.parent = None
+        new_ctx.children_map = {}
+        new_ctx.max_subtasks = 0
+        new_ctx.prev_estimator_name = None
+        new_ctx.prev_task_name = None
 
         if hasattr(estimator, "_parent_callback_ctx"):
             # This task is the root task of the estimator which itself corresponds to
@@ -54,7 +119,7 @@ class CallbackContext:
             # task tree of the sub-estimator to the task tree of the meta-estimator on
             # the way.
             parent_ctx = estimator._parent_callback_ctx
-            new_ctx._task_node._merge_with(parent_ctx._task_node)
+            new_ctx._merge_with(parent_ctx)
             new_ctx._estimator_depth = parent_ctx._estimator_depth + 1
         else:
             new_ctx._estimator_depth = 0
@@ -83,20 +148,86 @@ class CallbackContext:
         new_ctx = cls.__new__(cls)
 
         new_ctx._callbacks = parent_context._callbacks
-        new_ctx._estimator_name = parent_context._estimator_name
+        new_ctx.estimator_name = parent_context.estimator_name
         new_ctx._estimator_depth = parent_context._estimator_depth
-
-        new_ctx._task_node = TaskNode(
-            task_name=task_name,
-            task_id=task_id,
-            max_tasks=max_tasks,
-            estimator_name=new_ctx._estimator_name,
-        )
+        new_ctx.task_name = task_name
+        new_ctx.task_id = task_id
+        new_ctx.max_tasks = max_tasks
+        new_ctx.parent = None
+        new_ctx.children_map = {}
+        new_ctx.max_subtasks = 0
+        new_ctx.prev_estimator_name = None
+        new_ctx.prev_task_name = None
 
         # This task is a subtask of another task of a same estimator
-        parent_context._task_node._add_child(new_ctx._task_node)
+        parent_context._add_child(new_ctx)
 
         return new_ctx
+
+    def _to_dict(self):
+        # fucntion that returns attributes and parent as parent's _to_dict
+        context_dict = {
+            "estimator_name": self.estimator_name,
+            "depth": self.depth,
+            "task_name": self.task_name,
+            "task_id": self.task_id,
+            "max_tasks": self.max_tasks,
+            "max_subtasks": self.max_subtasks,
+            "prev_estimator_name": self.prev_estimator_name,
+            "prev_task_name": self.prev_task_name,
+            "parent": None if self.parent is None else self.parent._to_dict(),
+        }
+        return context_dict
+
+    @property
+    def depth(self):
+        """The depth of this node in the task tree."""
+        return 0 if self.parent is None else self.parent.depth + 1
+
+    @property
+    def path(self):
+        """List of all the nodes in the path from the root to this node."""
+        return (
+            [self._to_dict()]
+            if self.parent is None
+            else self.parent.path + [self._to_dict()]
+        )
+
+    def __iter__(self):
+        """Pre-order depth-first traversal of the task tree."""
+        yield self
+        for context in self.children_map.values():
+            yield from context
+
+    def _add_child(self, context):
+        if context.task_id in self.children_map:
+            raise ValueError(
+                f"Callback context {self.task_name} of estimator {self.estimator_name} "
+                f"already has a child with task_id={context.task_id}."
+            )
+
+        if len(self.children_map) == context.max_tasks:
+            raise ValueError(
+                f"Cannot add child to callback context {self.task_name} of estimator "
+                f"{self.estimator_name} because it already has its maximum "
+                f"number of children ({context.max_tasks})."
+            )
+
+        self.children_map[context.task_id] = context
+        self.max_subtasks = context.max_tasks
+        context.parent = self
+
+    def _merge_with(self, context):
+        # Set the parent of the sub-estimator's root context node to the parent
+        # of the meta-estimator's leaf context node
+        self.parent = context.parent
+        self.task_id = context.task_id
+        self.max_tasks = context.max_tasks
+        context.parent.children_map[self.task_id] = self
+
+        # Keep information about the node it was merged with
+        self.prev_task_name = context.task_name
+        self.prev_estimator_name = context.estimator_name
 
     def subcontext(self, task_name="", task_id=0, max_tasks=1):
         """Create a context for a subtask of the current task.
@@ -137,8 +268,7 @@ class CallbackContext:
             # Only call the on_fit_begin method of callbacks that are not
             # propagated from a meta-estimator.
             if not (
-                isinstance(callback, AutoPropagatedProtocol)
-                and self._task_node.parent is not None
+                isinstance(callback, AutoPropagatedProtocol) and self.parent is not None
             ):
                 callback._on_fit_begin(estimator, data=data)
 
@@ -186,7 +316,7 @@ class CallbackContext:
             Whether or not to stop the current level of iterations at this task node.
         """
         return any(
-            callback._on_fit_iter_end(estimator, self._task_node, **kwargs)
+            callback._on_fit_iter_end(estimator, self._to_dict(), **kwargs)
             for callback in self._callbacks
         )
 
@@ -202,10 +332,9 @@ class CallbackContext:
             # Only call the on_fit_end method of callbacks that are not
             # propagated from a meta-estimator.
             if not (
-                isinstance(callback, AutoPropagatedProtocol)
-                and self._task_node.parent is not None
+                isinstance(callback, AutoPropagatedProtocol) and self.parent is not None
             ):
-                callback._on_fit_end(estimator, task_node=self._task_node)
+                callback._on_fit_end(estimator, context_dict=self._to_dict())
 
     def propagate_callbacks(self, sub_estimator):
         """Propagate the callbacks to a sub-estimator.
@@ -224,7 +353,7 @@ class CallbackContext:
         if bad_callbacks:
             raise TypeError(
                 f"The sub-estimator ({sub_estimator.__class__.__name__}) of a"
-                f" meta-estimator ({self._task_node.estimator_name}) can't have"
+                f" meta-estimator ({self.estimator_name}) can't have"
                 f" auto-propagated callbacks ({bad_callbacks})."
                 " Register them directly on the meta-estimator."
             )

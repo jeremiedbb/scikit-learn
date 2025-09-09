@@ -10,7 +10,6 @@ from ._base import AutoPropagatedProtocol, CallbackProtocol
 from ._callback_context import CallbackContext
 from ._mixin import CallbackSupportMixin
 from ._progressbar import ProgressBar
-from ._task_tree import TaskNode
 
 __all__ = [
     "AutoPropagatedProtocol",
@@ -18,5 +17,4 @@ __all__ = [
     "CallbackProtocol",
     "CallbackSupportMixin",
     "ProgressBar",
-    "TaskNode",
 ]

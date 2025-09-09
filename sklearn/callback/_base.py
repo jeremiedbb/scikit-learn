@@ -22,7 +22,7 @@ class CallbackProtocol(Protocol):
             and "sample_weight_val".
         """
 
-    def _on_fit_iter_end(self, estimator, task_node, **kwargs):
+    def _on_fit_iter_end(self, estimator, context_dict, **kwargs):
         """Method called at the end of each task of the estimator.
 
         Parameters
@@ -31,8 +31,8 @@ class CallbackProtocol(Protocol):
             The estimator calling this callback hook. It might differ from the estimator
             passed to the `on_fit_begin` method for auto-propagated callbacks.
 
-        task_node : TaskNode instance
-            The caller task node.
+        context_dict : dict
+            The dictionary representation caller callback context.
 
         **kwargs : dict
             arguments passed to the callback. Possible keys are
@@ -68,7 +68,7 @@ class CallbackProtocol(Protocol):
             Whether or not to stop the current level of iterations at this task node.
         """
 
-    def _on_fit_end(self, estimator, task_node):
+    def _on_fit_end(self, estimator, context_dict):
         """Method called at the end of the fit method of the estimator.
 
         Parameters
@@ -76,10 +76,11 @@ class CallbackProtocol(Protocol):
         estimator : estimator instance
             The estimator calling this callback hook.
 
-        task_node : TaskNode instance
-            The task node corresponding to the whole `fit` task. This is usually the
-            root of the task tree of the estimator but it can be an intermediate node
-            if the estimator is a sub-estimator of a meta-estimator.
+        context : dict
+            The dictionary representation of the callback context corresponding to the
+            whole `fit` task. This is usually the root of the task tree of the estimator
+            but it can be an intermediate node if the estimator is a sub-estimator of a
+            meta-estimator.
         """
 
 
