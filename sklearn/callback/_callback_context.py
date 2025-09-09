@@ -68,6 +68,9 @@ class CallbackContext:
         The maximum number of subtasks of this node of the task tree. 0 means it's a
         leaf. None means the maximum number of subtasks is not known in advance.
 
+    max_tasks : int
+        The maximum number of sibling task nodes.
+
     parent : CallbackContext instance or None
         The parent node of the task tree. None means this is the root.
 
@@ -176,7 +179,7 @@ class CallbackContext:
         return new_ctx
 
     def _task_info(self):
-        """Return attributes and parent as parent's _task_info."""
+        """Return attributes and parent as parent's _task_."""
         return {
             "estimator_name": self.estimator_name,
             "depth": self.depth,
