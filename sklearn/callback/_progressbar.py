@@ -217,7 +217,7 @@ class RichTaskNode:
 
 
 def _get_context_path(context_dict):
-    """Helper function to get the path of the context dictionaries in the task tree.
+    """Helper function to get the path of task info from this task to the root task.
 
     Parameters
     ----------
