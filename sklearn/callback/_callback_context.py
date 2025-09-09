@@ -3,7 +3,46 @@
 
 from sklearn.callback import AutoPropagatedProtocol
 
+# The computations performed by an estimator have an inherent tree structure, with
+# each node representing a task. Each loop in the estimator represents a parent task
+# node and each iteration of that loop represents a child task node. Usually the root
+# task node represents the whole fit task and leaves the innermost loop iterations.
 
+# For instance, a KMeans estimator has two nested loops: the outer loop is controlled
+# by `n_init` and the inner loop is controlled by `max_iter`. Its task tree looks like
+# this:
+
+# KMeans fit
+# ├── init 0
+# │   ├── iter 0
+# │   ├── iter 1
+# │   ├── ...
+# │   └── iter n
+# ├── init 1
+# │   ├── iter 0
+# │   ├── ...
+# │   └── iter n
+# └── init 2
+#     ├── iter 0
+#     ├── ...
+#     └── iter n
+
+# When the estimator is a meta-estimator, a task leaf usually correspond to fitting
+# a sub-estimator. Therefore this leaf and the root task of the sub-estimator actually
+# represent the same task. In this case the leaf task node of the meta-estimator and
+# the root task node of the sub-estimator are merged into a single task node.
+
+# For instance a `Pipeline` would have a task tree that looks like this:
+
+# Pipeline fit
+# ├── step 0 | preprocessor fit
+# │   └── <insert preprocessor task tree here>
+# └── step 1 | estimator fit
+#     └── <insert estimator task tree here>
+
+
+# The task tree is created dynamically, by initializing it with a root task node and
+# then adding the child task nodes as the fitting process goes on.
 class CallbackContext:
     """Task level context for the callbacks.
 
@@ -13,61 +52,27 @@ class CallbackContext:
     Instances of this class should be created using the `init_callback_context` method
     of the estimator.
 
-    The computations performed by an estimator have an inherent tree structure, with
-    each node representing a task. Each loop in the estimator represents a parent task
-    node and each iteration of that loop represents a child task node. Usually the root
-    task node represents the whole fit task and leaves the innermost loop iterations.
-
-    For instance, a KMeans estimator has two nested loops: the outer loop is controlled
-    by `n_init` and the inner loop is controlled by `max_iter`. Its task tree looks like
-    this:
-
-    KMeans fit
-    ├── init 0
-    │   ├── iter 0
-    │   ├── iter 1
-    │   ├── ...
-    │   └── iter n
-    ├── init 1
-    │   ├── iter 0
-    │   ├── ...
-    │   └── iter n
-    └── init 2
-        ├── iter 0
-        ├── ...
-        └── iter n
-
-    When the estimator is a meta-estimator, a task leaf usually correspond to fitting
-    a sub-estimator. Therefore this leaf and the root task of the sub-estimator actually
-    represent the same task. In this case the leaf task node of the meta-estimator and
-    the root task node of the sub-estimator are merged into a single task node.
-
-    For instance a `Pipeline` would have a task tree that looks like this:
-
-    Pipeline fit
-    ├── step 0 | preprocessor fit
-    │   └── <insert preprocessor task tree here>
-    └── step 1 | estimator fit
-        └── <insert estimator task tree here>
-
-    The task tree is created dynamically, by initializing it with a root task node and
-    then adding the child task nodes as the fitting process goes on.
-
     Attributes
     ----------
+    children_map : dict
+        A mapping from the task_id of a child to the child node
+        `{task_id: CallbackContext}`. For a leaf, it's an empty dictionary.
+
+    depth : int
+        The depth of this node in the task tree.
+
+    estimator_name : str
+        The estimator name of this node.
+
+    max_subtasks : int or None
+        The maximum number of subtasks of this node of the task tree. 0 means it's a
+        leaf. None means the maximum number of subtasks is not known in advance.
+
     parent : CallbackContext instance or None
         The parent node of the task tree. None means this is the root.
 
         Note that it is a dynamic attribute since the root task of an estimator can
         become an intermediate node of a meta-estimator.
-
-    children_map : dict
-        A mapping from the task_id of a child to the child node
-        `{task_id: CallbackContext}`. For a leaf, it's an empty dictionary.
-
-    max_subtasks : int or None
-        The maximum number of subtasks of this node of the task tree. 0 means it's a
-        leaf. None means the maximum number of subtasks is not known in advance.
 
     prev_estimator_name : str or None
         The estimator name of the node this node was merged with. None if it was not
@@ -76,6 +81,12 @@ class CallbackContext:
     prev_task_name : str
         The task name of the node this node was merged with. None if it was not
         merged with another node.
+
+    task_id : int
+        The id of this task node.
+
+    task_name : str
+        The task name of this node.
     """
 
     @classmethod
@@ -164,8 +175,8 @@ class CallbackContext:
 
         return new_ctx
 
-    def _to_dict(self):
-        # function that returns attributes and parent as parent's _to_dict
+    def _task_info(self):
+        # function that returns attributes and parent as parent's _task_info
         context_dict = {
             "estimator_name": self.estimator_name,
             "depth": self.depth,
@@ -175,7 +186,7 @@ class CallbackContext:
             "max_subtasks": self.max_subtasks,
             "prev_estimator_name": self.prev_estimator_name,
             "prev_task_name": self.prev_task_name,
-            "parent": None if self.parent is None else self.parent._to_dict(),
+            "parent": None if self.parent is None else self.parent._task_info(),
         }
         return context_dict
 
@@ -183,15 +194,6 @@ class CallbackContext:
     def depth(self):
         """The depth of this node in the task tree."""
         return 0 if self.parent is None else self.parent.depth + 1
-
-    @property
-    def path(self):
-        """List of all the nodes in the path from the root to this node."""
-        return (
-            [self._to_dict()]
-            if self.parent is None
-            else self.parent.path + [self._to_dict()]
-        )
 
     def __iter__(self):
         """Pre-order depth-first traversal of the task tree."""
@@ -316,7 +318,7 @@ class CallbackContext:
             Whether or not to stop the current level of iterations at this task node.
         """
         return any(
-            callback._on_fit_iter_end(estimator, self._to_dict(), **kwargs)
+            callback._on_fit_iter_end(estimator, self._task_info(), **kwargs)
             for callback in self._callbacks
         )
 
@@ -334,7 +336,7 @@ class CallbackContext:
             if not (
                 isinstance(callback, AutoPropagatedProtocol) and self.parent is not None
             ):
-                callback._on_fit_end(estimator, context_dict=self._to_dict())
+                callback._on_fit_end(estimator, task_info=self._task_info())
 
     def propagate_callbacks(self, sub_estimator):
         """Propagate the callbacks to a sub-estimator.

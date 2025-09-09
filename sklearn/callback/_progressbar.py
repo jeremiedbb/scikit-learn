@@ -28,11 +28,11 @@ class ProgressBar:
         self.progress_monitor = _RichProgressMonitor(queue=self._queue)
         self.progress_monitor.start()
 
-    def _on_fit_iter_end(self, estimator, context_dict, **kwargs):
-        self._queue.put(context_dict)
+    def _on_fit_iter_end(self, estimator, task_info, **kwargs):
+        self._queue.put(task_info)
 
-    def _on_fit_end(self, estimator, context_dict):
-        self._queue.put(context_dict)
+    def _on_fit_end(self, estimator, task_info):
+        self._queue.put(task_info)
         self._queue.put(None)
         self.progress_monitor.join()
 
@@ -92,8 +92,8 @@ class _RichProgressMonitor(Thread):
         self.root_rich_task = None
 
         with self.progress_ctx:
-            while context_dict := self.queue.get():
-                context_path = _get_context_path(context_dict)
+            while task_info := self.queue.get():
+                context_path = _get_context_path(task_info)
                 self._update_task_tree(context_path)
                 self._update_tasks()
                 self.progress_ctx.refresh()
@@ -177,32 +177,29 @@ class RichTaskNode:
         For a leaf, it's an empty dictionary.
     """
 
-    def __init__(self, context_dict, progress_ctx, parent=None):
+    def __init__(self, task_info, progress_ctx, parent=None):
         self.parent = parent
         self.children = {}
         self.finished = False
 
-        if context_dict["max_subtasks"] != 0:
-            description = self._format_task_description(context_dict)
+        if task_info["max_subtasks"] != 0:
+            description = self._format_task_description(task_info)
             self.task_id = progress_ctx.add_task(
-                description, total=context_dict["max_subtasks"]
+                description, total=task_info["max_subtasks"]
             )
 
-    def _format_task_description(self, context_dict):
+    def _format_task_description(self, task_info):
         """Return a formatted description for the task."""
         colors = ["bright_magenta", "cyan", "dark_orange"]
 
-        indent = f"{'  ' * (context_dict['depth'])}"
-        style = f"[{colors[(context_dict['depth']) % len(colors)]}]"
+        indent = f"{'  ' * (task_info['depth'])}"
+        style = f"[{colors[(task_info['depth']) % len(colors)]}]"
 
-        task_desc = f"{context_dict['estimator_name']} - {context_dict['task_name']}"
-        id_mark = (
-            f" #{context_dict['task_id']}" if context_dict["parent"] is not None else ""
-        )
+        task_desc = f"{task_info['estimator_name']} - {task_info['task_name']}"
+        id_mark = f" #{task_info['task_id']}" if task_info["parent"] is not None else ""
         prev_task_desc = (
-            f"{context_dict['prev_estimator_name']} - "
-            f"{context_dict['prev_task_name']} | "
-            if context_dict["prev_estimator_name"] is not None
+            f"{task_info['prev_estimator_name']} - {task_info['prev_task_name']} | "
+            if task_info["prev_estimator_name"] is not None
             else ""
         )
 
@@ -216,21 +213,21 @@ class RichTaskNode:
                 yield from child
 
 
-def _get_context_path(context_dict):
-    """Helper function to get the path of the context dictionaries in the task tree.
+def _get_context_path(task_info):
+    """Helper function to get the path of the task info dictionaries in the task tree.
 
     Parameters
     ----------
-    context_dict : dict
-        The dictionary representations of a CallbackContext instance.
+    task_info : dict
+        The dictionary representations of a CallbackContext's task node.
 
     Returns
     -------
     list of dict
-        The list of dictionary representations of the parents of the given context.
+        The list of dictionary representations of the parents of the given task.
     """
     return (
-        [context_dict]
-        if context_dict["parent"] is None
-        else _get_context_path(context_dict["parent"]) + [context_dict]
+        [task_info]
+        if task_info["parent"] is None
+        else _get_context_path(task_info["parent"]) + [task_info]
     )
