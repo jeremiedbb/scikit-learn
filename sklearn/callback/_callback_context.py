@@ -13,10 +13,10 @@ class CallbackContext:
     Instances of this class should be created using the `init_callback_context` method
     of the estimator.
 
-    The computations performed by an estimator have an inherent tree structure, with
-    each node representing a task. Each loop in the estimator represents a parent task
-    node and each iteration of that loop represents a child task node. Usually the root
-    task node represents the whole fit task and leaves the innermost loop iterations.
+    The tasks executed by an estimator have an inherent tree structure. Each loop in
+    the estimator represents a parent task node and each iteration of that loop
+    represents a child task node. Usually the root task node represents the whole fit
+    task and leaves the innermost loop iterations.
 
     For instance, a KMeans estimator has two nested loops: the outer loop is controlled
     by `n_init` and the inner loop is controlled by `max_iter`. Its task tree looks like
