@@ -4,7 +4,7 @@
 from multiprocessing import Manager
 from threading import Thread
 
-from ..utils._optional_dependencies import check_rich_support
+from sklearn.utils._optional_dependencies import check_rich_support
 
 
 class ProgressBar:

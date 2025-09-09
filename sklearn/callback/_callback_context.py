@@ -1,7 +1,7 @@
 # Authors: The scikit-learn developers
 # SPDX-License-Identifier: BSD-3-Clause
 
-from . import AutoPropagatedProtocol
+from sklearn.callback import AutoPropagatedProtocol
 
 
 class CallbackContext:
@@ -165,7 +165,7 @@ class CallbackContext:
         return new_ctx
 
     def _to_dict(self):
-        # fucntion that returns attributes and parent as parent's _to_dict
+        # function that returns attributes and parent as parent's _to_dict
         context_dict = {
             "estimator_name": self.estimator_name,
             "depth": self.depth,
