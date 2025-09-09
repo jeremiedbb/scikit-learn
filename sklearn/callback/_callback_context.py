@@ -176,8 +176,8 @@ class CallbackContext:
         return new_ctx
 
     def _task_info(self):
-        # function that returns attributes and parent as parent's _task_info
-        context_dict = {
+        """Return attributes and parent as parent's _task_info."""
+        return {
             "estimator_name": self.estimator_name,
             "depth": self.depth,
             "task_name": self.task_name,
@@ -188,7 +188,6 @@ class CallbackContext:
             "prev_task_name": self.prev_task_name,
             "parent": None if self.parent is None else self.parent._task_info(),
         }
-        return context_dict
 
     @property
     def depth(self):
