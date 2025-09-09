@@ -165,7 +165,7 @@ class CallbackContext:
         return new_ctx
 
     def _to_dict(self):
-        # function that returns attributes and parent as parent's _to_dict
+        """Return attributes and parent as parent's _to_dict."""
         context_dict = {
             "estimator_name": self.estimator_name,
             "depth": self.depth,
