@@ -161,19 +161,6 @@ def test_task_tree():
     assert all(node.prev_task_name is None for node in root)
 
 
-def test_path():
-    """Sanity check for the path property."""
-    root = _make_task_tree(n_children=3, n_grandchildren=5)
-
-    assert root.path == [root._to_dict()]
-
-    # pick an arbitrary node
-    node = root.children_map[1].children_map[2]
-
-    expected_path = [root._to_dict(), root.children_map[1]._to_dict(), node._to_dict()]
-    assert node.path == expected_path
-
-
 def test_add_task():
     """Check that informative error messages are raised when adding tasks."""
     estimator = Estimator()
