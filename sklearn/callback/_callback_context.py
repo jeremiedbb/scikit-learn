@@ -68,9 +68,6 @@ class CallbackContext:
         The maximum number of subtasks of this node of the task tree. 0 means it's a
         leaf. None means the maximum number of subtasks is not known in advance.
 
-    max_tasks : int
-        The maximum number of sibling task nodes.
-
     parent : CallbackContext instance or None
         The parent node of the task tree. None means this is the root.
 
@@ -93,7 +90,7 @@ class CallbackContext:
     """
 
     @classmethod
-    def _from_estimator(cls, estimator, *, task_name, task_id, max_tasks=1):
+    def _from_estimator(cls, estimator, *, task_name, task_id, max_subtasks=None):
         """Private constructor to create a root context.
 
         Parameters
@@ -107,9 +104,9 @@ class CallbackContext:
         task_id : int
             The id of the task this context is responsible for.
 
-        max_tasks : int, default=1
-            The maximum number of tasks that can be siblings of the task this context is
-            responsible for.
+        max_subtasks : int or None, default=None
+            The maximum number of subtasks of this node of the task tree. 0 means it's a
+            leaf. None means the maximum number of subtasks is not known in advance.
         """
         new_ctx = cls.__new__(cls)
 
@@ -119,10 +116,9 @@ class CallbackContext:
         new_ctx.estimator_name = estimator.__class__.__name__
         new_ctx.task_name = task_name
         new_ctx.task_id = task_id
-        new_ctx.max_tasks = max_tasks
         new_ctx.parent = None
         new_ctx.children_map = {}
-        new_ctx.max_subtasks = 0
+        new_ctx.max_subtasks = max_subtasks
         new_ctx.prev_estimator_name = None
         new_ctx.prev_task_name = None
 
@@ -141,7 +137,7 @@ class CallbackContext:
         return new_ctx
 
     @classmethod
-    def _from_parent(cls, parent_context, *, task_name, task_id, max_tasks=1):
+    def _from_parent(cls, parent_context, *, task_name, task_id, max_subtasks=None):
         """Private constructor to create a sub-context.
 
         Parameters
@@ -155,9 +151,10 @@ class CallbackContext:
         task_id : int
             The id of the task this context is responsible for.
 
-        max_tasks : int, default=1
-            The maximum number of tasks that can be siblings of the task this context is
-            responsible for.
+        max_subtasks : int or None, default=None
+            The maximum number of tasks that can be children of the task this context is
+            responsible for. 0 means it's a leaf. None means the maximum number of
+            subtasks is not known in advance.
         """
         new_ctx = cls.__new__(cls)
 
@@ -166,10 +163,9 @@ class CallbackContext:
         new_ctx._estimator_depth = parent_context._estimator_depth
         new_ctx.task_name = task_name
         new_ctx.task_id = task_id
-        new_ctx.max_tasks = max_tasks
         new_ctx.parent = None
         new_ctx.children_map = {}
-        new_ctx.max_subtasks = 0
+        new_ctx.max_subtasks = max_subtasks
         new_ctx.prev_estimator_name = None
         new_ctx.prev_task_name = None
 
@@ -185,7 +181,6 @@ class CallbackContext:
             "depth": self.depth,
             "task_name": self.task_name,
             "task_id": self.task_id,
-            "max_tasks": self.max_tasks,
             "max_subtasks": self.max_subtasks,
             "prev_estimator_name": self.prev_estimator_name,
             "prev_task_name": self.prev_task_name,
@@ -210,15 +205,14 @@ class CallbackContext:
                 f"already has a child with task_id={context.task_id}."
             )
 
-        if len(self.children_map) == context.max_tasks:
+        if len(self.children_map) == self.max_subtasks:
             raise ValueError(
                 f"Cannot add child to callback context {self.task_name} of estimator "
                 f"{self.estimator_name} because it already has its maximum "
-                f"number of children ({context.max_tasks})."
+                f"number of children ({self.max_subtasks})."
             )
 
         self.children_map[context.task_id] = context
-        self.max_subtasks = context.max_tasks
         context.parent = self
 
     def _merge_with(self, context):
@@ -226,14 +220,14 @@ class CallbackContext:
         # of the meta-estimator's leaf context node
         self.parent = context.parent
         self.task_id = context.task_id
-        self.max_tasks = context.max_tasks
+        self.max_subtasks = context.max_subtasks
         context.parent.children_map[self.task_id] = self
 
         # Keep information about the node it was merged with
         self.prev_task_name = context.task_name
         self.prev_estimator_name = context.estimator_name
 
-    def subcontext(self, task_name="", task_id=0, max_tasks=1):
+    def subcontext(self, task_name="", task_id=0, max_subtasks=None):
         """Create a context for a subtask of the current task.
 
         Parameters
@@ -242,17 +236,18 @@ class CallbackContext:
             The name of the subtask.
 
         task_id : int, default=0
-            An identifier of the subtask. Usually a number between 0 and
-            `max_tasks - 1`, but can be any identifier.
+            An identifier of the subtask.
 
-        max_tasks : int, default=1
-            The maximum number of tasks that can be siblings of the subtask.
+        max_subtasks : int or None, default=None
+            The maximum number of tasks that can be children of the subtask. 0 means
+            it's a leaf. None means the maximum number of subtasks is not known in
+            advance.
         """
         return CallbackContext._from_parent(
             parent_context=self,
             task_name=task_name,
             task_id=task_id,
-            max_tasks=max_tasks,
+            max_subtasks=max_subtasks,
         )
 
     def eval_on_fit_begin(self, estimator, *, data):

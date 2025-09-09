@@ -107,7 +107,7 @@ def _make_task_tree(n_children, n_grandchildren):
         estimator,
         task_name="root task",
         task_id=0,
-        max_tasks=1,
+        max_subtasks=n_children,
     )
 
     for i in range(n_children):
@@ -115,7 +115,7 @@ def _make_task_tree(n_children, n_grandchildren):
             estimator,
             task_name="child task",
             task_id=i,
-            max_tasks=n_children,
+            max_subtasks=n_grandchildren,
         )
         root._add_child(child)
 
@@ -124,7 +124,6 @@ def _make_task_tree(n_children, n_grandchildren):
                 estimator,
                 task_name="grandchild task",
                 task_id=j,
-                max_tasks=n_grandchildren,
             )
             child._add_child(grandchild)
 
@@ -143,13 +142,13 @@ def test_task_tree():
         assert child.parent is root
         assert child.depth == 1
         assert len(child.children_map) == 5
-        assert root.max_subtasks == child.max_tasks
+        assert root.max_subtasks == 3
 
         for grandchild in child.children_map.values():
             assert grandchild.parent is child
             assert grandchild.depth == 2
             assert len(grandchild.children_map) == 0
-            assert child.max_subtasks == grandchild.max_tasks
+            assert child.max_subtasks == 5
 
     # 1 root + 1 * 3 children + 1 * 3 * 5 grandchildren
     expected_n_nodes = np.sum(np.cumprod([1, 3, 5]))
@@ -165,16 +164,11 @@ def test_add_task():
     """Check that informative error messages are raised when adding tasks."""
     estimator = Estimator()
     root = CallbackContext._from_estimator(
-        estimator, task_name="root task", task_id=0, max_tasks=1
+        estimator, task_name="root task", task_id=0, max_subtasks=2
     )
 
-    # Before adding new task, it's considered a leaf
-    assert root.max_subtasks == 0
-
     root._add_child(
-        CallbackContext._from_estimator(
-            estimator, task_name="child task", task_id=0, max_tasks=2
-        )
+        CallbackContext._from_estimator(estimator, task_name="child task", task_id=0)
     )
     assert root.max_subtasks == 2
     assert len(root.children_map) == 1
@@ -185,14 +179,12 @@ def test_add_task():
     ):
         root._add_child(
             CallbackContext._from_estimator(
-                estimator, task_name="child task", task_id=0, max_tasks=2
+                estimator, task_name="child task", task_id=0
             )
         )
 
     root._add_child(
-        CallbackContext._from_estimator(
-            estimator, task_name="child task", task_id=1, max_tasks=2
-        )
+        CallbackContext._from_estimator(estimator, task_name="child task", task_id=1)
     )
     assert len(root.children_map) == 2
 
@@ -200,7 +192,7 @@ def test_add_task():
     with pytest.raises(ValueError, match=r"Cannot add child to callback context"):
         root._add_child(
             CallbackContext._from_estimator(
-                estimator, task_name="child task", task_id=2, max_tasks=2
+                estimator, task_name="child task", task_id=2
             )
         )
 
@@ -209,20 +201,18 @@ def test_merge_with():
     estimator = Estimator()
     meta_estimator = MetaEstimator(estimator)
     outer_root = CallbackContext._from_estimator(
-        meta_estimator, task_name="root", task_id=0, max_tasks=1
+        meta_estimator, task_name="root", task_id=0, max_subtasks=2
     )
 
     # Add a child task within the same estimator
     outer_child = CallbackContext._from_estimator(
-        meta_estimator, task_name="child", task_id="id", max_tasks=2
+        meta_estimator, task_name="child", task_id="id", max_subtasks=1
     )
     outer_root._add_child(outer_child)
 
     # The root task of the inner estimator is merged with (and effectively replaces)
     # a leaf of the outer estimator because they correspond to the same formal task.
-    inner_root = CallbackContext._from_estimator(
-        estimator, task_name="root", task_id=0, max_tasks=1
-    )
+    inner_root = CallbackContext._from_estimator(estimator, task_name="root", task_id=0)
     inner_root._merge_with(outer_child)
 
     assert inner_root.parent is outer_root
