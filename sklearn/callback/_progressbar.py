@@ -155,8 +155,9 @@ class RichTaskNode:
 
     Parameters
     ----------
-    context : `CallbackContext` instance
-        The callback context of an estimator this task corresponds to.
+    task_info : dict
+        Property :meth:`~sklearn.callback.CallbackContext.task_info` of a callback
+        context corresponding to this task.
 
     progress_ctx : `rich.Progress` instance
         The progress context to which this task belongs.
