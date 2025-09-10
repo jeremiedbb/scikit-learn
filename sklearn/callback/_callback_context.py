@@ -85,6 +85,9 @@ class CallbackContext:
     task_id : int
         The id of this task node.
 
+    task_info : dict
+        Dictionary description of the corresponding computation task.
+
     task_name : str
         The task name of this node.
     """
@@ -174,8 +177,29 @@ class CallbackContext:
 
         return new_ctx
 
-    def _task_info(self):
-        """Return attributes and parent as parent's _task_."""
+    @property
+    def task_info(self):
+        """Information about the corresponding computation task. the keys are
+
+        - depth : int
+            The depth of the task in the task tree.
+        - estimator_name : str
+            The name of the estimator.
+        - max_subtasks : int
+            The maximum number of children tasks for this task.
+        - parent : dict or None
+            The task_info property of this task's parent, None if this task is the root.
+        - prev_estimator_name : str or None
+            The name of the meta estimator, in the case that this task was merged to a
+            meta estimator's subtask, None otherwise.
+        - prev_task_name : str
+            The name of the meta estimator's subtask this task was merged to, None
+            if it was not merged to a task.
+        - task_id : int
+            The identifier of the task.
+        - task_name : str
+            The name of the task.
+        """
         return {
             "estimator_name": self.estimator_name,
             "depth": self.depth,
@@ -184,7 +208,7 @@ class CallbackContext:
             "max_subtasks": self.max_subtasks,
             "prev_estimator_name": self.prev_estimator_name,
             "prev_task_name": self.prev_task_name,
-            "parent": None if self.parent is None else self.parent._task_info(),
+            "parent": None if self.parent is None else self.parent.task_info,
         }
 
     @property
@@ -236,7 +260,8 @@ class CallbackContext:
             The name of the subtask.
 
         task_id : int, default=0
-            An identifier of the subtask.
+            An identifier of the subtask. Usually a number between 0 and the maximum
+            number of sibling contexts, but can be any identifier.
 
         max_subtasks : int or None, default=None
             The maximum number of tasks that can be children of the subtask. 0 means
@@ -315,7 +340,7 @@ class CallbackContext:
             Whether or not to stop the current level of iterations at this task node.
         """
         return any(
-            callback._on_fit_iter_end(estimator, self._task_info(), **kwargs)
+            callback._on_fit_iter_end(estimator, self.task_info, **kwargs)
             for callback in self._callbacks
         )
 
@@ -333,7 +358,7 @@ class CallbackContext:
             if not (
                 isinstance(callback, AutoPropagatedProtocol) and self.parent is not None
             ):
-                callback._on_fit_end(estimator, task_info=self._task_info())
+                callback._on_fit_end(estimator, task_info=self.task_info)
 
     def propagate_callbacks(self, sub_estimator):
         """Propagate the callbacks to a sub-estimator.

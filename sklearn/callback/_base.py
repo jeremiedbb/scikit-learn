@@ -32,7 +32,8 @@ class CallbackProtocol(Protocol):
             passed to the `on_fit_begin` method for auto-propagated callbacks.
 
         task_info : dict
-            The dictionary representation caller callback task context.
+            Property :meth:`~sklearn.callback.CallbackContext.task_info` from the caller
+            callback context.
 
         **kwargs : dict
             arguments passed to the callback. Possible keys are
@@ -77,10 +78,10 @@ class CallbackProtocol(Protocol):
             The estimator calling this callback hook.
 
         task_info : dict
-            The dictionary representation of the callback task context corresponding to
-            the whole `fit` task. This is usually the root of the task tree of the
-            estimator but it can be an intermediate node if the estimator is a
-            sub-estimator of a meta-estimator.
+            Property :meth:`~sklearn.callback.CallbackContext.task_info` from the caller
+            callback context corresponding to the whole `fit` task. This is usually the
+            root of the task tree of the estimator but it can be an intermediate node if
+            the estimator is a sub-estimator of a meta-estimator.
         """
 
 
