@@ -2,6 +2,9 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import time
+from functools import partial
+
+import numpy as np
 
 from sklearn.base import BaseEstimator, _fit_context, clone
 from sklearn.callback import CallbackSupportMixin
@@ -54,10 +57,39 @@ class Estimator(CallbackSupportMixin, BaseEstimator):
             if subcontext.eval_on_fit_iter_end(
                 estimator=self,
                 data={"X_train": X, "y_train": y},
+                fit_state={},
+                from_reconstruction_attributes=partial(
+                    self._from_reconstruction_attributes,
+                    reconstruction_attributes=lambda: {"n_iter_": i + 1},
+                ),
             ):
                 break
 
         self.n_iter_ = i + 1
+
+        return self
+
+    def predict(self, X):
+        return np.mean(X, axis=1) * self.n_iter_
+
+
+class EstimatorWithoutPredict(CallbackSupportMixin, BaseEstimator):
+    _parameter_constraints: dict = {}
+
+    def fit(self, X=None, y=None):
+        callback_ctx = self.init_callback_context().eval_on_fit_begin(
+            estimator=self, data={"X_train": X, "y_train": y}
+        )
+        subcontext = callback_ctx.subcontext(task_id=0)
+        subcontext.eval_on_fit_iter_end(
+            estimator=self,
+            data={"X_train": X, "y_train": y},
+            fit_state={},
+            from_reconstruction_attributes=partial(
+                self._from_reconstruction_attributes,
+                reconstruction_attributes=lambda: {},
+            ),
+        )
 
         return self
 
