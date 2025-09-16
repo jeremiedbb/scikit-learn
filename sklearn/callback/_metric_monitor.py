@@ -32,16 +32,15 @@ class MetricMonitor:
         self.log = []
 
     def _on_fit_begin(self, estimator, *, data):
-        pass
-
-    def _on_fit_iter_end(
-        self, estimator, task_info, data, from_reconstruction_attributes, **kwargs
-    ):
         if not hasattr(estimator, "predict"):
             raise ValueError(
                 f"Estimator {estimator.__class__} does not have a predict method, which"
                 "is necessary to use a MetricMonitor callback."
             )
+
+    def _on_fit_iter_end(
+        self, estimator, task_info, data, from_reconstruction_attributes, **kwargs
+    ):
         y_pred = from_reconstruction_attributes().predict(data["X_train"])
         metric_value = self.metric_func(data["y_train"], y_pred)
         self.log.append((task_info["task_id"], metric_value))
