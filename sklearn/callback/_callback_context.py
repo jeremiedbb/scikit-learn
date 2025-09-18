@@ -179,7 +179,7 @@ class CallbackContext:
 
     @property
     def task_info(self):
-        """Information about the corresponding computation task. the keys are
+        """Information about the corresponding computation task. The keys are
 
         - depth : int
             The depth of the task in the task tree.
@@ -392,15 +392,33 @@ class CallbackContext:
             )
         ]
 
-        if not callbacks_to_propagate:
-            return self
-
         # We store the parent context in the sub-estimator to be able to merge the
         # task trees of the sub-estimator and the meta-estimator.
         sub_estimator._parent_callback_ctx = self
 
-        sub_estimator.set_callbacks(
-            getattr(sub_estimator, "_skl_callbacks", []) + callbacks_to_propagate
-        )
+        if callbacks_to_propagate:
+            sub_estimator.set_callbacks(
+                getattr(sub_estimator, "_skl_callbacks", []) + callbacks_to_propagate
+            )
 
         return self
+
+
+def _get_context_path(task_info):
+    """Helper function to get the path of task info from this task to the root task.
+
+    Parameters
+    ----------
+    task_info : dict
+        The dictionary representations of a CallbackContext's task node.
+
+    Returns
+    -------
+    list of dict
+        The list of dictionary representations of the parents of the given task.
+    """
+    return (
+        [task_info]
+        if task_info["parent"] is None
+        else _get_context_path(task_info["parent"]) + [task_info]
+    )

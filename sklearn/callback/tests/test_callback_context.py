@@ -98,7 +98,7 @@ def test_auto_propagated_callbacks():
         r"sub-estimator .*of a meta-estimator .*can't have auto-propagated callbacks"
     )
     with pytest.raises(TypeError, match=match):
-        meta_estimator.fit(X=None, y=None)
+        meta_estimator.fit()
 
 
 def _make_task_tree(n_children, n_grandchildren):

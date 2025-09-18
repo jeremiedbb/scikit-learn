@@ -4,6 +4,7 @@
 from multiprocessing import Manager
 from threading import Thread
 
+from sklearn.callback._callback_context import _get_context_path
 from sklearn.utils._optional_dependencies import check_rich_support
 
 
@@ -212,23 +213,3 @@ class RichTaskNode:
             yield self
             for child in self.children.values():
                 yield from child
-
-
-def _get_context_path(task_info):
-    """Helper function to get the path of task info from this task to the root task.
-
-    Parameters
-    ----------
-    task_info : dict
-        The dictionary representations of a CallbackContext's task node.
-
-    Returns
-    -------
-    list of dict
-        The list of dictionary representations of the parents of the given task.
-    """
-    return (
-        [task_info]
-        if task_info["parent"] is None
-        else _get_context_path(task_info["parent"]) + [task_info]
-    )
