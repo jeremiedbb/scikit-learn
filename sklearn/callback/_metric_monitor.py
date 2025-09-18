@@ -6,7 +6,7 @@ from multiprocessing import Manager
 
 import pandas as pd
 
-from sklearn.callback._callback_context import _get_context_path
+from sklearn.callback._callback_context import _get_task_info_path
 
 
 class MetricMonitor:
@@ -41,7 +41,7 @@ class MetricMonitor:
         self.metric_func = metric
         self._shared_log = Manager().list()
 
-    def _on_fit_begin(self, estimator, *, data):
+    def _on_fit_begin(self, estimator):
         if not hasattr(estimator, "predict"):
             raise ValueError(
                 f"Estimator {estimator.__class__} does not have a predict method, which"
@@ -49,7 +49,7 @@ class MetricMonitor:
             )
         self._fit_log = Manager().Queue()
 
-    def _on_fit_iter_end(
+    def _on_fit_task_end(
         self, estimator, task_info, data, from_reconstruction_attributes, **kwargs
     ):
         # TODO: add check to verify we're on the innermost level of the fit loop
@@ -62,7 +62,7 @@ class MetricMonitor:
         y_pred = from_reconstruction_attributes().predict(X)
         metric_value = self.metric_func(y, y_pred, **self.metric_params)
         log_item = {self.metric_func.__name__: metric_value}
-        for node_info in _get_context_path(task_info):
+        for node_info in _get_task_info_path(task_info):
             prev_task_str = (
                 f"{node_info['prev_estimator_name']}_{node_info['prev_task_name']}|"
                 if node_info["prev_estimator_name"] is not None
