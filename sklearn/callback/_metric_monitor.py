@@ -20,8 +20,8 @@ class MetricMonitor:
     ----------
     metric : function
         The metric to compute.
-    metric_kwargs : dict or None, default=None
-        Keyword argumments for the metric, None means no argument is used.
+    metric_params : dict or None, default=None
+        Additional keyword arguments for the metric function.
     on_validation : bool, default=True
         Whether to compute the metric on validation data (if True) or training data
         (if False).

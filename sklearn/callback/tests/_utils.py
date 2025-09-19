@@ -12,6 +12,8 @@ from sklearn.utils.parallel import Parallel, delayed
 
 
 class TestingCallback:
+    """A minimal callback used for smoke testing purposes."""
+
     def _on_fit_begin(self, estimator):
         pass
 
@@ -23,6 +25,8 @@ class TestingCallback:
 
 
 class TestingAutoPropagatedCallback(TestingCallback):
+    """A minimal auto-propagated callback used for smoke testing purposes."""
+
     max_estimator_depth = None
 
 
@@ -37,6 +41,11 @@ class NotValidCallback:
 
 
 class Estimator(CallbackSupportMixin, BaseEstimator):
+    """A class that mimics the behavior of an estimator.
+
+    The iterative part uses a loop with a max number of iterations known in advance.
+    """
+
     _parameter_constraints: dict = {}
 
     def __init__(self, intercept=0, max_iter=20, computation_intensity=0.001):
@@ -89,6 +98,11 @@ class EstimatorWithoutPredict(CallbackSupportMixin, BaseEstimator):
 
 
 class WhileEstimator(CallbackSupportMixin, BaseEstimator):
+    """A class that mimics the behavior of an estimator.
+
+    The iterative part uses a loop with a max number of iterations known in advance.
+    """
+
     _parameter_constraints: dict = {}
 
     def __init__(self, intercept=0, max_iter=20, computation_intensity=0.001):
@@ -136,6 +150,12 @@ class WhileEstimator(CallbackSupportMixin, BaseEstimator):
 
 
 class MetaEstimator(CallbackSupportMixin, BaseEstimator):
+    """A class that mimics the behavior of a meta-estimator.
+
+    It has two levels of iterations. The outer level uses parallelism and the inner
+    level is done in a function that is not a method of the class.
+    """
+
     _parameter_constraints: dict = {}
 
     def __init__(
