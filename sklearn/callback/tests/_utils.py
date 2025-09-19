@@ -197,7 +197,7 @@ class MetaEstimator(CallbackSupportMixin, BaseEstimator):
 def _func(meta_estimator, inner_estimator, data, *, callback_ctx):
     for i in range(meta_estimator.n_inner):
         est = clone(inner_estimator)
-        iter_id = callback_ctx.task_id * meta_estimator.n_inner + i
+        iter_id = callback_ctx._task_id * meta_estimator.n_inner + i
         est.intercept = iter_id
 
         inner_ctx = callback_ctx.subcontext(
