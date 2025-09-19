@@ -166,7 +166,7 @@ def test_within_meta_estimator(prefer, metric, metric_params):
 
     assert len(log_train) == len(expected_log_train)
     assert len(log_val) == len(expected_log_val)
-    assert log_train.equals(expected_log_train)
     assert np.array_equal(log_train.index.names, expected_log_train.index.names)
-    assert log_val.equals(expected_log_val)
     assert np.array_equal(log_val.index.names, expected_log_val.index.names)
+    assert log_train.equals(expected_log_train)
+    assert log_val.equals(expected_log_val)

@@ -39,7 +39,7 @@ class MetricMonitor:
                     f" function {metric.__module__}.{metric.__name__}."
                 )
         self.metric_func = metric
-        self._shared_log = Manager().list()
+        self._shared_mem_log = Manager().list()
 
     def _on_fit_begin(self, estimator):
         if not hasattr(estimator, "predict"):
@@ -47,7 +47,6 @@ class MetricMonitor:
                 f"Estimator {estimator.__class__} does not have a predict method, which"
                 " is necessary to use a MetricMonitor callback."
             )
-        self._fit_log = Manager().Queue()
 
     def _on_fit_task_end(
         self, estimator, task_info, data, from_reconstruction_attributes, **kwargs
@@ -72,14 +71,20 @@ class MetricMonitor:
                 f"{node_info['depth']}_{prev_task_str}{node_info['estimator_name']}_"
                 f"{node_info['task_name']}"
             ] = node_info["task_id"]
-        self._fit_log.put(log_item)
+        self._shared_mem_log.append(log_item)
 
     def _on_fit_end(self, estimator, task_info):
-        while not self._fit_log.empty():
-            self._shared_log.append(self._fit_log.get())
+        pass
 
     def get_logs(self):
-        self.log = pd.DataFrame(list(self._shared_log))
+        """Generate a pandas Dataframe with the logged values.
+
+        Returns
+        -------
+        pandas.DataFrame
+            Multi-index DataFrame with indices corresponding to the task tree.
+        """
+        self.log = pd.DataFrame(list(self._shared_mem_log))
         if not self.log.empty:
             self.log = self.log.set_index(
                 [col for col in self.log.columns if col != self.metric_func.__name__]
