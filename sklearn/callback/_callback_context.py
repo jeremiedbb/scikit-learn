@@ -171,9 +171,6 @@ class CallbackContext:
         - estimator_name : str
             The name of the estimator.
 
-        - depth : int
-            The depth of the task in the task tree.
-
         - prev_estimator_name : str or None
             The estimator name of the parent task this task was merged with. None if it
             was not merged with another context.
@@ -193,18 +190,12 @@ class CallbackContext:
             "task_id": self._task_id,
             "max_subtasks": self._max_subtasks,
             "estimator_name": self._estimator_name,
-            "depth": self._depth,
             "prev_estimator_name": self._prev_estimator_name,
             "prev_task_name": self._prev_task_name,
             "parent_task_info": None
             if self._parent is None
             else self._parent.task_info,
         }
-
-    @property
-    def _depth(self):
-        """The depth of this task in the task tree."""
-        return 0 if self._parent is None else self._parent._depth + 1
 
     def __iter__(self):
         """Pre-order depth-first traversal of the task tree."""
