@@ -197,8 +197,9 @@ class RichTask:
         """Return a formatted description for the task."""
         colors = ["bright_magenta", "cyan", "dark_orange"]
 
-        indent = f"{'  ' * (task_info['depth'])}"
-        style = f"[{colors[(task_info['depth']) % len(colors)]}]"
+        depth = len(_get_task_info_path(task_info)) - 1
+        indent = f"{'  ' * depth}"
+        style = f"[{colors[(depth) % len(colors)]}]"
 
         task_desc = f"{task_info['estimator_name']} - {task_info['task_name']}"
         id_mark = (
