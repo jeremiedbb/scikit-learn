@@ -389,7 +389,7 @@ class CallbackContext:
         return self
 
 
-def _get_task_info_path(task_info):
+def get_task_info_path(task_info):
     """Helper function to get the path of task info from this task to the root task.
 
     Parameters
