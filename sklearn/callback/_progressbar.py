@@ -4,6 +4,7 @@
 from multiprocessing import Manager
 from threading import Thread
 
+from sklearn.callback._callback_context import _get_task_info_path
 from sklearn.utils._optional_dependencies import check_rich_support
 
 
@@ -186,6 +187,7 @@ class RichTask:
         self.parent = parent
         self.children = {}
         self.finished = False
+        self.depth = 0 if parent is None else parent.depth + 1
 
         if task_info["max_subtasks"] != 0:
             description = self._format_task_description(task_info)
@@ -197,9 +199,8 @@ class RichTask:
         """Return a formatted description for the task."""
         colors = ["bright_magenta", "cyan", "dark_orange"]
 
-        depth = len(_get_task_info_path(task_info)) - 1
-        indent = f"{'  ' * depth}"
-        style = f"[{colors[(depth) % len(colors)]}]"
+        indent = f"{'  ' * self.depth}"
+        style = f"[{colors[(self.depth) % len(colors)]}]"
 
         task_desc = f"{task_info['estimator_name']} - {task_info['task_name']}"
         id_mark = (
@@ -221,24 +222,3 @@ class RichTask:
             yield self
             for child in self.children.values():
                 yield from child
-
-
-def _get_task_info_path(task_info):
-    """Helper function to get the path of task info from this task to the root task.
-
-    Parameters
-    ----------
-    task_info : dict
-        The dictionary representations of a CallbackContext's task node.
-
-    Returns
-    -------
-    list of dict
-        The list of dictionary representations of the ancestors (itself included) of the
-        given task.
-    """
-    return (
-        [task_info]
-        if task_info["parent_task_info"] is None
-        else _get_task_info_path(task_info["parent_task_info"]) + [task_info]
-    )

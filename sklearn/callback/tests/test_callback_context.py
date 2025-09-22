@@ -4,8 +4,7 @@
 import numpy as np
 import pytest
 
-from sklearn.callback._callback_context import CallbackContext
-from sklearn.callback._progressbar import _get_task_info_path
+from sklearn.callback._callback_context import CallbackContext, _get_task_info_path
 from sklearn.callback.tests._utils import (
     Estimator,
     MetaEstimator,
