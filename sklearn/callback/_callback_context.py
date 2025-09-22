@@ -91,14 +91,14 @@ class CallbackContext:
         # We don't store the estimator in the context to avoid circular references
         # because the estimator already holds a reference to the context.
         new_ctx._callbacks = getattr(estimator, "_skl_callbacks", [])
-        new_ctx._estimator_name = estimator.__class__.__name__
-        new_ctx._task_name = task_name
-        new_ctx._task_id = task_id
-        new_ctx._parent = None
+        new_ctx.estimator_name = estimator.__class__.__name__
+        new_ctx.task_name = task_name
+        new_ctx.task_id = task_id
+        new_ctx.parent = None
         new_ctx._children_map = {}
-        new_ctx._max_subtasks = max_subtasks
-        new_ctx._prev_estimator_name = None
-        new_ctx._prev_task_name = None
+        new_ctx.max_subtasks = max_subtasks
+        new_ctx.prev_estimator_name = None
+        new_ctx.prev_task_name = None
 
         if hasattr(estimator, "_parent_callback_ctx"):
             # This context's task is the root task of the estimator which itself
@@ -137,15 +137,15 @@ class CallbackContext:
         new_ctx = cls.__new__(cls)
 
         new_ctx._callbacks = parent_context._callbacks
-        new_ctx._estimator_name = parent_context._estimator_name
+        new_ctx.estimator_name = parent_context.estimator_name
         new_ctx._estimator_depth = parent_context._estimator_depth
-        new_ctx._task_name = task_name
-        new_ctx._task_id = task_id
-        new_ctx._parent = None
+        new_ctx.task_name = task_name
+        new_ctx.task_id = task_id
+        new_ctx.parent = None
         new_ctx._children_map = {}
-        new_ctx._max_subtasks = max_subtasks
-        new_ctx._prev_estimator_name = None
-        new_ctx._prev_task_name = None
+        new_ctx.max_subtasks = max_subtasks
+        new_ctx.prev_estimator_name = None
+        new_ctx.prev_task_name = None
 
         # This task is a subtask of another task of a same estimator
         parent_context._add_child(new_ctx)
@@ -153,58 +153,9 @@ class CallbackContext:
         return new_ctx
 
     @property
-    def task_info(self):
-        """Information about the corresponding computation task.
-
-        The key value pairs are:
-
-        - task_name : str
-            The name of the task.
-
-        - task_id : int
-            The identifier of the task.
-
-        - max_subtasks : int or None
-            The maximum number of children tasks for this task. 0 means it's a leaf.
-            None means the maximum number of subtasks is not known in advance.
-
-        - estimator_name : str
-            The name of the estimator.
-
-        - depth : int
-            The depth of the task in the task tree.
-
-        - prev_estimator_name : str or None
-            The estimator name of the parent task this task was merged with. None if it
-            was not merged with another context.
-
-        - prev_task_name : str or None
-            The task name of the parent task this task was merged with. None if it
-            was not merged with another context.
-
-        - parent_task_info : dict or None
-            The task_info property of this task's parent. None if this task is the root.
-
-        Note that it is a dynamic attribute since the root task of an estimator can
-        become an intermediate task of a meta-estimator.
-        """
-        return {
-            "task_name": self._task_name,
-            "task_id": self._task_id,
-            "max_subtasks": self._max_subtasks,
-            "estimator_name": self._estimator_name,
-            "depth": self._depth,
-            "prev_estimator_name": self._prev_estimator_name,
-            "prev_task_name": self._prev_task_name,
-            "parent_task_info": None
-            if self._parent is None
-            else self._parent.task_info,
-        }
-
-    @property
     def _depth(self):
         """The depth of this task in the task tree."""
-        return 0 if self._parent is None else self._parent._depth + 1
+        return 0 if self.parent is None else self.parent._depth + 1
 
     def __iter__(self):
         """Pre-order depth-first traversal of the task tree."""
@@ -214,35 +165,35 @@ class CallbackContext:
 
     def _add_child(self, child_context):
         """Add `child_context` as a child of this context."""
-        if child_context._task_id in self._children_map:
+        if child_context.task_id in self._children_map:
             raise ValueError(
-                f"Callback context {self._task_name} of estimator "
-                f"{self._estimator_name} already has a child with "
-                f"task_id={child_context._task_id}."
+                f"Callback context {self.task_name} of estimator "
+                f"{self.estimator_name} already has a child with "
+                f"task_id={child_context.task_id}."
             )
 
-        if len(self._children_map) == self._max_subtasks:
+        if len(self._children_map) == self.max_subtasks:
             raise ValueError(
-                f"Cannot add child to callback context {self._task_name} of estimator "
-                f"{self._estimator_name} because it already has its maximum "
-                f"number of children ({self._max_subtasks})."
+                f"Cannot add child to callback context {self.task_name} of estimator "
+                f"{self.estimator_name} because it already has its maximum "
+                f"number of children ({self.max_subtasks})."
             )
 
-        self._children_map[child_context._task_id] = child_context
-        child_context._parent = self
+        self._children_map[child_context.task_id] = child_context
+        child_context.parent = self
 
     def _merge_with(self, other_context):
         """Merge this context with `other_context`."""
         # Set the parent of the sub-estimator's root context to the parent of the
         # meta-estimator's leaf context
-        self._parent = other_context._parent
-        self._task_id = other_context._task_id
-        self._max_subtasks = other_context._max_subtasks
-        other_context._parent._children_map[self._task_id] = self
+        self.parent = other_context.parent
+        self.task_id = other_context.task_id
+        self.max_subtasks = other_context.max_subtasks
+        other_context.parent._children_map[self.task_id] = self
 
         # Keep information about the context it was merged with
-        self._prev_task_name = other_context._task_name
-        self._prev_estimator_name = other_context._estimator_name
+        self.prev_task_name = other_context.task_name
+        self.prev_estimator_name = other_context.estimator_name
 
     def subcontext(self, task_name="", task_id=0, max_subtasks=None):
         """Create a context for a subtask of the current task.
@@ -281,8 +232,7 @@ class CallbackContext:
             # Only call the on_fit_begin method of callbacks that are not
             # propagated from a meta-estimator.
             if not (
-                isinstance(callback, AutoPropagatedCallback)
-                and self._parent is not None
+                isinstance(callback, AutoPropagatedCallback) and self.parent is not None
             ):
                 callback._on_fit_begin(estimator)
 
@@ -331,7 +281,7 @@ class CallbackContext:
             task.
         """
         return any(
-            callback._on_fit_task_end(estimator, self.task_info, **kwargs)
+            callback._on_fit_task_end(estimator, self, **kwargs)
             for callback in self._callbacks
         )
 
@@ -347,10 +297,9 @@ class CallbackContext:
             # Only call the on_fit_end method of callbacks that are not
             # propagated from a meta-estimator.
             if not (
-                isinstance(callback, AutoPropagatedCallback)
-                and self._parent is not None
+                isinstance(callback, AutoPropagatedCallback) and self.parent is not None
             ):
-                callback._on_fit_end(estimator, task_info=self.task_info)
+                callback._on_fit_end(estimator, self)
 
     def propagate_callbacks(self, sub_estimator):
         """Propagate the callbacks to a sub-estimator.
@@ -369,7 +318,7 @@ class CallbackContext:
         if bad_callbacks:
             raise TypeError(
                 f"The sub-estimator ({sub_estimator.__class__.__name__}) of a"
-                f" meta-estimator ({self._estimator_name}) can't have"
+                f" meta-estimator ({self.estimator_name}) can't have"
                 f" auto-propagated callbacks ({bad_callbacks})."
                 " Register them directly on the meta-estimator."
             )
