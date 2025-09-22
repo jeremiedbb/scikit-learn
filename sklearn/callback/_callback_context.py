@@ -395,7 +395,8 @@ def get_task_info_path(task_info):
     Parameters
     ----------
     task_info : dict
-        The dictionary representations of a CallbackContext's task node.
+        The dictionary representation of a task as returned by
+        `CallbackContext.task_info`.
 
     Returns
     -------
