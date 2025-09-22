@@ -407,5 +407,5 @@ def get_task_info_path(task_info):
     return (
         [task_info]
         if task_info["parent_task_info"] is None
-        else _get_task_info_path(task_info["parent_task_info"]) + [task_info]
+        else get_task_info_path(task_info["parent_task_info"]) + [task_info]
     )

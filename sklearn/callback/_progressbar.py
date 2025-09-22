@@ -4,7 +4,7 @@
 from multiprocessing import Manager
 from threading import Thread
 
-from sklearn.callback._callback_context import _get_task_info_path
+from sklearn.callback._callback_context import get_task_info_path
 from sklearn.utils._optional_dependencies import check_rich_support
 
 
@@ -94,7 +94,7 @@ class RichProgressMonitor(Thread):
 
         with self.progress_ctx:
             while task_info := self.queue.get():
-                task_info_path = _get_task_info_path(task_info)
+                task_info_path = get_task_info_path(task_info)
                 self._update_task_tree(task_info_path)
                 self._update_tasks()
                 self.progress_ctx.refresh()
