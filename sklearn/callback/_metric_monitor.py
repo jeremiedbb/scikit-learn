@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import inspect
+import time
 from multiprocessing import Manager
 
 import pandas as pd
@@ -62,6 +63,13 @@ class MetricMonitor:
         metric_value = self.metric_func(y, y_pred, **self.metric_params)
         log_item = {self.metric_func.__name__: metric_value}
         for depth, ctx in enumerate(get_context_path(context)):
+            if depth == 0:
+                timestamp = time.strftime(
+                    "%Y-%m-%d_%H:%M:%S", time.localtime(ctx.init_time)
+                )
+                log_item["_run"] = (
+                    f"{ctx.estimator_name}_{ctx.estimator_id}_{timestamp}"
+                )
             prev_task_str = (
                 f"{ctx.prev_estimator_name}_{ctx.prev_task_name}|"
                 if ctx.prev_estimator_name is not None
@@ -72,7 +80,7 @@ class MetricMonitor:
             )
         self._shared_mem_log.append(log_item)
 
-    def _on_fit_end(self, estimator, task_info):
+    def _on_fit_end(self, estimator, context):
         pass
 
     def get_logs(self):
@@ -83,9 +91,18 @@ class MetricMonitor:
         pandas.DataFrame
             Multi-index DataFrame with indices corresponding to the task tree.
         """
-        self.log = pd.DataFrame(list(self._shared_mem_log))
-        if not self.log.empty:
-            self.log = self.log.set_index(
-                [col for col in self.log.columns if col != self.metric_func.__name__]
-            ).sort_index()
-        return self.log.copy()
+        logs = pd.DataFrame(list(self._shared_mem_log))
+        log_dict = {}
+        if not logs.empty:
+            for run_id in logs["_run"].unique():
+                run_log = logs.loc[logs["_run"] == run_id].copy()
+                # Drop columns that correspond to other runs task_id and are filled with
+                # NaNs, and the run column, but always keep the metric column.
+                columns_to_keep = ~(run_log.isnull().all())
+                columns_to_keep["_run"] = False
+                columns_to_keep[self.metric_func.__name__] = True
+                run_log = run_log.loc[:, columns_to_keep]
+                log_dict[run_id] = run_log.set_index(
+                    [col for col in run_log.columns if col != self.metric_func.__name__]
+                ).sort_index()
+        return log_dict

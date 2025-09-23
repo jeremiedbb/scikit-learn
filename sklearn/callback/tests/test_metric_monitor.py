@@ -43,6 +43,10 @@ def test_metric_monitor(EstimatorClass, metric, metric_params):
 
     metric_params = metric_params or dict()
     log_train = callback_train.get_logs()
+    assert len(log_train) == 1
+    run_id_train, log_train = next(iter(log_train.items()))
+    assert f"{estimator.__class__.__name__}_{id(estimator)}_" in run_id_train
+
     expected_log_train = pd.DataFrame(
         [
             {
@@ -62,6 +66,10 @@ def test_metric_monitor(EstimatorClass, metric, metric_params):
     assert np.array_equal(log_train.index.names, expected_log_train.index.names)
 
     log_val = callback_val.get_logs()
+    assert len(log_val) == 1
+    run_id_val, log_val = next(iter(log_val.items()))
+    assert f"{estimator.__class__.__name__}_{id(estimator)}_" in run_id_val
+
     expected_log_val = pd.DataFrame(
         [
             {
@@ -162,8 +170,14 @@ def test_within_meta_estimator(prefer, metric, metric_params):
     )
 
     log_train = callback_train.get_logs()
+    assert len(log_train) == 1
+    run_id_train, log_train = next(iter(log_train.items()))
     log_val = callback_val.get_logs()
+    assert len(log_val) == 1
+    run_id_val, log_val = next(iter(log_val.items()))
 
+    assert f"{meta_est.__class__.__name__}_{id(meta_est)}_" in run_id_train
+    assert f"{meta_est.__class__.__name__}_{id(meta_est)}_" in run_id_val
     assert len(log_train) == len(expected_log_train)
     assert len(log_val) == len(expected_log_val)
     assert np.array_equal(log_train.index.names, expected_log_train.index.names)

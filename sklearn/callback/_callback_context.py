@@ -1,6 +1,8 @@
 # Authors: The scikit-learn developers
 # SPDX-License-Identifier: BSD-3-Clause
 
+import time
+
 from sklearn.callback import AutoPropagatedCallback
 
 # TODO(callbacks): move these explanations into a dedicated user guide.
@@ -115,8 +117,10 @@ class CallbackContext:
 
         # We don't store the estimator in the context to avoid circular references
         # because the estimator already holds a reference to the context.
+        new_ctx.init_time = time.time()
         new_ctx._callbacks = getattr(estimator, "_skl_callbacks", [])
         new_ctx.estimator_name = estimator.__class__.__name__
+        new_ctx.estimator_id = id(estimator)
         new_ctx.task_name = task_name
         new_ctx.task_id = task_id
         new_ctx.parent = None
@@ -161,8 +165,10 @@ class CallbackContext:
         """
         new_ctx = cls.__new__(cls)
 
+        new_ctx.init_time = time.time()
         new_ctx._callbacks = parent_context._callbacks
         new_ctx.estimator_name = parent_context.estimator_name
+        new_ctx.estimator_id = parent_context.estimator_id
         new_ctx._estimator_depth = parent_context._estimator_depth
         new_ctx.task_name = task_name
         new_ctx.task_id = task_id
