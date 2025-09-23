@@ -62,9 +62,34 @@ class CallbackContext:
     Instances of this class should be created using the `init_callback_context` method
     of its estimator or the `subcontext` method of this class.
 
-    To keep track of the position of a task in the task tree within the callbacks,
-    a dictionary containing all relevant information about the task is provided to the
-    callback hooks. It's accessible through the `task_info` property of this class.
+    These contexts are passed to the callback hooks to be able to keep track of the
+    position of a task in the task tree within the callbacks.
+
+    Attributes
+    ----------
+    - task_name : str
+        The name of the task this context is responsible for.
+
+    - task_id : int
+        The identifier of the task this context is responsible for.
+
+    - max_subtasks : int or None
+        The maximum number of children tasks for this task. 0 means it's a leaf.
+        None means the maximum number of subtasks is not known in advance.
+
+    - estimator_name : str
+        The name of the estimator.
+
+    - prev_estimator_name : str or None
+        The estimator name of the parent task this task was merged with. None if it
+        was not merged with another context.
+
+    - prev_task_name : str or None
+        The task name of the parent task this task was merged with. None if it
+        was not merged with another context.
+
+    - parent : CallbackContext or None
+        The parent context of this context. None if this context is the root.
     """
 
     @classmethod
@@ -342,23 +367,22 @@ class CallbackContext:
         return self
 
 
-def get_task_info_path(task_info):
-    """Helper function to get the path of task info from this task to the root task.
+def get_context_path(context):
+    """Helper function to get the path from the root context down to a given context.
 
     Parameters
     ----------
-    task_info : dict
-        The dictionary representation of a task as returned by
-        `CallbackContext.task_info`.
+    context : `CallbackContext` instance
+        The context to get the path to.
 
     Returns
     -------
     list of dict
-        The list of dictionary representations of the ancestors (itself included) of the
-        given task.
+        The list of the ancestors (itself included) of the given context. The list is
+        ordered from the root context to the given context.
     """
     return (
-        [task_info]
-        if task_info["parent_task_info"] is None
-        else get_task_info_path(task_info["parent_task_info"]) + [task_info]
+        [context]
+        if context.parent is None
+        else get_context_path(context.parent) + [context]
     )
