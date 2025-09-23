@@ -4,6 +4,7 @@
 from multiprocessing import Manager
 from threading import Thread
 
+from sklearn.callback._callback_context import get_task_info_path
 from sklearn.utils._optional_dependencies import check_rich_support
 
 
@@ -88,7 +89,7 @@ class RichProgressMonitor(Thread):
         )
 
         # Holds the root of the tree of rich tasks (i.e. progress bars) that will be
-        # created dynamically as the computation tree of the estimator is traversed.
+        # created dynamically as the task tree of the estimator is traversed.
         self.root_rich_task = None
 
         with self.progress_ctx:
@@ -186,6 +187,7 @@ class RichTask:
         self.parent = parent
         self.children = {}
         self.finished = False
+        self.depth = 0 if parent is None else parent.depth + 1
 
         if callback_ctx.max_subtasks != 0:
             description = self._format_task_description(callback_ctx)
@@ -197,8 +199,8 @@ class RichTask:
         """Return a formatted description for the task."""
         colors = ["bright_magenta", "cyan", "dark_orange"]
 
-        indent = f"{'  ' * callback_ctx._depth}"
-        style = f"[{colors[callback_ctx._depth % len(colors)]}]"
+        indent = f"{'  ' * self.depth}"
+        style = f"[{colors[(self.depth) % len(colors)]}]"
 
         task_desc = f"{callback_ctx.estimator_name} - {callback_ctx.task_name}"
         id_mark = f" #{callback_ctx.task_id}" if callback_ctx.parent is not None else ""
@@ -216,22 +218,3 @@ class RichTask:
             yield self
             for child in self.children.values():
                 yield from child
-
-
-def get_context_path(callback_ctx):
-    """Helper function to get the path of task context from this task to the root task.
-
-    Parameters
-    ----------
-    callback_ctx : CallbackContext
-        The callback context whose ancestors are returned.
-
-    Returns
-    -------
-    list of CallbackContext
-        The list of the ancestors (itself included) of the given callback context.
-    """
-    if callback_ctx.parent is None:
-        return [callback_ctx]
-    else:
-        return get_context_path(callback_ctx.parent) + [callback_ctx]

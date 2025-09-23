@@ -4,7 +4,7 @@
 import numpy as np
 import pytest
 
-from sklearn.callback._callback_context import CallbackContext
+from sklearn.callback._callback_context import CallbackContext, get_task_info_path
 from sklearn.callback.tests._utils import (
     Estimator,
     MetaEstimator,
@@ -93,19 +93,19 @@ def test_task_tree():
     """Check that the task tree is correctly built."""
     root = _make_task_tree(n_children=3, n_grandchildren=5)
 
-    assert root.parent is None
-    assert root._depth == 0
+    assert root._parent is None
+    assert len(get_task_info_path(root.task_info)) == 1
     assert len(root._children_map) == 3
 
     for child in root._children_map.values():
-        assert child.parent is root
-        assert child._depth == 1
+        assert child._parent is root
+        assert len(get_task_info_path(child.task_info)) == 2
         assert len(child._children_map) == 5
         assert root.max_subtasks == 3
 
         for grandchild in child._children_map.values():
-            assert grandchild.parent is child
-            assert grandchild._depth == 2
+            assert grandchild._parent is child
+            assert len(get_task_info_path(grandchild.task_info)) == 3
             assert len(grandchild._children_map) == 0
             assert child.max_subtasks == 5
 

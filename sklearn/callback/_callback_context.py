@@ -152,11 +152,6 @@ class CallbackContext:
 
         return new_ctx
 
-    @property
-    def _depth(self):
-        """The depth of this task in the task tree."""
-        return 0 if self.parent is None else self.parent._depth + 1
-
     def __iter__(self):
         """Pre-order depth-first traversal of the task tree."""
         yield self
@@ -345,3 +340,25 @@ class CallbackContext:
         )
 
         return self
+
+
+def get_task_info_path(task_info):
+    """Helper function to get the path of task info from this task to the root task.
+
+    Parameters
+    ----------
+    task_info : dict
+        The dictionary representation of a task as returned by
+        `CallbackContext.task_info`.
+
+    Returns
+    -------
+    list of dict
+        The list of dictionary representations of the ancestors (itself included) of the
+        given task.
+    """
+    return (
+        [task_info]
+        if task_info["parent_task_info"] is None
+        else get_task_info_path(task_info["parent_task_info"]) + [task_info]
+    )
