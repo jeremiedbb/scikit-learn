@@ -6,7 +6,7 @@ from multiprocessing import Manager
 
 import pandas as pd
 
-from sklearn.callback._callback_context import _get_task_info_path
+from sklearn.callback._callback_context import get_task_info_path
 
 
 class MetricMonitor:
@@ -61,14 +61,14 @@ class MetricMonitor:
         y_pred = from_reconstruction_attributes().predict(X)
         metric_value = self.metric_func(y, y_pred, **self.metric_params)
         log_item = {self.metric_func.__name__: metric_value}
-        for node_info in _get_task_info_path(task_info):
+        for depth, node_info in enumerate(get_task_info_path(task_info)):
             prev_task_str = (
                 f"{node_info['prev_estimator_name']}_{node_info['prev_task_name']}|"
                 if node_info["prev_estimator_name"] is not None
                 else ""
             )
             log_item[
-                f"{node_info['depth']}_{prev_task_str}{node_info['estimator_name']}_"
+                f"{depth}_{prev_task_str}{node_info['estimator_name']}_"
                 f"{node_info['task_name']}"
             ] = node_info["task_id"]
         self._shared_mem_log.append(log_item)
