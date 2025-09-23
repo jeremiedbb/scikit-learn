@@ -24,15 +24,41 @@ class ProgressBar:
 
         self.max_estimator_depth = max_estimator_depth
 
-    def _on_fit_begin(self, estimator):
+    def on_fit_begin(self, estimator):
+        """Callback hook called at the beginning of the estimator's fit method.
+
+        Parameters
+        ----------
+        estimator : estimator instance
+            Estimator the callback is attached to.
+        """
         self._queue = Manager().Queue()
         self.progress_monitor = RichProgressMonitor(queue=self._queue)
         self.progress_monitor.start()
 
-    def _on_fit_task_end(self, estimator, context, **kwargs):
+    def on_fit_task_end(self, estimator, context, **kwargs):
+        """Callback hook called at the end of an inner task of the estimator's fit
+        method.
+
+        Parameters
+        ----------
+        estimator : estimator instance
+            Estimator the callback is attached to.
+        context : sklearn.callback.CallbackContest instance
+            Context object corresponding to the task triggering this hook.
+        """
         self._queue.put(context)
 
-    def _on_fit_end(self, estimator, context):
+    def on_fit_end(self, estimator, context):
+        """Callback hook called at the end of the estimator's fit method.
+
+        Parameters
+        ----------
+        estimator : estimator instance
+            Estimator the callback is attached to.
+        context : sklearn.callback.CallbackContest instance
+            Context object corresponding to the fit task triggering this hook.
+        """
         self._queue.put(context)
         self._queue.put(None)
         self.progress_monitor.join()
