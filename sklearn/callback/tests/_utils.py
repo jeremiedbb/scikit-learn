@@ -20,7 +20,7 @@ class TestingCallback:
     def _on_fit_end(self):
         pass
 
-    def _on_fit_task_end(self, estimator, task_info, **kwargs):
+    def _on_fit_task_end(self, estimator, context, **kwargs):
         pass
 
 
@@ -36,7 +36,7 @@ class NotValidCallback:
     def _on_fit_begin(self, estimator):
         pass  # pragma: no cover
 
-    def _on_fit_task_end(self, estimator, task_info, **kwargs):
+    def _on_fit_task_end(self, estimator, context, **kwargs):
         pass  # pragma: no cover
 
 
