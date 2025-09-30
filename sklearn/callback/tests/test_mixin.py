@@ -41,7 +41,7 @@ def test_set_callbacks_error(callbacks):
         estimator.set_callbacks(callbacks)
 
 
-def test_init_callback_context_():
+def test_init_callback_context():
     """Sanity check for the `__skl_init_callback_context__` method."""
     estimator = Estimator()
     callback_ctx = estimator.__skl_init_callback_context__()
