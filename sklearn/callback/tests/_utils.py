@@ -43,7 +43,7 @@ class BaseEstimatorPrivateFit(BaseEstimator):
     """
 
     @_fit_context(prefer_skip_nested_validation=False)
-    def fit(self, X_train=None, y_train=None, X_val=None, y_val=None):
+    def fit(self, X=None, y=None, X_val=None, y_val=None):
         if isinstance(self, CallbackSupportMixin):
             callback_ctx = self.init_callback_context()
             callback_ctx.eval_on_fit_begin(estimator=self)
