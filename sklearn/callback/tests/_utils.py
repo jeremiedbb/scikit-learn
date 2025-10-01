@@ -3,9 +3,11 @@
 
 import time
 
-from sklearn.base import BaseEstimator, _fit_context, clone
+from sklearn._config import config_context, get_config
+from sklearn.base import BaseEstimator, clone
 from sklearn.callback import CallbackSupportMixin
 from sklearn.callback._callback_context import CallbackContext
+from sklearn.utils._tags import get_tags
 from sklearn.utils.parallel import Parallel, delayed
 
 
@@ -43,27 +45,33 @@ class BaseEstimatorPrivateFit(BaseEstimator):
     BaseEstimator class.
     """
 
-    @_fit_context(prefer_skip_nested_validation=False)
     def fit(self, X=None, y=None, X_val=None, y_val=None):
-        if isinstance(self, CallbackSupportMixin):
-            callback_ctx = CallbackContext._from_estimator(estimator=self)
-            try:
+        global_skip_validation = get_config()["skip_parameter_validation"]
+        if not global_skip_validation:
+            self._validate_params()
+        with config_context(
+            skip_parameter_validation=global_skip_validation
+            or get_tags(self)._prefer_skip_nested_validation
+        ):
+            if isinstance(self, CallbackSupportMixin):
+                callback_ctx = CallbackContext._from_estimator(estimator=self)
+                try:
+                    return self.__skl_fit__(
+                        X=X,
+                        y=y,
+                        X_val=X_val,
+                        y_val=y_val,
+                        callback_ctx=callback_ctx,
+                    )
+                finally:
+                    callback_ctx.eval_on_fit_end(estimator=self)
+            else:
                 return self.__skl_fit__(
                     X=X,
                     y=y,
                     X_val=X_val,
                     y_val=y_val,
-                    callback_ctx=callback_ctx,
                 )
-            finally:
-                callback_ctx.eval_on_fit_end(estimator=self)
-        else:
-            return self.__skl_fit__(
-                X=X,
-                y=y,
-                X_val=X_val,
-                y_val=y_val,
-            )
 
 
 class Estimator(CallbackSupportMixin, BaseEstimatorPrivateFit):
@@ -77,6 +85,11 @@ class Estimator(CallbackSupportMixin, BaseEstimatorPrivateFit):
     def __init__(self, max_iter=20, computation_intensity=0.001):
         self.max_iter = max_iter
         self.computation_intensity = computation_intensity
+
+    def __sklearn_tags__(self):
+        tags = super().__sklearn_tags__()
+        tags._prefer_skip_nested_validation = False
+        return tags
 
     def __skl_fit__(self, X=None, y=None, X_val=None, y_val=None, callback_ctx=None):
         callback_ctx.set_task_info(
@@ -114,6 +127,11 @@ class WhileEstimator(CallbackSupportMixin, BaseEstimatorPrivateFit):
 
     def __init__(self, computation_intensity=0.001):
         self.computation_intensity = computation_intensity
+
+    def __sklearn_tags__(self):
+        tags = super().__sklearn_tags__()
+        tags._prefer_skip_nested_validation = False
+        return tags
 
     def __skl_fit__(self, X=None, y=None, X_val=None, y_val=None, callback_ctx=None):
         callback_ctx.set_task_info(task_name="fit", task_id=0, max_subtasks=None)
@@ -160,6 +178,11 @@ class MetaEstimator(CallbackSupportMixin, BaseEstimatorPrivateFit):
         self.n_inner = n_inner
         self.n_jobs = n_jobs
         self.prefer = prefer
+
+    def __sklearn_tags__(self):
+        tags = super().__sklearn_tags__()
+        tags._prefer_skip_nested_validation = False
+        return tags
 
     def __skl_fit__(self, X=None, y=None, X_val=None, y_val=None, callback_ctx=None):
         callback_ctx.set_task_info(
