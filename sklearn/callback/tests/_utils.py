@@ -56,7 +56,7 @@ class BaseEstimatorPrivateFit(BaseEstimator):
             if isinstance(self, CallbackSupportMixin):
                 callback_ctx = CallbackContext._from_estimator(estimator=self)
                 try:
-                    return self.__skl_fit__(
+                    return self.__sklearn_fit__(
                         X=X,
                         y=y,
                         X_val=X_val,
@@ -91,7 +91,9 @@ class Estimator(CallbackSupportMixin, BaseEstimatorPrivateFit):
         tags._prefer_skip_nested_validation = False
         return tags
 
-    def __skl_fit__(self, X=None, y=None, X_val=None, y_val=None, callback_ctx=None):
+    def __sklearn_fit__(
+        self, X=None, y=None, X_val=None, y_val=None, callback_ctx=None
+    ):
         callback_ctx.set_task_info(
             task_name="fit", task_id=0, max_subtasks=self.max_iter
         )
@@ -133,7 +135,9 @@ class WhileEstimator(CallbackSupportMixin, BaseEstimatorPrivateFit):
         tags._prefer_skip_nested_validation = False
         return tags
 
-    def __skl_fit__(self, X=None, y=None, X_val=None, y_val=None, callback_ctx=None):
+    def __sklearn_fit__(
+        self, X=None, y=None, X_val=None, y_val=None, callback_ctx=None
+    ):
         callback_ctx.set_task_info(task_name="fit", task_id=0, max_subtasks=None)
         callback_ctx.eval_on_fit_begin(estimator=self)
         i = 0
@@ -184,7 +188,9 @@ class MetaEstimator(CallbackSupportMixin, BaseEstimatorPrivateFit):
         tags._prefer_skip_nested_validation = False
         return tags
 
-    def __skl_fit__(self, X=None, y=None, X_val=None, y_val=None, callback_ctx=None):
+    def __sklearn_fit__(
+        self, X=None, y=None, X_val=None, y_val=None, callback_ctx=None
+    ):
         callback_ctx.set_task_info(
             task_name="fit", task_id=0, max_subtasks=self.n_outer
         )

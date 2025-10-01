@@ -63,7 +63,8 @@ from sklearn.callback import AutoPropagatedCallback
 #
 #     @_fit_context()
 #     def fit(self, X, y):
-#         callback_ctx = self.__skl__init_callback_context__(max_subtasks=self.max_iter)
+#         callback_ctx = CallbackContext._from_estimator(self)
+#         callback_ctx.set_task_info(max_subtasks=self.max_iter)
 #         callback_ctx.eval_on_fit_begin(estimator=self)
 #
 #         for i in range(self.max_iter):
@@ -89,8 +90,8 @@ class CallbackContext:
     This class is responsible for managing the callbacks and holding the tree structure
     of an estimator's tasks. Each instance corresponds to a task of the estimator.
 
-    Instances of this class should be created using the `__skl_init_callback_context__`
-    method of its estimator or the `subcontext` method of this class.
+    Instances of this class should be created using the `_from_estimator`
+    method providing its estimator or the `subcontext` method of this class.
 
     These contexts are passed to the callback hooks to be able to keep track of the
     position of a task in the task tree within the callbacks.
