@@ -232,6 +232,19 @@ class Tags:
 
     input_tags : :class:`InputTags`
         The input data(X) tags.
+
+    _prefer_skip_nested_validation : bool, default=True
+        If True, the validation of parameters of inner estimators or functions
+        called during fit will be skipped.
+
+        This is useful to avoid validating many times the parameters passed by the
+        user from the public facing API. It's also useful to avoid validating
+        parameters that we pass internally to inner functions that are guaranteed to
+        be valid by the test suite.
+
+        It should be set to True for most estimators, except for those that receive
+        non-validated objects as parameters, such as meta-estimators that are given
+        estimator objects.
     """
 
     estimator_type: str | None
@@ -245,6 +258,7 @@ class Tags:
     requires_fit: bool = True
     _skip_test: bool = False
     input_tags: InputTags = field(default_factory=InputTags)
+    _prefer_skip_nested_validation: bool = True
 
 
 def get_tags(estimator) -> Tags:
