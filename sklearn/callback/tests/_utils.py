@@ -12,13 +12,13 @@ from sklearn.utils.parallel import Parallel, delayed
 class TestingCallback:
     """A minimal callback used for smoke testing purposes."""
 
-    def _on_fit_begin(self, estimator):
+    def on_fit_begin(self, estimator):
         pass
 
-    def _on_fit_end(self):
+    def on_fit_end(self):
         pass
 
-    def _on_fit_task_end(self, estimator, context, **kwargs):
+    def on_fit_task_end(self, estimator, context, **kwargs):
         pass
 
 
@@ -31,10 +31,10 @@ class TestingAutoPropagatedCallback(TestingCallback):
 class NotValidCallback:
     """Invalid callback since it's missing a method from the protocol.'"""
 
-    def _on_fit_begin(self, estimator):
+    def on_fit_begin(self, estimator):
         pass  # pragma: no cover
 
-    def _on_fit_task_end(self, estimator, context, **kwargs):
+    def on_fit_task_end(self, estimator, context, **kwargs):
         pass  # pragma: no cover
 
 
