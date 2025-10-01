@@ -39,12 +39,3 @@ def test_set_callbacks_error(callbacks):
 
     with pytest.raises(TypeError, match="callbacks must follow the Callback protocol."):
         estimator.set_callbacks(callbacks)
-
-
-def test_init_callback_context():
-    """Sanity check for the `init_callback_context` method."""
-    estimator = Estimator()
-    callback_ctx = estimator.init_callback_context()
-
-    assert hasattr(estimator, "_callback_fit_ctx")
-    assert hasattr(callback_ctx, "_callbacks")

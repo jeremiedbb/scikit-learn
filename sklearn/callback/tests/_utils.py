@@ -5,6 +5,7 @@ import time
 
 from sklearn.base import BaseEstimator, _fit_context, clone
 from sklearn.callback import CallbackSupportMixin
+from sklearn.callback._callback_context import CallbackContext
 from sklearn.utils.parallel import Parallel, delayed
 
 
@@ -45,23 +46,21 @@ class BaseEstimatorPrivateFit(BaseEstimator):
     @_fit_context(prefer_skip_nested_validation=False)
     def fit(self, X=None, y=None, X_val=None, y_val=None):
         if isinstance(self, CallbackSupportMixin):
-            callback_ctx = self.init_callback_context()
-            callback_ctx.eval_on_fit_begin(estimator=self)
+            callback_ctx = CallbackContext._from_estimator(estimator=self)
             try:
                 return self.__skl_fit__(
-                    X_train=X_train,
-                    y_train=y_train,
+                    X=X,
+                    y=y,
                     X_val=X_val,
                     y_val=y_val,
                     callback_ctx=callback_ctx,
                 )
             finally:
-                if callback_ctx is not None:
-                    callback_ctx.eval_on_fit_end(estimator=self)
+                callback_ctx.eval_on_fit_end(estimator=self)
         else:
             return self.__skl_fit__(
-                X_train=X_train,
-                y_train=y_train,
+                X=X,
+                y=y,
                 X_val=X_val,
                 y_val=y_val,
             )
@@ -79,20 +78,21 @@ class Estimator(CallbackSupportMixin, BaseEstimatorPrivateFit):
         self.max_iter = max_iter
         self.computation_intensity = computation_intensity
 
-    def __skl_fit__(
-        self, X_train=None, y_train=None, X_val=None, y_val=None, callback_ctx=None
-    ):
+    def __skl_fit__(self, X=None, y=None, X_val=None, y_val=None, callback_ctx=None):
+        callback_ctx.set_task_info(
+            task_name="fit", task_id=0, max_subtasks=self.max_iter
+        )
+        callback_ctx.eval_on_fit_begin(estimator=self)
         for i in range(self.max_iter):
-            if callback_ctx is not None:
-                subcontext = callback_ctx.subcontext(task_id=i)
+            subcontext = callback_ctx.subcontext(task_id=i)
 
             time.sleep(self.computation_intensity)  # Computation intensive task
 
-            if callback_ctx is not None and subcontext.eval_on_fit_task_end(
+            if subcontext.eval_on_fit_task_end(
                 estimator=self,
                 data={
-                    "X_train": X_train,
-                    "y_train": y_train,
+                    "X_train": X,
+                    "y_train": y,
                     "X_val": X_val,
                     "y_val": y_val,
                 },
@@ -115,21 +115,20 @@ class WhileEstimator(CallbackSupportMixin, BaseEstimatorPrivateFit):
     def __init__(self, computation_intensity=0.001):
         self.computation_intensity = computation_intensity
 
-    def __skl_fit__(
-        self, X_train=None, y_train=None, X_val=None, y_val=None, callback_ctx=None
-    ):
+    def __skl_fit__(self, X=None, y=None, X_val=None, y_val=None, callback_ctx=None):
+        callback_ctx.set_task_info(task_name="fit", task_id=0, max_subtasks=None)
+        callback_ctx.eval_on_fit_begin(estimator=self)
         i = 0
         while True:
-            if callback_ctx is not None:
-                subcontext = callback_ctx.subcontext(task_id=i)
+            subcontext = callback_ctx.subcontext(task_id=i)
 
             time.sleep(self.computation_intensity)  # Computation intensive task
 
-            if callback_ctx is not None and subcontext.eval_on_fit_task_end(
+            if subcontext.eval_on_fit_task_end(
                 estimator=self,
                 data={
-                    "X_train": X_train,
-                    "y_train": y_train,
+                    "X_train": X,
+                    "y_train": y,
                     "X_val": X_val,
                     "y_val": y_val,
                 },
@@ -162,24 +161,24 @@ class MetaEstimator(CallbackSupportMixin, BaseEstimatorPrivateFit):
         self.n_jobs = n_jobs
         self.prefer = prefer
 
-    def __skl_fit__(
-        self, X_train=None, y_train=None, X_val=None, y_val=None, callback_ctx=None
-    ):
+    def __skl_fit__(self, X=None, y=None, X_val=None, y_val=None, callback_ctx=None):
+        callback_ctx.set_task_info(
+            task_name="fit", task_id=0, max_subtasks=self.n_outer
+        )
+        callback_ctx.eval_on_fit_begin(estimator=self)
         Parallel(n_jobs=self.n_jobs, prefer=self.prefer)(
             delayed(_func)(
                 self,
                 self.estimator,
                 data={
-                    "X_train": X_train,
-                    "y_train": y_train,
+                    "X_train": X,
+                    "y_train": y,
                     "X_val": X_val,
                     "y_val": y_val,
                 },
                 callback_ctx=callback_ctx.subcontext(
                     task_name="outer", task_id=i, max_subtasks=self.n_inner
-                )
-                if callback_ctx is not None
-                else None,
+                ),
             )
             for i in range(self.n_outer)
         )
@@ -199,7 +198,12 @@ def _func(meta_estimator, inner_estimator, data, *, callback_ctx):
             else None
         )
 
-        est.fit(**data)
+        est.fit(
+            X=data["X_train"],
+            y=data["y_train"],
+            X_val=data["X_val"],
+            y_val=data["y_val"],
+        )
 
         if callback_ctx is not None:
             inner_ctx.eval_on_fit_task_end(
