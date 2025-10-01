@@ -66,7 +66,7 @@ class BaseEstimatorPrivateFit(BaseEstimator):
                 finally:
                     callback_ctx.eval_on_fit_end(estimator=self)
             else:
-                return self.__skl_fit__(
+                return self.__sklearn_fit__(
                     X=X,
                     y=y,
                     X_val=X_val,
