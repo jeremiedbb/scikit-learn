@@ -42,14 +42,14 @@ class MetricMonitor:
         self.metric_func = metric
         self._shared_mem_log = Manager().list()
 
-    def _on_fit_begin(self, estimator):
+    def on_fit_begin(self, estimator):
         if not hasattr(estimator, "predict"):
             raise ValueError(
                 f"Estimator {estimator.__class__} does not have a predict method, which"
                 " is necessary to use a MetricMonitor callback."
             )
 
-    def _on_fit_task_end(
+    def on_fit_task_end(
         self, estimator, context, data, from_reconstruction_attributes, **kwargs
     ):
         # TODO: add check to verify we're on the innermost level of the fit loop
@@ -80,7 +80,7 @@ class MetricMonitor:
             )
         self._shared_mem_log.append(log_item)
 
-    def _on_fit_end(self, estimator, context):
+    def on_fit_end(self, estimator, context):
         pass
 
     def get_logs(self):
