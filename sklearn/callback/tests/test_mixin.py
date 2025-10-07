@@ -43,15 +43,15 @@ def test_set_callbacks_error(callbacks):
 
 
 def test_callback_removed_after_fit():
-    """Test that the _callback_fit_ctx attribute gets removed after fit."""
+    """Test that the __sklearn_callback_fit_ctx__ attribute gets removed after fit."""
     estimator = Estimator()
     estimator.fit()
-    assert not hasattr(estimator, "_callback_fit_ctx")
+    assert not hasattr(estimator, "__sklearn_callback_fit_ctx__")
 
 
 def test_decorator_error():
-    """Test the error raised by _fit_callback if the estimator does not inherit from
-    CallbackSupportMixin"""
+    """Test the error raised by the fit_callback decotrator if the estimator does not
+    inherit from CallbackSupportMixin"""
     estimator = EstimatorWithoutCallbackMixin()
     with pytest.raises(
         ValueError,

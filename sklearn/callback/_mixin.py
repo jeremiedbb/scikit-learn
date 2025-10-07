@@ -45,12 +45,14 @@ def fit_callback(fit_method):
                 " as it does not inherit from CallbackSupportMixin."
             )
 
-        estimator.__sklearn_callback_fit_ctx__ = CallbackContext._from_estimator(estimator)
+        estimator.__sklearn_callback_fit_ctx__ = CallbackContext._from_estimator(
+            estimator
+        )
 
         try:
             return fit_method(estimator, *args, **kwargs)
         finally:
-            estimator._callback_fit_ctx.eval_on_fit_end(estimator)
-            del estimator._callback_fit_ctx
+            estimator.__sklearn_callback_fit_ctx__.eval_on_fit_end(estimator)
+            del estimator.__sklearn_callback_fit_ctx__
 
-    return wrapper
+    return callback_wrapper
