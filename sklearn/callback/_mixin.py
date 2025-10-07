@@ -34,7 +34,7 @@ class CallbackSupportMixin:
         return self
 
 
-def _fit_callback(fit_method):
+def fit_callback(fit_method):
     """Decorator to initialize the callback context for the fit methods."""
 
     @functools.wraps(fit_method)
