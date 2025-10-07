@@ -172,3 +172,9 @@ def _func(meta_estimator, inner_estimator, X, y, *, callback_ctx):
         estimator=meta_estimator,
         data={"X_train": X, "y_train": y},
     )
+
+
+class EstimatorWithoutCallbackMixin(BaseEstimator):
+    @_fit_callback
+    def fit(self, X=None, y=None):
+        pass

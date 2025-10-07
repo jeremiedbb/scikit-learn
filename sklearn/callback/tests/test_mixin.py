@@ -5,6 +5,7 @@ import pytest
 
 from sklearn.callback.tests._utils import (
     Estimator,
+    EstimatorWithoutCallbackMixin,
     NotValidCallback,
     TestingAutoPropagatedCallback,
     TestingCallback,
@@ -46,3 +47,15 @@ def test_callback_removed_after_fit():
     estimator = Estimator()
     estimator.fit()
     assert not hasattr(estimator, "_callback_fit_ctx")
+
+
+def test_decorator_error():
+    """Test the error raised by _fit_callback if the estimator does not inherit from
+    CallbackSupportMixin"""
+    estimator = EstimatorWithoutCallbackMixin()
+    with pytest.raises(
+        ValueError,
+        match="does not support callbacks, as it does not inherit from"
+        " CallbackSupportMixin.",
+    ):
+        estimator.fit()
