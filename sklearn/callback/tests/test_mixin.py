@@ -39,3 +39,10 @@ def test_set_callbacks_error(callbacks):
 
     with pytest.raises(TypeError, match="callbacks must follow the Callback protocol."):
         estimator.set_callbacks(callbacks)
+
+
+def test_callback_removed_after_fit():
+    """Test that the _callback_fit_ctx attribute gets removed after fit."""
+    estimator = Estimator()
+    estimator.fit()
+    assert not hasattr(estimator, "_callback_fit_ctx")
