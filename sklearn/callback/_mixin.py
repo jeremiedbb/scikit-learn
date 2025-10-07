@@ -45,7 +45,8 @@ def _fit_callback(fit_method):
 
     @functools.wraps(fit_method)
     def callback_wrapper(estimator, *args, **kwargs):
-        if not hasattr(estimator, "__sklearn_callback_fit_ctx__"):
+        ctx_already_existing = hasattr(estimator, "__sklearn_callback_fit_ctx__")
+        if not ctx_already_existing:
             estimator.__sklearn_callback_fit_ctx__ = CallbackContext._from_estimator(
                 estimator
             )
@@ -53,7 +54,8 @@ def _fit_callback(fit_method):
         try:
             return fit_method(estimator, *args, **kwargs)
         finally:
-            estimator.__sklearn_callback_fit_ctx__.eval_on_fit_end(estimator)
-            del estimator.__sklearn_callback_fit_ctx__
+            if not ctx_already_existing:
+                estimator.__sklearn_callback_fit_ctx__.eval_on_fit_end(estimator)
+                del estimator.__sklearn_callback_fit_ctx__
 
     return callback_wrapper
