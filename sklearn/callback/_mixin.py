@@ -57,5 +57,7 @@ def _fit_callback(fit_method):
             if not ctx_already_existing:
                 estimator.__sklearn_callback_fit_ctx__.eval_on_fit_end(estimator)
                 del estimator.__sklearn_callback_fit_ctx__
+                if hasattr(estimator, "_parent_callback_ctx"):
+                    del estimator._parent_callback_ctx
 
     return callback_wrapper
