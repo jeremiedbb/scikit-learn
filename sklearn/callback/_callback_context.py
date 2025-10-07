@@ -217,6 +217,7 @@ class CallbackContext:
         self.task_id = task_id
         self.max_subtasks = max_subtasks
 
+        return self
     def __iter__(self):
         """Pre-order depth-first traversal of the task tree."""
         yield self

@@ -53,7 +53,9 @@ class Estimator(CallbackSupportMixin, BaseEstimator):
     @fit_callback
     @_fit_context(prefer_skip_nested_validation=True)
     def fit(self, X=None, y=None, X_val=None, y_val=None):
-        self._callback_fit_ctx.set_task_info(
+        callback_ctx = self._callback_fit_ctx.set_task_info(
+            task_name="fit", task_id=0, max_subtasks=self.max_iter
+        )
             task_name="fit", task_id=0, max_subtasks=self.max_iter
         )
         self._callback_fit_ctx.eval_on_fit_begin(estimator=self)

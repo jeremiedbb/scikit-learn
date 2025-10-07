@@ -38,14 +38,14 @@ def fit_callback(fit_method):
     """Decorator to initialize the callback context for the fit methods."""
 
     @functools.wraps(fit_method)
-    def wrapper(estimator, *args, **kwargs):
+    def callback_wrapper(estimator, *args, **kwargs):
         if not isinstance(estimator, CallbackSupportMixin):
             raise ValueError(
                 f"Estimator {estimator.__class__.__name__} does not support callbacks,"
                 " as it does not inherit from CallbackSupportMixin."
             )
 
-        estimator._callback_fit_ctx = CallbackContext._from_estimator(estimator)
+        estimator.__sklearn_callback_fit_ctx__ = CallbackContext._from_estimator(estimator)
 
         try:
             return fit_method(estimator, *args, **kwargs)
