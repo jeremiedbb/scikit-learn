@@ -44,7 +44,9 @@ def _fit_callback(fit_method):
 
     @functools.wraps(fit_method)
     def callback_wrapper(estimator, *args, **kwargs):
-        estimator._callback_fit_ctx = CallbackContext._from_estimator(estimator)
+        estimator.__sklearn_callback_fit_ctx__ = CallbackContext._from_estimator(
+            estimator
+        )
 
         try:
             return fit_method(estimator, *args, **kwargs)
