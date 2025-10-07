@@ -1,6 +1,8 @@
 # Authors: The scikit-learn developers
 # SPDX-License-Identifier: BSD-3-Clause
 
+import functools
+
 from sklearn.callback._base import Callback
 from sklearn.callback._callback_context import CallbackContext
 
@@ -31,25 +33,26 @@ class CallbackSupportMixin:
 
         return self
 
-    def __skl_init_callback_context__(self, task_name="fit", max_subtasks=None):
-        """Initialize the callback context for the estimator.
 
-        Parameters
-        ----------
-        task_name : str, default='fit'
-            The name of the root task.
+def _fit_callback(fit_method):
+    """Decorator to initialize the callback context for the fit methods."""
 
-        max_subtasks : int or None, default=None
-            The maximum number of subtasks that can be children of the root task. None
-            means the maximum number of subtasks is not known in advance.
+    @functools.wraps(fit_method)
+    def wrapper(estimator, *args, **kwargs):
+        if not isinstance(estimator, CallbackSupportMixin):
+            raise ValueError(
+                f"Estimator {estimator.__class__.__name__} does not support callbacks,"
+                " as it does not inherit from CallbackSupportMixin."
+            )
 
-        Returns
-        -------
-        callback_fit_ctx : CallbackContext
-            The callback context for the estimator.
-        """
-        self._callback_fit_ctx = CallbackContext._from_estimator(
-            estimator=self, task_name=task_name, task_id=0, max_subtasks=max_subtasks
-        )
+        estimator._callback_fit_ctx = CallbackContext._from_estimator(estimator)
 
-        return self._callback_fit_ctx
+        try:
+            result = fit_method(estimator, *args, **kwargs)
+        finally:
+            estimator._callback_fit_ctx.eval_on_fit_end(estimator)
+
+        del estimator._callback_fit_ctx
+        return result
+
+    return wrapper

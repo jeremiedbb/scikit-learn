@@ -5,6 +5,7 @@ import time
 
 from sklearn.base import BaseEstimator, _fit_context, clone
 from sklearn.callback import CallbackSupportMixin
+from sklearn.callback._mixin import _fit_callback
 from sklearn.utils.parallel import Parallel, delayed
 
 
@@ -49,14 +50,15 @@ class Estimator(CallbackSupportMixin, BaseEstimator):
         self.max_iter = max_iter
         self.computation_intensity = computation_intensity
 
-    @_fit_context(prefer_skip_nested_validation=False)
-    def fit(self, X=None, y=None):
-        callback_ctx = self.__skl_init_callback_context__(
-            max_subtasks=self.max_iter
-        ).eval_on_fit_begin(estimator=self)
-
+    @_fit_callback
+    @_fit_context(prefer_skip_nested_validation=True)
+    def fit(self, X=None, y=None, X_val=None, y_val=None):
+        self._callback_fit_ctx.set_task_info(
+            task_name="fit", task_id=0, max_subtasks=self.max_iter
+        )
+        self._callback_fit_ctx.eval_on_fit_begin(estimator=self)
         for i in range(self.max_iter):
-            subcontext = callback_ctx.subcontext(task_id=i)
+            subcontext = self._callback_fit_ctx.subcontext(task_id=i)
 
             time.sleep(self.computation_intensity)  # Computation intensive task
 
@@ -82,15 +84,16 @@ class WhileEstimator(CallbackSupportMixin, BaseEstimator):
     def __init__(self, computation_intensity=0.001):
         self.computation_intensity = computation_intensity
 
-    @_fit_context(prefer_skip_nested_validation=False)
-    def fit(self, X=None, y=None):
-        callback_ctx = self.__skl_init_callback_context__().eval_on_fit_begin(
-            estimator=self
+    @_fit_callback
+    @_fit_context(prefer_skip_nested_validation=True)
+    def fit(self, X=None, y=None, X_val=None, y_val=None):
+        self._callback_fit_ctx.set_task_info(
+            task_name="fit", task_id=0, max_subtasks=None
         )
-
+        self._callback_fit_ctx.eval_on_fit_begin(estimator=self)
         i = 0
         while True:
-            subcontext = callback_ctx.subcontext(task_id=i)
+            subcontext = self._callback_fit_ctx.subcontext(task_id=i)
 
             time.sleep(self.computation_intensity)  # Computation intensive task
 
@@ -126,11 +129,13 @@ class MetaEstimator(CallbackSupportMixin, BaseEstimator):
         self.n_jobs = n_jobs
         self.prefer = prefer
 
+    @_fit_callback
     @_fit_context(prefer_skip_nested_validation=False)
     def fit(self, X=None, y=None):
-        callback_ctx = self.__skl_init_callback_context__(
-            max_subtasks=self.n_outer
-        ).eval_on_fit_begin(estimator=self)
+        self._callback_fit_ctx.set_task_info(
+            task_name="fit", task_id=0, max_subtasks=self.n_outer
+        )
+        self._callback_fit_ctx.eval_on_fit_begin(estimator=self)
 
         Parallel(n_jobs=self.n_jobs, prefer=self.prefer)(
             delayed(_func)(
@@ -138,7 +143,7 @@ class MetaEstimator(CallbackSupportMixin, BaseEstimator):
                 self.estimator,
                 X,
                 y,
-                callback_ctx=callback_ctx.subcontext(
+                callback_ctx=self._callback_fit_ctx.subcontext(
                     task_name="outer", task_id=i, max_subtasks=self.n_inner
                 ),
             )
