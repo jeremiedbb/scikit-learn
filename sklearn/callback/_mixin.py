@@ -12,8 +12,9 @@ class CallbackSupportMixin:
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
-        if hasattr(cls, "fit"):
-            cls.fit = _fit_callback(cls.fit)
+        for fit_method in ("fit", "fit_transform", "fit_predict", "partial_fit"):
+            if hasattr(cls, fit_method):
+                setattr(cls, fit_method, _fit_callback(getattr(cls, fit_method)))
 
     def set_callbacks(self, callbacks):
         """Set callbacks for the estimator.
@@ -44,9 +45,10 @@ def _fit_callback(fit_method):
 
     @functools.wraps(fit_method)
     def callback_wrapper(estimator, *args, **kwargs):
-        estimator.__sklearn_callback_fit_ctx__ = CallbackContext._from_estimator(
-            estimator
-        )
+        if not hasattr(estimator, "__sklearn_callback_fit_ctx__"):
+            estimator.__sklearn_callback_fit_ctx__ = CallbackContext._from_estimator(
+                estimator
+            )
 
         try:
             return fit_method(estimator, *args, **kwargs)
