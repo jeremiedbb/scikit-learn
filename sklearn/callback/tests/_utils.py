@@ -5,7 +5,6 @@ import time
 
 from sklearn.base import BaseEstimator, _fit_context, clone
 from sklearn.callback import CallbackSupportMixin
-from sklearn.callback._mixin import _fit_callback
 from sklearn.utils.parallel import Parallel, delayed
 
 
@@ -50,7 +49,6 @@ class Estimator(CallbackSupportMixin, BaseEstimator):
         self.max_iter = max_iter
         self.computation_intensity = computation_intensity
 
-    @_fit_callback
     @_fit_context(prefer_skip_nested_validation=True)
     def fit(self, X=None, y=None, X_val=None, y_val=None):
         self._callback_fit_ctx.set_task_info(
@@ -84,7 +82,6 @@ class WhileEstimator(CallbackSupportMixin, BaseEstimator):
     def __init__(self, computation_intensity=0.001):
         self.computation_intensity = computation_intensity
 
-    @_fit_callback
     @_fit_context(prefer_skip_nested_validation=True)
     def fit(self, X=None, y=None, X_val=None, y_val=None):
         self._callback_fit_ctx.set_task_info(
@@ -129,7 +126,6 @@ class MetaEstimator(CallbackSupportMixin, BaseEstimator):
         self.n_jobs = n_jobs
         self.prefer = prefer
 
-    @_fit_callback
     @_fit_context(prefer_skip_nested_validation=False)
     def fit(self, X=None, y=None):
         self._callback_fit_ctx.set_task_info(

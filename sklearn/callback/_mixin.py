@@ -10,6 +10,11 @@ from sklearn.callback._callback_context import CallbackContext
 class CallbackSupportMixin:
     """Mixin class to add callback support to an estimator."""
 
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        if hasattr(cls, "fit"):
+            cls.fit = _fit_callback(cls.fit)
+
     def set_callbacks(self, callbacks):
         """Set callbacks for the estimator.
 
@@ -39,12 +44,6 @@ def _fit_callback(fit_method):
 
     @functools.wraps(fit_method)
     def wrapper(estimator, *args, **kwargs):
-        if not isinstance(estimator, CallbackSupportMixin):
-            raise ValueError(
-                f"Estimator {estimator.__class__.__name__} does not support callbacks,"
-                " as it does not inherit from CallbackSupportMixin."
-            )
-
         estimator._callback_fit_ctx = CallbackContext._from_estimator(estimator)
 
         try:
