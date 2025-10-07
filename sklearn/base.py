@@ -1335,11 +1335,7 @@ def _fit_context(*, prefer_skip_nested_validation):
                     prefer_skip_nested_validation or global_skip_validation
                 )
             ):
-                try:
-                    return fit_method(estimator, *args, **kwargs)
-                finally:
-                    if hasattr(estimator, "_callback_fit_ctx"):
-                        estimator._callback_fit_ctx.eval_on_fit_end(estimator=estimator)
+                return fit_method(estimator, *args, **kwargs)
 
         return wrapper
 

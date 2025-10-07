@@ -42,7 +42,7 @@ def test_set_callbacks_error(callbacks):
 
 
 def test_callback_removed_after_fit():
-    """Test that the _callback_fit_ctx attribute gets removed after fit."""
+    """Test that the __sklearn_callback_fit_ctx__ attribute gets removed after fit."""
     estimator = Estimator()
     estimator.fit()
-    assert not hasattr(estimator, "_callback_fit_ctx")
+    assert not hasattr(estimator, "__sklearn_callback_fit_ctx__")

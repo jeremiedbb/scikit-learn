@@ -43,15 +43,13 @@ def _fit_callback(fit_method):
     """Decorator to initialize the callback context for the fit methods."""
 
     @functools.wraps(fit_method)
-    def wrapper(estimator, *args, **kwargs):
+    def callback_wrapper(estimator, *args, **kwargs):
         estimator._callback_fit_ctx = CallbackContext._from_estimator(estimator)
 
         try:
-            result = fit_method(estimator, *args, **kwargs)
+            return fit_method(estimator, *args, **kwargs)
         finally:
-            estimator._callback_fit_ctx.eval_on_fit_end(estimator)
+            estimator.__sklearn_callback_fit_ctx__.eval_on_fit_end(estimator)
+            del estimator.__sklearn_callback_fit_ctx__
 
-        del estimator._callback_fit_ctx
-        return result
-
-    return wrapper
+    return callback_wrapper
