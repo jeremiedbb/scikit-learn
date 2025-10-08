@@ -50,7 +50,7 @@ class Estimator(CallbackSupportMixin, BaseEstimator):
         self.computation_intensity = computation_intensity
 
     @_fit_context(prefer_skip_nested_validation=False)
-    def fit(self, X=None, y=None, X_val=None, y_val=None, callback_ctx=None):
+    def fit(self, X=None, y=None, X_val=None, y_val=None, *, callback_context):
         if callback_ctx is not None:
             callback_ctx.set_task_info(
                 task_name="fit", task_id=0, max_subtasks=self.max_iter
