@@ -197,15 +197,15 @@ class CallbackContext:
 
         return new_ctx
 
-    def set_task_info(self, task_name, task_id, max_subtasks=None):
+    def set_task_info(self, task_name="fit", task_id=0, max_subtasks=None):
         """Setter for the attributes relative to the task information.
 
         Parameters
         ----------
-        task_name : str
+        task_name : str, default="fit"
             The name of the task this context is responsible for.
 
-        task_id : int
+        task_id : int, default=0
             The id of the task this context is responsible for.
 
         max_subtasks : int or None, default=None

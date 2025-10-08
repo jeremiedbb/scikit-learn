@@ -48,7 +48,9 @@ def _fit_callback(fit_method):
         callback_fit_ctx = CallbackContext._from_estimator(estimator)
 
         try:
-            return fit_method(estimator, *args, **kwargs, callback_ctx=callback_fit_ctx)
+            return fit_method(
+                estimator, *args, **kwargs, callback_context=callback_fit_ctx
+            )
         finally:
             callback_fit_ctx.eval_on_fit_end(estimator)
 
