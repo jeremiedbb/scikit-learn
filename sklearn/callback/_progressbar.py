@@ -203,9 +203,14 @@ class RichTask:
         style = f"[{colors[(self.depth) % len(colors)]}]"
 
         task_desc = f"{context.estimator_name} - {context.task_name}"
-        id_mark = f" #{context.task_id}" if context.parent is not None else ""
+        id_mark = (
+            f" #{context.task_id}"
+            if context.parent is not None and context.prev_estimator_name is None
+            else ""
+        )
         prev_task_desc = (
-            f"{context.prev_estimator_name} - {context.prev_task_name} | "
+            f"{context.prev_estimator_name} - {context.prev_task_name}"
+            f" #{context.task_id} | "
             if context.prev_estimator_name is not None
             else ""
         )
