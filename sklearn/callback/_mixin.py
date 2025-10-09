@@ -47,8 +47,7 @@ def _fit_callback(fit_method):
     def callback_wrapper(estimator, *args, **kwargs):
         parent_ctx = None
         if "callback_context" in kwargs:
-            parent_ctx = kwargs["callback_context"]
-            kwargs.pop("callback_context")
+            parent_ctx = kwargs.pop("callback_context")
 
         callback_fit_ctx = CallbackContext._from_estimator(
             estimator, task_name=fit_method.__name__
