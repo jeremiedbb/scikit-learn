@@ -46,7 +46,7 @@ def fit_callback(fit_method):
             )
 
         estimator.__sklearn_callback_fit_ctx__ = CallbackContext._from_estimator(
-            estimator
+            estimator, task_name=fit_method.__name__
         )
 
         try:
