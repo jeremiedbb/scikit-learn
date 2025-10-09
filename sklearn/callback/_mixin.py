@@ -48,7 +48,7 @@ def _fit_callback(fit_method):
         ctx_already_existing = hasattr(estimator, "__sklearn_callback_fit_ctx__")
         if not ctx_already_existing:
             estimator.__sklearn_callback_fit_ctx__ = CallbackContext._from_estimator(
-                estimator
+                estimator, task_name=fit_method.__name__
             )
 
         try:
