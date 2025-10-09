@@ -25,7 +25,6 @@ def test_propagate_callbacks():
     callback_ctx = CallbackContext._from_estimator(metaestimator, task_name="fit")
     callback_ctx.propagate_callbacks(estimator)
 
-    assert hasattr(estimator, "_parent_callback_ctx")
     assert not_propagated_callback not in estimator._skl_callbacks
     assert propagated_callback in estimator._skl_callbacks
 

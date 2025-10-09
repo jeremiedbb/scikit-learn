@@ -151,7 +151,7 @@ def _func(meta_estimator, inner_estimator, X, y, *, callback_ctx):
             task_name="inner", task_id=i
         ).propagate_callbacks(sub_estimator=est)
 
-        est.fit(X, y)
+        est.fit(X, y, callback_context=inner_ctx)
 
         inner_ctx.eval_on_fit_task_end(
             estimator=meta_estimator,

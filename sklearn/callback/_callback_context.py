@@ -147,18 +147,7 @@ class CallbackContext:
         new_ctx.max_subtasks = None
         new_ctx.prev_estimator_name = None
         new_ctx.prev_task_name = None
-
-        if hasattr(estimator, "_parent_callback_ctx"):
-            # This context's task is the root task of the estimator which itself
-            # corresponds to a leaf task of a meta-estimator. Both tasks actually
-            # represent the same task so we merge both tasks into a single task,
-            # attaching the task tree of the sub-estimator to the task tree of
-            # the meta-estimator on the way.
-            parent_ctx = estimator._parent_callback_ctx
-            new_ctx._merge_with(parent_ctx)
-            new_ctx._estimator_depth = parent_ctx._estimator_depth + 1
-        else:
-            new_ctx._estimator_depth = 0
+        new_ctx._estimator_depth = 0
 
         return new_ctx
 
@@ -232,6 +221,7 @@ class CallbackContext:
         self.parent = other_context.parent
         self.task_id = other_context.task_id
         other_context.parent._children_map[self.task_id] = self
+        self._estimator_depth = other_context._estimator_depth + 1
 
         # Keep information about the context it was merged with
         self.prev_task_name = other_context.task_name
@@ -377,10 +367,6 @@ class CallbackContext:
 
         if not callbacks_to_propagate:
             return self
-
-        # We store the parent context in the sub-estimator to be able to merge the
-        # task trees of the sub-estimator and the meta-estimator.
-        sub_estimator._parent_callback_ctx = self
 
         sub_estimator.set_callbacks(
             getattr(sub_estimator, "_skl_callbacks", []) + callbacks_to_propagate
