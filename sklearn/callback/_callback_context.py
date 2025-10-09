@@ -124,13 +124,16 @@ class CallbackContext:
     """
 
     @classmethod
-    def _from_estimator(cls, estimator):
+    def _from_estimator(cls, estimator, task_name):
         """Private constructor to create a root context.
 
         Parameters
         ----------
         estimator : estimator instance
             The estimator this context is responsible for.
+
+        task_name : str
+            The name of the task this context is responsible for.
         """
         new_ctx = cls.__new__(cls)
 
@@ -138,7 +141,7 @@ class CallbackContext:
         # because the estimator already holds a reference to the context.
         new_ctx._callbacks = getattr(estimator, "_skl_callbacks", [])
         new_ctx.estimator_name = estimator.__class__.__name__
-        new_ctx.task_name = "fit"
+        new_ctx.task_name = task_name
         new_ctx.task_id = 0
         new_ctx.parent = None
         new_ctx._children_map = {}
@@ -197,26 +200,6 @@ class CallbackContext:
         parent_context._add_child(new_ctx)
 
         return new_ctx
-
-    def set_task_info(self, task_name, task_id, max_subtasks=None):
-        """Setter for the attributes relative to the task information.
-
-        Parameters
-        ----------
-        task_name : str
-            The name of the task this context is responsible for.
-
-        task_id : int
-            The id of the task this context is responsible for.
-
-        max_subtasks : int or None, default=None
-            The maximum number of tasks that can be children of the task this context is
-            responsible for. 0 means it's a leaf. None means the maximum number of
-            subtasks is not known in advance.
-        """
-        self.task_name = task_name
-        self.task_id = task_id
-        self.max_subtasks = max_subtasks
 
     def __iter__(self):
         """Pre-order depth-first traversal of the task tree."""

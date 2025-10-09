@@ -54,7 +54,9 @@ class BaseEstimatorPrivateFit(BaseEstimator):
             or get_tags(self)._prefer_skip_nested_validation
         ):
             if isinstance(self, CallbackSupportMixin):
-                callback_ctx = CallbackContext._from_estimator(estimator=self)
+                callback_ctx = CallbackContext._from_estimator(
+                    estimator=self, task_name="fit"
+                )
                 try:
                     return self.__sklearn_fit__(
                         X=X,
@@ -94,9 +96,7 @@ class Estimator(CallbackSupportMixin, BaseEstimatorPrivateFit):
     def __sklearn_fit__(
         self, X=None, y=None, X_val=None, y_val=None, callback_ctx=None
     ):
-        callback_ctx.set_task_info(
-            task_name="fit", task_id=0, max_subtasks=self.max_iter
-        )
+        callback_ctx.max_subtasks = self.max_iter
         callback_ctx.eval_on_fit_begin(estimator=self)
         for i in range(self.max_iter):
             subcontext = callback_ctx.subcontext(task_id=i)
@@ -138,7 +138,6 @@ class WhileEstimator(CallbackSupportMixin, BaseEstimatorPrivateFit):
     def __sklearn_fit__(
         self, X=None, y=None, X_val=None, y_val=None, callback_ctx=None
     ):
-        callback_ctx.set_task_info(task_name="fit", task_id=0, max_subtasks=None)
         callback_ctx.eval_on_fit_begin(estimator=self)
         i = 0
         while True:
@@ -191,9 +190,7 @@ class MetaEstimator(CallbackSupportMixin, BaseEstimatorPrivateFit):
     def __sklearn_fit__(
         self, X=None, y=None, X_val=None, y_val=None, callback_ctx=None
     ):
-        callback_ctx.set_task_info(
-            task_name="fit", task_id=0, max_subtasks=self.n_outer
-        )
+        callback_ctx.max_subtasks = self.n_outer
         callback_ctx.eval_on_fit_begin(estimator=self)
         Parallel(n_jobs=self.n_jobs, prefer=self.prefer)(
             delayed(_func)(
