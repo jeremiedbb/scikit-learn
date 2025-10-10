@@ -17,7 +17,7 @@ class TestingCallback:
     def on_fit_begin(self, estimator):
         pass
 
-    def on_fit_end(self):
+    def on_fit_end(self, estimator, context):
         pass
 
     def on_fit_task_end(self, estimator, context, **kwargs):
@@ -67,6 +67,8 @@ class BaseEstimatorPrivateFit(BaseEstimator):
                     )
                 finally:
                     callback_ctx.eval_on_fit_end(estimator=self)
+                    if hasattr(self, "_parent_callback_ctx"):
+                        del self._parent_callback_ctx
             else:
                 return self.__sklearn_fit__(
                     X=X,
@@ -242,3 +244,43 @@ def _func(meta_estimator, inner_estimator, data, *, callback_ctx):
             estimator=meta_estimator,
             data=data,
         )
+
+
+class SimpleMetaEstimator(CallbackSupportMixin, BaseEstimatorPrivateFit):
+    """A class that mimics the behavior of a meta-estimator that does not clone the
+    estimator and does not parallelize.
+
+    There is no iteration, the meta estimator simply calls the fit of the estimator once
+    in a subcontext.
+    """
+
+    _parameter_constraints: dict = {}
+
+    def __init__(self, estimator):
+        self.estimator = estimator
+
+    def __sklearn_tags__(self):
+        tags = super().__sklearn_tags__()
+        tags._prefer_skip_nested_validation = False
+        return tags
+
+    def __sklearn_fit__(
+        self, X=None, y=None, X_val=None, y_val=None, callback_ctx=None
+    ):
+        callback_ctx.max_subtasks = 1
+        callback_ctx.eval_on_fit_begin(estimator=self)
+        subcontext = callback_ctx.subcontext(task_name="subtask").propagate_callbacks(
+            sub_estimator=self.estimator
+        )
+        self.estimator.fit(X=X, y=y, X_val=X_val, y_val=y_val)
+        callback_ctx.eval_on_fit_task_end(
+            estimator=self,
+            data={
+                "X_train": X,
+                "y_train": y,
+                "X_val": X_val,
+                "y_val": y_val,
+            },
+        )
+
+        return self
