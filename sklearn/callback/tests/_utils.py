@@ -15,7 +15,7 @@ class TestingCallback:
     def on_fit_begin(self, estimator):
         pass
 
-    def on_fit_end(self):
+    def on_fit_end(self, estimator, context):
         pass
 
     def on_fit_task_end(self, estimator, context, **kwargs):
@@ -175,3 +175,42 @@ class EstimatorWithoutCallbackMixin(BaseEstimator):
     @fit_callback
     def fit(self, X=None, y=None):
         pass
+
+
+class SimpleMetaEstimator(CallbackSupportMixin, BaseEstimator):
+    """A class that mimics the behavior of a meta-estimator that does not clone the
+    estimator and does not parallelize.
+
+    There is no iteration, the meta estimator simply calls the fit of the estimator once
+    in a subcontext.
+    """
+
+    _parameter_constraints: dict = {}
+
+    def __init__(self, estimator):
+        self.estimator = estimator
+
+    def __sklearn_tags__(self):
+        tags = super().__sklearn_tags__()
+        tags._prefer_skip_nested_validation = False
+        return tags
+
+    @fit_callback
+    @_fit_context(prefer_skip_nested_validation=False)
+    def fit(self, X=None, y=None):
+        callback_ctx = self.__sklearn_callback_fit_ctx__
+        callback_ctx.max_subtasks = 1
+        callback_ctx.eval_on_fit_begin(estimator=self)
+        subcontext = callback_ctx.subcontext(task_name="subtask").propagate_callbacks(
+            sub_estimator=self.estimator
+        )
+        self.estimator.fit(X, y)
+        callback_ctx.eval_on_fit_task_end(
+            estimator=self,
+            data={
+                "X_train": X,
+                "y_train": y,
+            },
+        )
+
+        return self

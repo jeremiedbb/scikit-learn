@@ -8,6 +8,7 @@ from sklearn.callback._callback_context import CallbackContext, get_context_path
 from sklearn.callback.tests._utils import (
     Estimator,
     MetaEstimator,
+    SimpleMetaEstimator,
     TestingAutoPropagatedCallback,
     TestingCallback,
 )
@@ -166,3 +167,12 @@ def test_merge_with():
     # The name and estimator name of the tasks it was merged with are stored
     assert inner_root.prev_task_name == outer_child.task_name
     assert inner_root.prev_estimator_name == outer_child.estimator_name
+
+
+def test_no_parent_callback_after_fit():
+    """Check that the `_parent_callback_ctx` attribute does not survive after fit."""
+    estimator = Estimator()
+    meta_estimator = SimpleMetaEstimator(estimator)
+    meta_estimator.set_callbacks(TestingAutoPropagatedCallback())
+    meta_estimator.fit()
+    assert not hasattr(estimator, "_parent_callback_ctx")
