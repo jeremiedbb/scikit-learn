@@ -63,7 +63,8 @@ from sklearn.callback import AutoPropagatedCallback
 #
 #     @_fit_context()
 #     def fit(self, X, y):
-#         callback_ctx = self.__skl__init_callback_context__(max_subtasks=self.max_iter)
+#         callback_ctx = CallbackContext._from_estimator(self)
+#         callback_ctx.set_task_info(max_subtasks=self.max_iter)
 #         callback_ctx.eval_on_fit_begin(estimator=self)
 #
 #         for i in range(self.max_iter):
@@ -89,8 +90,8 @@ class CallbackContext:
     This class is responsible for managing the callbacks and holding the tree structure
     of an estimator's tasks. Each instance corresponds to a task of the estimator.
 
-    Instances of this class should be created using the `__skl_init_callback_context__`
-    method of its estimator or the `subcontext` method of this class.
+    Instances of this class should be created using the `_from_estimator`
+    method providing its estimator or the `subcontext` method of this class.
 
     These contexts are passed to the callback hooks to be able to keep track of the
     position of a task in the task tree within the callbacks.
@@ -123,7 +124,7 @@ class CallbackContext:
     """
 
     @classmethod
-    def _from_estimator(cls, estimator, *, task_name, task_id, max_subtasks=None):
+    def _from_estimator(cls, estimator, task_name):
         """Private constructor to create a root context.
 
         Parameters
@@ -133,13 +134,6 @@ class CallbackContext:
 
         task_name : str
             The name of the task this context is responsible for.
-
-        task_id : int
-            The id of the task this context is responsible for.
-
-        max_subtasks : int or None, default=None
-            The maximum number of subtasks of this task. 0 means it's a leaf.
-            None means the maximum number of subtasks is not known in advance.
         """
         new_ctx = cls.__new__(cls)
 
@@ -148,10 +142,10 @@ class CallbackContext:
         new_ctx._callbacks = getattr(estimator, "_skl_callbacks", [])
         new_ctx.estimator_name = estimator.__class__.__name__
         new_ctx.task_name = task_name
-        new_ctx.task_id = task_id
+        new_ctx.task_id = 0
         new_ctx.parent = None
         new_ctx._children_map = {}
-        new_ctx.max_subtasks = max_subtasks
+        new_ctx.max_subtasks = None
         new_ctx.prev_estimator_name = None
         new_ctx.prev_task_name = None
 
