@@ -7,7 +7,9 @@ import pytest
 from sklearn.callback._callback_context import CallbackContext, get_context_path
 from sklearn.callback.tests._utils import (
     Estimator,
+    EstimatorNoCallback,
     MetaEstimator,
+    MetaEstimatorNoCallback,
     TestingAutoPropagatedCallback,
     TestingCallback,
 )
@@ -183,3 +185,28 @@ def test_merge_with():
     # The name and estimator name of the tasks it was merged with are stored
     assert inner_root.prev_task_name == outer_child.task_name
     assert inner_root.prev_estimator_name == outer_child.estimator_name
+
+
+@pytest.mark.parametrize("n_jobs", [1, 2])
+@pytest.mark.parametrize("prefer", ["threads", "processes"])
+def test_no_callback_meta_est_warning(n_jobs, prefer):
+    estimator = Estimator()
+    meta_estimator = MetaEstimatorNoCallback(estimator, n_jobs=n_jobs, prefer=prefer)
+    with pytest.warns(
+        UserWarning,
+        match="meta-estimator which does not support callbacks.",
+    ):
+        meta_estimator.fit()
+
+
+@pytest.mark.parametrize("n_jobs", [1, 2])
+@pytest.mark.parametrize("prefer", ["threads", "processes"])
+def test_no_callback_est_in_meta_est(n_jobs, prefer):
+    estimator = EstimatorNoCallback()
+    meta_estimator = MetaEstimator(estimator, n_jobs=n_jobs, prefer=prefer)
+    meta_estimator.set_callbacks(TestingAutoPropagatedCallback())
+    with pytest.warns(
+        UserWarning,
+        match="which does not supports callbacks is being used in a meta-estimator",
+    ):
+        meta_estimator.fit()

@@ -14,7 +14,7 @@ class TestingCallback:
     def on_fit_begin(self, estimator):
         pass
 
-    def on_fit_end(self):
+    def on_fit_end(self, estimator, data):
         pass
 
     def on_fit_task_end(self, estimator, context, **kwargs):
@@ -167,3 +167,57 @@ def _func(meta_estimator, inner_estimator, X, y, *, callback_ctx):
         estimator=meta_estimator,
         data={"X_train": X, "y_train": y},
     )
+
+
+class MetaEstimatorNoCallback(BaseEstimator):
+    """A class that mimics the behavior of a meta-estimator which does not support
+    callbacks.
+    """
+
+    _parameter_constraints: dict = {}
+
+    def __init__(
+        self, estimator, n_outer=4, n_inner=3, n_jobs=None, prefer="processes"
+    ):
+        self.estimator = estimator
+        self.n_outer = n_outer
+        self.n_inner = n_inner
+        self.n_jobs = n_jobs
+        self.prefer = prefer
+
+    @_fit_context(prefer_skip_nested_validation=False)
+    def fit(self, X=None, y=None):
+        Parallel(n_jobs=self.n_jobs, prefer=self.prefer)(
+            delayed(_func_no_callback)(self, self.estimator, X, y)
+            for i in range(self.n_outer)
+        )
+
+        return self
+
+
+def _func_no_callback(meta_estimator, inner_estimator, X, y):
+    for i in range(meta_estimator.n_inner):
+        est = clone(inner_estimator)
+
+        est.fit(X, y)
+
+
+class EstimatorNoCallback(BaseEstimator):
+    """A class that mimics the behavior of an estimator which does not support
+    callbacks.
+    """
+
+    _parameter_constraints: dict = {}
+
+    def __init__(self, max_iter=20, computation_intensity=0.001):
+        self.max_iter = max_iter
+        self.computation_intensity = computation_intensity
+
+    @_fit_context(prefer_skip_nested_validation=False)
+    def fit(self, X=None, y=None):
+        for i in range(self.max_iter):
+            time.sleep(self.computation_intensity)  # Computation intensive task
+
+        self.n_iter_ = i + 1
+
+        return self
