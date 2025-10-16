@@ -191,6 +191,7 @@ def test_merge_with():
 @pytest.mark.parametrize("prefer", ["threads", "processes"])
 def test_no_callback_meta_est_warning(n_jobs, prefer):
     estimator = Estimator()
+    estimator.set_callbacks(TestingCallback())
     meta_estimator = MetaEstimatorNoCallback(estimator, n_jobs=n_jobs, prefer=prefer)
     with pytest.warns(
         UserWarning,
@@ -199,11 +200,9 @@ def test_no_callback_meta_est_warning(n_jobs, prefer):
         meta_estimator.fit()
 
 
-@pytest.mark.parametrize("n_jobs", [1, 2])
-@pytest.mark.parametrize("prefer", ["threads", "processes"])
-def test_no_callback_est_in_meta_est(n_jobs, prefer):
+def test_no_callback_est_in_meta_est():
     estimator = EstimatorNoCallback()
-    meta_estimator = MetaEstimator(estimator, n_jobs=n_jobs, prefer=prefer)
+    meta_estimator = MetaEstimator(estimator)
     meta_estimator.set_callbacks(TestingAutoPropagatedCallback())
     with pytest.warns(
         UserWarning,

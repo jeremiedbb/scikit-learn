@@ -144,16 +144,17 @@ class CallbackContext:
             The maximum number of subtasks of this task. 0 means it's a leaf.
             None means the maximum number of subtasks is not known in advance.
         """
-        meta_est_no_callback = called_from_no_callback_meta_estimator()
-        if meta_est_no_callback is not None:
-            warnings.warn(
-                f"The estimator {estimator.__class__.__name__} which supports callbacks"
-                f" is used within the fitting of a {meta_est_no_callback}"
-                " meta-estimator which does not support callbacks. The behaviour of"
-                f" callbacks that are attached to {estimator.__class__.__name__} will"
-                " be undefined.",
-                UserWarning,
-            )
+        if hasattr(estimator, "_skl_callbacks") and estimator._skl_callbacks:
+            meta_est_no_callback = called_from_no_callback_meta_estimator()
+            if meta_est_no_callback is not None:
+                warnings.warn(
+                    f"The estimator {estimator.__class__.__name__} which supports"
+                    f" callbacks is used within the fitting of a {meta_est_no_callback}"
+                    " meta-estimator which does not support callbacks. The behaviour of"
+                    f" callbacks that are attached to {estimator.__class__.__name__}"
+                    " will be undefined.",
+                    UserWarning,
+                )
 
         new_ctx = cls.__new__(cls)
 
@@ -374,16 +375,6 @@ class CallbackContext:
         """
         from sklearn.callback._mixin import CallbackSupportMixin
 
-        if not isinstance(sub_estimator, CallbackSupportMixin):
-            warnings.warn(
-                f"The estimator {sub_estimator.__class__.__name__} which does not"
-                " supports callbacks is being used in a meta-estimator which supports"
-                " callbacks. The callbacks will not be propagated through this"
-                " estimator.",
-                UserWarning,
-            )
-            return self
-
         bad_callbacks = [
             callback.__class__.__name__
             for callback in getattr(sub_estimator, "_skl_callbacks", [])
@@ -409,6 +400,16 @@ class CallbackContext:
         ]
 
         if not callbacks_to_propagate:
+            return self
+
+        if not isinstance(sub_estimator, CallbackSupportMixin):
+            warnings.warn(
+                f"The estimator {sub_estimator.__class__.__name__} which does not"
+                " supports callbacks is being used in a meta-estimator which supports"
+                " callbacks. The callbacks will not be propagated through this"
+                " estimator.",
+                UserWarning,
+            )
             return self
 
         # We store the parent context in the sub-estimator to be able to merge the
