@@ -70,21 +70,19 @@ def _make_task_tree(n_children, n_grandchildren):
     )
 
     for i in range(n_children):
-        child = CallbackContext._from_estimator(
-            estimator,
+        child = CallbackContext._from_parent(
+            root,
             task_name="child task",
             task_id=i,
             max_subtasks=n_grandchildren,
         )
-        root._add_child(child)
 
         for j in range(n_grandchildren):
-            grandchild = CallbackContext._from_estimator(
-                estimator,
+            grandchild = CallbackContext._from_parent(
+                child,
                 task_name="grandchild task",
                 task_id=j,
             )
-            child._add_child(grandchild)
 
     return root
 
@@ -102,12 +100,14 @@ def test_task_tree():
         assert len(get_context_path(child)) == 2
         assert len(child._children_map) == 5
         assert root.max_subtasks == 3
+        assert child.uuid == root.uuid
 
         for grandchild in child._children_map.values():
             assert grandchild.parent is child
             assert len(get_context_path(grandchild)) == 3
             assert len(grandchild._children_map) == 0
             assert child.max_subtasks == 5
+            assert grandchild.uuid == root.uuid
 
     # 1 root + 1 * 3 children + 1 * 3 * 5 grandchildren
     expected_n_nodes = np.sum(np.cumprod([1, 3, 5]))
@@ -177,9 +177,24 @@ def test_merge_with():
 
     assert inner_root.parent is outer_root
     assert inner_root.task_id == outer_child.task_id
+    assert inner_root.uuid == outer_child.uuid
     assert outer_child not in outer_root._children_map.values()
     assert inner_root in outer_root._children_map.values()
 
     # The name and estimator name of the tasks it was merged with are stored
     assert inner_root.prev_task_name == outer_child.task_name
     assert inner_root.prev_estimator_name == outer_child.estimator_name
+
+
+def test_subcontext():
+    """Sanity check for the `subcontext` method."""
+    estimator = Estimator()
+    estimator.set_callbacks(TestingCallback())
+    context = CallbackContext._from_estimator(estimator, task_name="task", task_id=0)
+    subcontext = context.subcontext(task_name="subtask", task_id=1)
+
+    assert context.uuid == subcontext.uuid
+    assert context._callbacks == subcontext._callbacks
+    assert context.estimator_name == subcontext.estimator_name
+    assert context._estimator_depth == subcontext._estimator_depth
+    assert subcontext.task_id in context._children_map
