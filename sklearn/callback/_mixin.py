@@ -49,7 +49,7 @@ class CallbackSupportMixin:
             The callback context for the estimator.
         """
         self._callback_fit_ctx = CallbackContext._from_estimator(
-            estimator=self, task_name=task_name, task_id=0, max_subtasks=max_subtasks
+            estimator=self, task_name=task_name
         )
 
         return self._callback_fit_ctx

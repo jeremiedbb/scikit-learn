@@ -6,6 +6,8 @@ import pytest
 from sklearn.callback.tests._utils import (
     Estimator,
     NotValidCallback,
+    ParentFitEstimator,
+    PublicFitDecoratorEstimator,
     TestingAutoPropagatedCallback,
     TestingCallback,
 )
@@ -48,3 +50,23 @@ def test_init_callback_context():
 
     assert hasattr(estimator, "_callback_fit_ctx")
     assert hasattr(callback_ctx, "_callbacks")
+
+
+def test_callback_removed_after_fit():
+    """Test that the _callback_fit_ctx attribute gets removed after fit."""
+    estimator = Estimator()
+    estimator.fit()
+    assert not hasattr(estimator, "_callback_fit_ctx")
+
+
+def test_public_fit_decorator():
+    """Sanity check of the public fit decorator to manage callback contexts during
+    fit."""
+    estimator = PublicFitDecoratorEstimator()
+    estimator.fit()
+
+
+def test_inheritated_fit():
+    """Test with an estimator that uses its parent fit function."""
+    estimator = ParentFitEstimator()
+    estimator.fit()

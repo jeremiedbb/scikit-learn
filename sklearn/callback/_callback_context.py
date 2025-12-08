@@ -1,6 +1,8 @@
 # Authors: The scikit-learn developers
 # SPDX-License-Identifier: BSD-3-Clause
 
+from contextlib import contextmanager
+
 from sklearn.callback import AutoPropagatedCallback
 
 # TODO(callbacks): move these explanations into a dedicated user guide.
@@ -63,7 +65,8 @@ from sklearn.callback import AutoPropagatedCallback
 #
 #     @_fit_context()
 #     def fit(self, X, y):
-#         callback_ctx = self.__skl__init_callback_context__(max_subtasks=self.max_iter)
+#         callback_ctx = self._callback_fit_ctx
+#         callback_ctx.max_subtasks = self.max_iter
 #         callback_ctx.eval_on_fit_begin(estimator=self)
 #
 #         for i in range(self.max_iter):
@@ -123,7 +126,7 @@ class CallbackContext:
     """
 
     @classmethod
-    def _from_estimator(cls, estimator, *, task_name, task_id, max_subtasks=None):
+    def _from_estimator(cls, estimator, task_name):
         """Private constructor to create a root context.
 
         Parameters
@@ -133,13 +136,6 @@ class CallbackContext:
 
         task_name : str
             The name of the task this context is responsible for.
-
-        task_id : int
-            The id of the task this context is responsible for.
-
-        max_subtasks : int or None, default=None
-            The maximum number of subtasks of this task. 0 means it's a leaf.
-            None means the maximum number of subtasks is not known in advance.
         """
         new_ctx = cls.__new__(cls)
 
@@ -148,10 +144,10 @@ class CallbackContext:
         new_ctx._callbacks = getattr(estimator, "_skl_callbacks", [])
         new_ctx.estimator_name = estimator.__class__.__name__
         new_ctx.task_name = task_name
-        new_ctx.task_id = task_id
+        new_ctx.task_id = 0
         new_ctx.parent = None
         new_ctx._children_map = {}
-        new_ctx.max_subtasks = max_subtasks
+        new_ctx.max_subtasks = None
         new_ctx.prev_estimator_name = None
         new_ctx.prev_task_name = None
 
@@ -415,3 +411,35 @@ def get_context_path(context):
         if context.parent is None
         else get_context_path(context.parent) + [context]
     )
+
+
+@contextmanager
+def callback_management_context(estimator, fit_method_name):
+    """Context manager for the CallbackContext initialization and clean-up during fit.
+
+    Parameters
+    ----------
+    estimator : estimator instance
+        Estimator being fitted.
+    fit_method_name : str
+        The name of the fit method being called.
+
+    Yields
+    ------
+    None.
+    """
+    estimator._callback_fit_ctx = CallbackContext._from_estimator(
+        estimator, task_name=fit_method_name
+    )
+    try:
+        yield
+    finally:
+        try:
+            estimator._callback_fit_ctx.eval_on_fit_end(estimator)
+            del estimator._callback_fit_ctx
+        except AttributeError:
+            pass
+        try:
+            del estimator._parent_callback_ctx
+        except AttributeError:
+            pass

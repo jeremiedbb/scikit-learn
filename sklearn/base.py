@@ -15,6 +15,7 @@ import numpy as np
 
 from sklearn import __version__
 from sklearn._config import config_context, get_config
+from sklearn.callback._callback_context import callback_management_context
 from sklearn.exceptions import InconsistentVersionWarning
 from sklearn.utils._metadata_requests import _MetadataRequester, _routing_enabled
 from sklearn.utils._missing import is_scalar_nan
@@ -1330,17 +1331,37 @@ def _fit_context(*, prefer_skip_nested_validation):
             if not global_skip_validation and not partial_fit_and_fitted:
                 estimator._validate_params()
 
-            with config_context(
-                skip_parameter_validation=(
-                    prefer_skip_nested_validation or global_skip_validation
-                )
+            with (
+                config_context(
+                    skip_parameter_validation=(
+                        prefer_skip_nested_validation or global_skip_validation
+                    )
+                ),
+                callback_management_context(estimator, fit_method.__name__),
             ):
-                try:
-                    return fit_method(estimator, *args, **kwargs)
-                finally:
-                    if hasattr(estimator, "_callback_fit_ctx"):
-                        estimator._callback_fit_ctx.eval_on_fit_end(estimator=estimator)
+                return fit_method(estimator, *args, **kwargs)
 
         return wrapper
 
     return decorator
+
+
+def fit_callback_context(fit_method):
+    """Decorator to run the fit methods within the callback context manager.
+
+    Parameters
+    ----------
+    fit_method : method
+        The fit method to decorate.
+
+    Returns
+    -------
+    decorated_fit : method
+        The decorated fit method.
+    """
+
+    def wrapper(estimator, *args, **kwargs):
+        with callback_management_context(estimator, fit_method.__name__):
+            fit_method(estimator, *args, **kwargs)
+
+    return wrapper
