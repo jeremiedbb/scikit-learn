@@ -265,6 +265,27 @@ class CallbackContext:
             max_subtasks=max_subtasks,
         )
 
+    def set_task_info(self, *, task_id=None, task_name=None, max_subtasks=None):
+        """Setter for the task_id, task_name and max_subtasks attributes.
+
+        Parameters
+        ----------
+        task_id : int or None, default=None
+            Id of the context's task, ignored if None.
+        task_name : str or None, default=None
+            Name of the context's task, ignored if None.
+        max_subtasks : int or None, default=None
+            Number of maximum subtasks for this context's task, ignored if None.
+        """
+        if task_id is not None:
+            self.task_id = task_id
+        if task_name is not None:
+            self.task_name = task_name
+        if max_subtasks is not None:
+            self.max_subtasks = max_subtasks
+
+        return self
+
     def eval_on_fit_begin(self, estimator):
         """Evaluate the `on_fit_begin` method of the callbacks.
 
