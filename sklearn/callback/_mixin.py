@@ -2,7 +2,10 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from sklearn.callback._base import Callback
-from sklearn.callback._callback_context import CallbackContext
+from sklearn.callback._callback_context import (
+    CallbackContext,
+    callback_management_context,
+)
 
 
 class CallbackSupportMixin:
@@ -53,3 +56,24 @@ class CallbackSupportMixin:
         )
 
         return self._callback_fit_ctx
+
+
+def fit_callback_context(fit_method):
+    """Decorator to run the fit methods within the callback context manager.
+
+    Parameters
+    ----------
+    fit_method : method
+        The fit method to decorate.
+
+    Returns
+    -------
+    decorated_fit : method
+        The decorated fit method.
+    """
+
+    def wrapper(estimator, *args, **kwargs):
+        with callback_management_context(estimator, fit_method.__name__):
+            fit_method(estimator, *args, **kwargs)
+
+    return wrapper

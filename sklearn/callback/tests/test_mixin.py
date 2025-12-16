@@ -5,6 +5,7 @@ import pytest
 
 from sklearn.callback.tests._utils import (
     Estimator,
+    NoCloningMetaEstimator,
     NotValidCallback,
     ParentFitEstimator,
     PublicFitDecoratorEstimator,
@@ -64,9 +65,20 @@ def test_public_fit_decorator():
     fit."""
     estimator = PublicFitDecoratorEstimator()
     estimator.fit()
+    assert not hasattr(estimator, "_callback_fit_ctx")
 
 
 def test_inheritated_fit():
     """Test with an estimator that uses its parent fit function."""
     estimator = ParentFitEstimator()
     estimator.fit()
+    assert not hasattr(estimator, "_callback_fit_ctx")
+
+
+def test_no_parent_callback_after_fit():
+    """Check that the `_parent_callback_ctx` attribute does not survive after fit."""
+    estimator = Estimator()
+    meta_estimator = NoCloningMetaEstimator(estimator)
+    meta_estimator.set_callbacks(TestingAutoPropagatedCallback())
+    meta_estimator.fit()
+    assert not hasattr(estimator, "_parent_callback_ctx")

@@ -3,8 +3,8 @@
 
 import time
 
-from sklearn.base import BaseEstimator, _fit_context, clone, fit_callback_context
-from sklearn.callback import CallbackSupportMixin
+from sklearn.base import BaseEstimator, _fit_context, clone
+from sklearn.callback import CallbackSupportMixin, fit_callback_context
 from sklearn.utils.parallel import Parallel, delayed
 
 
@@ -178,11 +178,6 @@ class NoCloningMetaEstimator(CallbackSupportMixin, BaseEstimator):
 
     def __init__(self, estimator):
         self.estimator = estimator
-
-    def __sklearn_tags__(self):
-        tags = super().__sklearn_tags__()
-        tags._prefer_skip_nested_validation = False
-        return tags
 
     @_fit_context(prefer_skip_nested_validation=False)
     def fit(self, X=None, y=None):

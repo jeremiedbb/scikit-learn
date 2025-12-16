@@ -1348,24 +1348,3 @@ def _fit_context(*, prefer_skip_nested_validation):
         return wrapper
 
     return decorator
-
-
-def fit_callback_context(fit_method):
-    """Decorator to run the fit methods within the callback context manager.
-
-    Parameters
-    ----------
-    fit_method : method
-        The fit method to decorate.
-
-    Returns
-    -------
-    decorated_fit : method
-        The decorated fit method.
-    """
-
-    def wrapper(estimator, *args, **kwargs):
-        with callback_management_context(estimator, fit_method.__name__):
-            fit_method(estimator, *args, **kwargs)
-
-    return wrapper
