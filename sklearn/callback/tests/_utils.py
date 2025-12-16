@@ -167,9 +167,9 @@ def _func(meta_estimator, inner_estimator, X, y, *, callback_ctx):
     )
 
 
-class SimpleMetaEstimator(CallbackSupportMixin, BaseEstimator):
+class NoCloningMetaEstimator(CallbackSupportMixin, BaseEstimator):
     """A class that mimics the behavior of a meta-estimator that does not clone the
-    estimator and does not parallelize.
+    estimator.
     There is no iteration, the meta estimator simply calls the fit of the estimator once
     in a subcontext.
     """
