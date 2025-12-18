@@ -1,9 +1,7 @@
 # Authors: The scikit-learn developers
 # SPDX-License-Identifier: BSD-3-Clause
-import inspect
 import warnings
 
-from sklearn.base import BaseEstimator
 from sklearn.callback import AutoPropagatedCallback
 
 # TODO(callbacks): move these explanations into a dedicated user guide.
@@ -144,18 +142,6 @@ class CallbackContext:
             The maximum number of subtasks of this task. 0 means it's a leaf.
             None means the maximum number of subtasks is not known in advance.
         """
-        if hasattr(estimator, "_skl_callbacks") and estimator._skl_callbacks:
-            meta_est_no_callback = called_from_no_callback_meta_estimator()
-            if meta_est_no_callback is not None:
-                warnings.warn(
-                    f"The estimator {estimator.__class__.__name__} which supports"
-                    f" callbacks is used within the fitting of a {meta_est_no_callback}"
-                    " meta-estimator which does not support callbacks. The behaviour of"
-                    f" callbacks that are attached to {estimator.__class__.__name__}"
-                    " will be undefined.",
-                    UserWarning,
-                )
-
         new_ctx = cls.__new__(cls)
 
         # We don't store the estimator in the context to avoid circular references
@@ -442,30 +428,3 @@ def get_context_path(context):
         if context.parent is None
         else get_context_path(context.parent) + [context]
     )
-
-
-def called_from_no_callback_meta_estimator():
-    """Helper function to check if in the traceback there is a call of a fit function
-    from a meta-estimator that does not support callbacks.
-
-    Returns
-    -------
-    str or None
-        The name of the class of the meta-estimator if there is one in the traceback
-        which does not support callback, None otherwise.
-    """
-    from sklearn.callback._mixin import CallbackSupportMixin
-
-    for frame_info in inspect.stack()[1:]:
-        if (
-            frame_info.function not in ("fit", "fit_transform", "partial_fit")
-            or "self" not in frame_info.frame.f_locals
-        ):
-            continue
-
-        if isinstance(
-            frame_info.frame.f_locals["self"], BaseEstimator
-        ) and not isinstance(frame_info.frame.f_locals["self"], CallbackSupportMixin):
-            return frame_info.frame.f_locals["self"].__class__.__name__
-
-    return None
