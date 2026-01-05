@@ -15,9 +15,10 @@ import numpy as np
 
 from sklearn import __version__
 from sklearn._config import config_context, get_config
+from sklearn.callback._callback_context import callback_management_context
 from sklearn.exceptions import InconsistentVersionWarning
 from sklearn.utils._metadata_requests import _MetadataRequester, _routing_enabled
-from sklearn.utils._missing import is_scalar_nan
+from sklearn.utils._missing import is_pandas_na, is_scalar_nan
 from sklearn.utils._param_validation import validate_parameter_constraints
 from sklearn.utils._repr_html.base import ReprHTMLMixin, _HTMLDocumentationLinkMixin
 from sklearn.utils._repr_html.estimator import estimator_html_repr
@@ -305,6 +306,10 @@ class BaseEstimator(ReprHTMLMixin, _HTMLDocumentationLinkMixin, _MetadataRequest
                 return True
             # avoid calling repr on nested estimators
             if isinstance(param_value, BaseEstimator) and type(param_value) is not type(
+                init_default_params[param_name]
+            ):
+                return True
+            if is_pandas_na(param_value) and not is_pandas_na(
                 init_default_params[param_name]
             ):
                 return True
@@ -1185,7 +1190,7 @@ def is_classifier(estimator):
 
     Parameters
     ----------
-    estimator : object
+    estimator : estimator instance
         Estimator object to test.
 
     Returns
@@ -1249,7 +1254,7 @@ def is_clusterer(estimator):
 
     Parameters
     ----------
-    estimator : object
+    estimator : estimator instance
         Estimator object to test.
 
     Returns
@@ -1328,16 +1333,15 @@ def _fit_context(*, prefer_skip_nested_validation):
             if not global_skip_validation and not partial_fit_and_fitted:
                 estimator._validate_params()
 
-            with config_context(
-                skip_parameter_validation=(
-                    prefer_skip_nested_validation or global_skip_validation
-                )
+            with (
+                config_context(
+                    skip_parameter_validation=(
+                        prefer_skip_nested_validation or global_skip_validation
+                    )
+                ),
+                callback_management_context(estimator, fit_method.__name__),
             ):
-                try:
-                    return fit_method(estimator, *args, **kwargs)
-                finally:
-                    if hasattr(estimator, "_callback_fit_ctx"):
-                        estimator._callback_fit_ctx.eval_on_fit_end(estimator=estimator)
+                return fit_method(estimator, *args, **kwargs)
 
         return wrapper
 
