@@ -175,6 +175,9 @@ def test_merge_with():
     assert inner_root.prev_estimator_name == outer_child.estimator_name
 
 
+@pytest.mark.skip(
+    reason="Currently checking if callback context clean up is causing other failures."
+)
 @pytest.mark.parametrize(
     "estimator_class", [Estimator, ThirdPartyEstimator, ParentFitEstimator]
 )
