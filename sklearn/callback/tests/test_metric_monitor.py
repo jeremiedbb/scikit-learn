@@ -39,7 +39,7 @@ def test_metric_monitor(EstimatorClass, metric, metric_params):
     X_train, y_train = rng.uniform(size=(n_dim, n_samples)), rng.uniform(size=n_dim)
     X_val, y_val = rng.uniform(size=(n_dim, n_samples)), rng.uniform(size=n_dim)
 
-    estimator.fit(X_train=X_train, y_train=y_train, X_val=X_val, y_val=y_val)
+    estimator.fit(X=X_train, y=y_train, X_val=X_val, y_val=y_val)
 
     metric_params = metric_params or dict()
     log_train = callback_train.get_logs()
@@ -129,7 +129,7 @@ def test_within_meta_estimator(prefer, metric, metric_params):
         est, n_outer=n_outer, n_inner=n_inner, n_jobs=2, prefer=prefer
     )
 
-    meta_est.fit(X_train=X_train, y_train=y_train, X_val=X_val, y_val=y_val)
+    meta_est.fit(X=X_train, y=y_train, X_val=X_val, y_val=y_val)
 
     metric_params = metric_params or dict()
     expected_log_train = []

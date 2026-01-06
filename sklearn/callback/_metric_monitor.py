@@ -59,8 +59,11 @@ class MetricMonitor:
             if self.on_validation
             else (data["X_train"], data["y_train"])
         )
-        y_pred = from_reconstruction_attributes().predict(X)
-        metric_value = self.metric_func(y, y_pred, **self.metric_params)
+        if X is not None and y is not None:
+            y_pred = from_reconstruction_attributes().predict(X)
+            metric_value = self.metric_func(y, y_pred, **self.metric_params)
+        else:
+            metric_value = None
         log_item = {self.metric_func.__name__: metric_value}
         for depth, ctx in enumerate(get_context_path(context)):
             if depth == 0:

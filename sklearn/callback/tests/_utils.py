@@ -54,15 +54,15 @@ class Estimator(CallbackSupportMixin, BaseEstimator):
         self.intercept = intercept
 
     @_fit_context(prefer_skip_nested_validation=False)
-    def fit(self, X=None, y=None):
+    def fit(self, X=None, y=None, X_val=None, y_val=None):
         callback_ctx = self._callback_fit_ctx
         callback_ctx.max_subtasks = self.max_iter
         callback_ctx.eval_on_fit_begin(estimator=self)
         data = {
             "X_train": X,
             "y_train": y,
-            "X_val": X,
-            "y_val": y,
+            "X_val": X_val,
+            "y_val": y_val,
         }
 
         for i in range(self.max_iter):
@@ -89,10 +89,13 @@ class Estimator(CallbackSupportMixin, BaseEstimator):
 
 
 class EstimatorWithoutPredict(CallbackSupportMixin, BaseEstimator):
+    """A class mimicking an estimator without a predict method."""
+
     _parameter_constraints: dict = {}
 
+    @_fit_context(prefer_skip_nested_validation=False)
     def fit(self):
-        self.__skl_init_callback_context__().eval_on_fit_begin(estimator=self)
+        callback_ctx = self._callback_fit_ctx.eval_on_fit_begin(estimator=self)
 
         return self
 
@@ -111,13 +114,13 @@ class WhileEstimator(CallbackSupportMixin, BaseEstimator):
         self.max_iter = max_iter
 
     @_fit_context(prefer_skip_nested_validation=False)
-    def fit(self, X=None, y=None):
+    def fit(self, X=None, y=None, X_val=None, y_val=None):
         callback_ctx = self._callback_fit_ctx.eval_on_fit_begin(estimator=self)
         data = {
             "X_train": X,
             "y_train": y,
-            "X_val": X,
-            "y_val": y,
+            "X_val": X_val,
+            "y_val": y_val,
         }
 
         i = 0
@@ -161,7 +164,7 @@ class ThirdPartyEstimator(CallbackSupportMixin, BaseEstimator):
         self.computation_intensity = computation_intensity
 
     @with_callback_context
-    def fit(self, X=None, y=None):
+    def fit(self, X=None, y=None, X_val=None, y_val=None):
         callback_ctx = self._callback_fit_ctx
         callback_ctx.max_subtasks = self.max_iter
         callback_ctx.eval_on_fit_begin(estimator=self)
@@ -173,7 +176,12 @@ class ThirdPartyEstimator(CallbackSupportMixin, BaseEstimator):
 
             if subcontext.eval_on_fit_task_end(
                 estimator=self,
-                data={"X_train": X, "y_train": y},
+                data={
+                    "X_train": X,
+                    "y_train": y,
+                    "X_val": X_val,
+                    "y_val": y_val,
+                },
             ):
                 break
 
@@ -188,7 +196,7 @@ class ParentFitEstimator(Estimator):
     _parameter_constraints: dict = {}
 
     def __init__(self, max_iter=20, computation_intensity=0.001):
-        super().__init__(max_iter, computation_intensity)
+        super().__init__(max_iter=max_iter, computation_intensity=computation_intensity)
 
     @_fit_context(prefer_skip_nested_validation=False)
     def fit(self, X=None, y=None):
@@ -204,7 +212,7 @@ class NoCallbackEstimator(BaseEstimator):
         self.max_iter = max_iter
         self.computation_intensity = computation_intensity
 
-    def fit(self, X=None, y=None):
+    def fit(self, X=None, y=None, X_val=None, y_val=None):
         for i in range(self.max_iter):
             time.sleep(self.computation_intensity)  # Computation intensive task
 
@@ -230,22 +238,22 @@ class MetaEstimator(CallbackSupportMixin, BaseEstimator):
         self.prefer = prefer
 
     @_fit_context(prefer_skip_nested_validation=False)
-    def fit(self, X=None, y=None):
+    def fit(self, X=None, y=None, X_val=None, y_val=None):
         callback_ctx = self._callback_fit_ctx
         callback_ctx.max_subtasks = self.n_outer
         callback_ctx.eval_on_fit_begin(estimator=self)
         data = {
             "X_train": X,
             "y_train": y,
-            "X_val": X,
-            "y_val": y,
+            "X_val": X_val,
+            "y_val": y_val,
         }
 
         Parallel(n_jobs=self.n_jobs, prefer=self.prefer)(
             delayed(_func)(
                 self,
                 self.estimator,
-                data,
+                data={"X": X, "y": y, "X_val": X_val, "y_val": y_val},
                 callback_ctx=callback_ctx.subcontext(
                     task_name="outer", task_id=i, max_subtasks=self.n_inner
                 ),
