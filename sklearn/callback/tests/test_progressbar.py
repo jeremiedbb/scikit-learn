@@ -21,7 +21,7 @@ def test_progressbar(n_jobs, prefer, InnerEstimator, max_estimator_depth, capsys
     n_inner = 2
     n_outer = 3
 
-    est = InnerEstimator()
+    est = InnerEstimator(computation_intensity=0.01)
     meta_est = MetaEstimator(
         est, n_outer=n_outer, n_inner=n_inner, n_jobs=n_jobs, prefer=prefer
     )
