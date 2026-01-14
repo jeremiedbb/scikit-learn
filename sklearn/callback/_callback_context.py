@@ -443,7 +443,10 @@ def callback_management_context(estimator, fit_method_name):
     estimator._callback_fit_ctx = CallbackContext._from_estimator(
         estimator, task_name=fit_method_name
     )
-    yield
+    try:
+        yield
+    finally:
+        estimator._callback_fit_ctx.eval_on_fit_end(estimator)
 
 
 def with_callback_context(fit_method):
