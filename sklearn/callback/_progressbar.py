@@ -25,9 +25,8 @@ class ProgressBar:
         self.max_estimator_depth = max_estimator_depth
 
     def on_fit_begin(self, estimator):
-        manager = Manager()
-        self._queue = manager.Queue()
-        self.progress_monitor = RichProgressMonitor(queue=self._queue, manager=manager)
+        self._queue = Manager().Queue()
+        self.progress_monitor = RichProgressMonitor(queue=self._queue)
         self.progress_monitor.start()
 
     def on_fit_task_end(self, estimator, context, **kwargs):
@@ -73,10 +72,9 @@ class RichProgressMonitor(Thread):
         This thread will run until the queue is empty.
     """
 
-    def __init__(self, *, queue, manager):
+    def __init__(self, *, queue):
         Thread.__init__(self)
         self.queue = queue
-        self.manager = manager
 
     def run(self):
         self.progress_ctx = _Progress(

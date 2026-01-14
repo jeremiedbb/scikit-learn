@@ -443,12 +443,7 @@ def callback_management_context(estimator, fit_method_name):
     estimator._callback_fit_ctx = CallbackContext._from_estimator(
         estimator, task_name=fit_method_name
     )
-
-    try:
-        yield
-    finally:
-        if hasattr(estimator, "_callback_fit_ctx"):
-            estimator._callback_fit_ctx.eval_on_fit_end(estimator)
+    yield
 
 
 def with_callback_context(fit_method):

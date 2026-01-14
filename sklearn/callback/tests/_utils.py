@@ -68,6 +68,7 @@ class Estimator(CallbackSupportMixin, BaseEstimator):
 
         self.n_iter_ = i + 1
 
+        callback_ctx.eval_on_fit_end(self)
         return self
 
 
@@ -103,6 +104,7 @@ class WhileEstimator(CallbackSupportMixin, BaseEstimator):
 
             i += 1
 
+        callback_ctx.eval_on_fit_end(self)
         return self
 
 
@@ -136,6 +138,7 @@ class ThirdPartyEstimator(CallbackSupportMixin, BaseEstimator):
 
         self.n_iter_ = i + 1
 
+        callback_ctx.eval_on_fit_end(self)
         return self
 
 
@@ -205,6 +208,7 @@ class MetaEstimator(CallbackSupportMixin, BaseEstimator):
             for i in range(self.n_outer)
         )
 
+        callback_ctx.eval_on_fit_end(self)
         return self
 
 
