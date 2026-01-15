@@ -37,6 +37,7 @@ class ProgressBar:
         self._queue.put(context)
         self._queue.put(None)
         self.progress_monitor.join()
+        self._manager.shutdown()
 
     def __getstate__(self):
         state = self.__dict__.copy()
