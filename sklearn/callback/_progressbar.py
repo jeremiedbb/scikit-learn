@@ -25,7 +25,8 @@ class ProgressBar:
         self.max_estimator_depth = max_estimator_depth
 
     def on_fit_begin(self, estimator):
-        self._queue = Manager().Queue()
+        self._manager = Manager()
+        self._queue = self._manager.Queue()
         self.progress_monitor = RichProgressMonitor(queue=self._queue)
         self.progress_monitor.start()
 
@@ -41,6 +42,8 @@ class ProgressBar:
         state = self.__dict__.copy()
         if "progress_monitor" in state:
             del state["progress_monitor"]  # a thread is not picklable
+        if "_manager" in state:
+            del state["_manager"]
         return state
 
 
