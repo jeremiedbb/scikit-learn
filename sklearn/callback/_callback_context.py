@@ -449,8 +449,6 @@ def callback_management_context(estimator, fit_method_name):
         if hasattr(estimator, "_callback_fit_ctx"):
             estimator._callback_fit_ctx.eval_on_fit_end(estimator)
             del estimator._callback_fit_ctx
-        if hasattr(estimator, "_parent_callback_ctx"):
-            del estimator._parent_callback_ctx
 
 
 def with_callback_context(fit_method):
