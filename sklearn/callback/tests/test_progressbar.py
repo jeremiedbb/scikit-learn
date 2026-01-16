@@ -13,7 +13,7 @@ from sklearn.utils._optional_dependencies import check_rich_support
 @pytest.mark.parametrize("n_jobs", [1, 2])
 @pytest.mark.parametrize("prefer", ["threads", "processes"])
 @pytest.mark.parametrize("InnerEstimator", [Estimator, WhileEstimator])
-@pytest.mark.parametrize("max_estimator_depth", [1, 2, None])
+@pytest.mark.parametrize("max_estimator_depth", [0, 1, 2, 3, None])
 def test_progressbar(n_jobs, prefer, InnerEstimator, max_estimator_depth, capsys):
     """Check the output of the progress bars and their completion."""
     pytest.importorskip("rich")
