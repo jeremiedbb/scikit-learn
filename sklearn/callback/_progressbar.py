@@ -1,6 +1,6 @@
 # Authors: The scikit-learn developers
 # SPDX-License-Identifier: BSD-3-Clause
-
+import time
 from multiprocessing import Manager
 from threading import Thread
 
@@ -36,6 +36,7 @@ class ProgressBar:
     def on_fit_end(self, estimator, context):
         self._queue.put(context)
         self._queue.put(None)
+        time.sleep(10)
         self.progress_monitor.join()
         self._manager.shutdown()
 
