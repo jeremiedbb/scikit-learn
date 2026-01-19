@@ -1,6 +1,5 @@
 # Authors: The scikit-learn developers
 # SPDX-License-Identifier: BSD-3-Clause
-import time
 from multiprocessing import Manager
 from threading import Thread
 
@@ -25,8 +24,7 @@ class ProgressBar:
         self.max_estimator_depth = max_estimator_depth
 
     def on_fit_begin(self, estimator):
-        self._manager = Manager()
-        self._queue = self._manager.Queue()
+        self._queue = Manager().Queue()
         self.progress_monitor = RichProgressMonitor(queue=self._queue)
         self.progress_monitor.start()
 
@@ -36,16 +34,12 @@ class ProgressBar:
     def on_fit_end(self, estimator, context):
         self._queue.put(context)
         self._queue.put(None)
-        time.sleep(10)
         self.progress_monitor.join()
-        self._manager.shutdown()
 
     def __getstate__(self):
         state = self.__dict__.copy()
         if "progress_monitor" in state:
             del state["progress_monitor"]  # a thread is not picklable
-        if "_manager" in state:
-            del state["_manager"]
         return state
 
 
