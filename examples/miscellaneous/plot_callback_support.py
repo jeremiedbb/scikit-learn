@@ -11,7 +11,7 @@ compatible with the callback mechanisms supported by scikit-learn.
 Generally speaking, a callback is a function that is provided by the
 user to be invoked automatically at specific steps of a process, or to be
 triggered by specific events. Callbacks provide a clean mechanism for inserting
-custom logic (like monitoring progress or metrics, or implementing early stopping)
+custom logic like monitoring progress or metrics,
 without modifying the core algorithm of the process.
 
 In scikit-learn, callbacks take the form of classes following a protocol.
