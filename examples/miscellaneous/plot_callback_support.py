@@ -5,7 +5,7 @@ Supporting callbacks in third party estimators
 
 .. currentmodule:: sklearn
 
-This document shows how to make custom :term:`estimators` and :term:`meta-estimators`
+This document shows how to makethird party :term:`estimators` and :term:`meta-estimators`
 compatible with the callback mechanisms supported by scikit-learn.
 
 Generally speaking, a callback is a function that is provided by the
