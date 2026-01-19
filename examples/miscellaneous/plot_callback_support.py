@@ -20,7 +20,7 @@ will be called at specific steps of the fitting of an estimator or a meta-estima
 These specific methods are :meth:`~callback._base.Callback.on_fit_begin`,
 :meth:`~callback._base.Callback.on_fit_task_end` and
 :meth:`~callback._base.Callback.on_fit_end`, which are respectively called at
-the start of the :term:`fit` method, at the end of each iteration in ``fit``
+the start of the :term:`fit` method, at the end of each task in ``fit``
 and at the end of the ``fit`` method.
 
 In order to support the callbacks, estimators need to manipulate
