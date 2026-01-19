@@ -1,6 +1,6 @@
 """
 ================
-Callback support
+Supporting callbacks in third party estimators
 ================
 
 .. currentmodule:: sklearn
