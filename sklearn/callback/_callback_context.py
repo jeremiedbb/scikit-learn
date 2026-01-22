@@ -377,7 +377,7 @@ class CallbackContext:
             if isinstance(callback, AutoPropagatedCallback)
             and (
                 callback.max_estimator_depth is None
-                or self._estimator_depth < callback.max_estimator_depth
+                or self._estimator_depth < callback.max_estimator_depth - 1
             )
         ]
 
