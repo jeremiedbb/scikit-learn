@@ -129,7 +129,7 @@ def fit(self, X, y=None):
     # The `eval_on_fit_begin` method will call the `on_fit_begin` methods of the
     # estimator's callbacks.
     callback_ctx.eval_on_fit_begin(estimator=self)
-
+    ...
 
 # %%
 # The :meth:`~callback.CallbackContext.eval_on_fit_task_end` method must
