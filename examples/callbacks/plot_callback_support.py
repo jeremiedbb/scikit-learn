@@ -39,8 +39,8 @@ First a few imports and some random data for the rest of the script.
 
 import numpy as np
 
-from sklearn.base import BaseEstimator, _fit_context, clone
-from sklearn.callback import CallbackSupportMixin, ProgressBar
+from sklearn.base import BaseEstimator, clone
+from sklearn.callback import CallbackSupportMixin, ProgressBar, with_callback_context
 from sklearn.metrics.pairwise import euclidean_distances
 from sklearn.model_selection import KFold
 from sklearn.utils import check_random_state
@@ -72,7 +72,6 @@ class SimpleKmeans(BaseEstimator):
         # Get the index of the closest centroid for each point in X.
         return np.argmin(euclidean_distances(X, self.centroids_), axis=1)
 
-    @_fit_context(prefer_skip_nested_validation=False)
     def fit(self, X, y=None):  # `y` is not used but we need to declare it to adhere to
         # scikit-learn's estimators fit convention.
         random_state = check_random_state(self.random_state)
@@ -103,87 +102,12 @@ class SimpleKmeans(BaseEstimator):
 
 
 # %%
-# Now let's add all the elements necessary to support callbacks. First things first,
-# the estimator must inherit from the `CallbackSupportMixin` class.
+# Now let's add all the elements necessary to support callbacks.
 
 
+# First things first, the estimator must inherit from the
+# `CallbackSupportMixin` class.
 class SimpleKMeans(CallbackSupportMixin, BaseEstimator):
-    _parameter_constraints: dict = {}
-
-
-# %%
-# Then the :class:`~callback.CallbackContext` object must be used in the ``fit``
-# method to call the callbacks' methods through its own
-# :meth:`~callback.CallbackContext.eval_on_fit_begin` and
-# :meth:`~callback.CallbackContext.eval_on_fit_task_end`.
-
-
-# The `CallbackContext object is initialized in the `_fit_context` decorator
-# and set as the `_callback_fit_ctx` attribute of the estimator.
-@_fit_context(prefer_skip_nested_validation=False)
-def fit(self, X, y=None):
-    callback_ctx = self._callback_fit_ctx
-    # As soon as known (it ever), the fit method should set the maximum number
-    # of iterative tasks as an attribute of the callback context.
-    callback_ctx.max_subtasks = self.n_iter
-    # The `eval_on_fit_begin` method will call the `on_fit_begin` methods of the
-    # estimator's callbacks.
-    callback_ctx.eval_on_fit_begin(estimator=self)
-    ...
-
-# %%
-# The :meth:`~callback.CallbackContext.eval_on_fit_task_end` method must
-# be called after each task of ``fit``, here after each iteration of the loop
-# updating the centroids. Also for each of these tasks, a subcontext must be spawned
-# with :meth:`~callback.CallbackContext.subcontext`, and its ``eval_on_fit_task_end``
-# must be called.
-
-
-# sphinx_gallery_start_ignore
-# Avoid errors for the following snippet
-self = lambda: None
-self.n_iter = 0
-callback_ctx = None
-# sphinx_gallery_end_ignore
-for i in range(self.n_iter):
-    # A subcontext specific to each iteration is spawned.
-    subcontext = callback_ctx.subcontext(task_id=i, task_name="fit iteration")
-
-    labels = self._get_labels(X)
-
-    for k in range(self.n_clusters):
-        if (labels == k).any():
-            self.centroids_[k] = X[labels == k].mean(axis=0)
-
-    # The subcontext's `eval_on_fit_task_end` method will call the
-    # `on_fit_task_end` methods of the callbacks. Data relative to the
-    # current task can be provided through the `data` argument.
-    if subcontext.eval_on_fit_task_end(
-        estimator=self,
-        data={"X_train": X, "y_train": None},
-    ):
-        # The `eval_on_fit_task_end` method returns a boolean, which will
-        # be set to True if any of the callbacks' `on_fit_task_end` method
-        # returns True. This allows to implement early stopping with
-        # arbitrary criterions.
-        break
-
-# %%
-# The callback context's :meth:`~callback.CallbackContext.eval_on_fit_end` method
-# does not need to be called here as it is called automatically in the decorator,
-# after fit finishes.
-#
-# .. note ::
-#     Note that the :func:`~base._fit_context` decorator also performs
-#     other actions on ``fit``, such as parameter validation. If you want only
-#     the callback related actions to be performed, you can use the
-#     :func:`sklearn.callback.with_callback_context` decorator instead.
-
-# %%
-# Finally, the complete SimpleKmeans class will be as follows:
-
-
-class SimpleKMeans(CallbackSupportMixin, BaseEstimator):  # noqa: F811
     _parameter_constraints: dict = {}
 
     def __init__(self, n_clusters=6, n_iter=100, random_state=None):
@@ -194,16 +118,30 @@ class SimpleKMeans(CallbackSupportMixin, BaseEstimator):  # noqa: F811
     def _get_labels(self, X):
         return np.argmin(euclidean_distances(X, self.centroids_), axis=1)
 
-    @_fit_context(prefer_skip_nested_validation=False)
+    # Then the `fit` function must be decorated with the `with_callback_context`
+    # decorator, which will create the `CallbackContext` object.
+    @with_callback_context
     def fit(self, X, y=None):
+        # The `CallbackContext` object is accessible in `fit` as the
+        # `_callback_fit_ctx` attribute of the estimator.
         callback_ctx = self._callback_fit_ctx
+        # As soon as known (it ever), the `fit` method should set the maximum
+        # number of iterative tasks as an attribute of the callback context.
         callback_ctx.max_subtasks = self.n_iter
+        # Then the callback context's `eval_on_fit_begin` method must be called.
+        # It will trigger all the callbacks' `on_fit_begin` methods.
         callback_ctx.eval_on_fit_begin(estimator=self)
 
         random_state = check_random_state(self.random_state)
         self.centroids_ = random_state.rand(self.n_clusters, X.shape[1])
 
+        # The callback context's `eval_on_fit_task_end` method must be called
+        # after each task of `fit`, here after each iteration of the loop
+        # updating the centroids.
+
         for i in range(self.n_iter):
+            # For each of these task, a subcontext must be spawned with the
+            # callback context's `subcontext` method.
             subcontext = callback_ctx.subcontext(task_id=i, task_name="fit iteration")
 
             labels = self._get_labels(X)
@@ -212,12 +150,25 @@ class SimpleKMeans(CallbackSupportMixin, BaseEstimator):  # noqa: F811
                 if (labels == k).any():
                     self.centroids_[k] = X[labels == k].mean(axis=0)
 
+            # After each task, the `eval_on_fit_task_end` method of its
+            # callback context must be called. It will trigger all the callbacks'
+            # `on_fit_task_end` methods. Data relative to the current task
+            # can be provided through the `data` argument.
             if subcontext.eval_on_fit_task_end(
                 estimator=self,
                 data={"X_train": X, "y_train": None},
             ):
+                # The `eval_on_fit_task_end` method returns a boolean, which will
+                # be set to True if any of the callbacks' `on_fit_task_end` method
+                # returns True. This allows to implement early stopping with
+                # callbacks. Thus the `eval_on_fit_task_end` method must be used
+                # in an `if` / `break` block.
                 break
 
+        # The callback context's `eval_on_fit_end` method does not need to be
+        # called here as it is called automatically in the decorator, after fit
+        # finishes, even if it crashes. Thus the callbacks will call their
+        # `on_fit_end` methods even if `fit` does not complete correctly.
         return self
 
     def predict(self, X):
@@ -246,10 +197,53 @@ estimator.fit(X)
 # Now we demonstrate how to implement a custom meta-estimator that supports
 # callbacks. For the example, we implement a simplified version of a grid search,
 # where only a list of parameters is provided and searched through instead of a grid.
+# Again, let's start with the implementation without the callback support.
+
+
+class SimpleGridSearch(BaseEstimator):
+    _parameter_constraints: dict = {}
+
+    def __init__(self, estimator, param_list, n_splits, score_func):
+        self.estimator = estimator
+        self.param_list = param_list  # the list of parameter combinations to iterate
+        # over
+        self.n_splits = n_splits  # the number of splits for the KFold to apply.
+        self.score_func = score_func  # the scoring function
+
+    def fit(self, X, y=None):
+        # We make a KFold split to evaluate each parameter combination on
+        # multiple folds.
+        kf = KFold(n_splits=self.n_splits)
+        self.cv_results_ = []  # this attribute will hold the score values for each
+        # parameter combination and fold.
+
+        # We iterate on the parameter combinations and the folds, computing
+        # a score value for each param combination and fold.
+        for i, params in enumerate(self.param_list):
+            for j, (train_id, test_id) in enumerate(kf.split(X)):
+                # An estimator is initialized with the parameter combination.
+                estimator = clone(self.estimator).set_params(**params)
+                # The split of the current fold is applied to the data.
+                train_X, test_X = X[train_id], X[test_id]
+                train_y, test_y = (
+                    (y[train_id], y[test_id]) if y is not None else (None, None)
+                )
+                # The estimator is fitted.
+                estimator.fit(train_X, train_y)
+                # Its score is computed.
+                score = self.score_func(estimator, test_X, test_y)
+                # The results are aggregated as a tuple in the attribute.
+                self.cv_results_.append((params, f"split_{j}", score))
+
+        return self
+
+
+# %%
+# Now let's update the class to support callbacks.
 
 
 # The class must again inherit from `CallbackSupportMixin`.
-class SimpleGridSearch(CallbackSupportMixin, BaseEstimator):
+class SimpleGridSearch(CallbackSupportMixin, BaseEstimator):  # noqa: F811
     _parameter_constraints: dict = {}
 
     def __init__(self, estimator, param_list, n_splits, score_func):
@@ -258,17 +252,27 @@ class SimpleGridSearch(CallbackSupportMixin, BaseEstimator):
         self.n_splits = n_splits
         self.score_func = score_func
 
-    # The `fit` method must also be decorated and the callback context must
-    # be provided the max number of iterations and its `eval_on_fit_begin`
-    # method must be called.
-    @_fit_context(prefer_skip_nested_validation=False)
+    # The `fit` method must also be decorated.
+    @with_callback_context
     def fit(self, X, y=None):
+        # The callback context can also be accessed as an attribute.
         callback_ctx = self._callback_fit_ctx
+        # The `max_subtasks` attribute must again be declared.
         callback_ctx.max_subtasks = len(self.param_list)
+        # The `eval_on_fit_begin` method must again be called.
         callback_ctx.eval_on_fit_begin(estimator=self)
 
         kf = KFold(n_splits=self.n_splits)
         self.cv_results_ = []
+
+        # The tasks of the `fit` function are here the iterations on two
+        # levels of nested loops. Therefore, two levels of subcontexts
+        # must be used. Each level will need its subcontext to call its
+        # `eval_on_fit_task_end` method. These methods can be used at any
+        # level to enable early stopping through a `break`. Here it does not
+        # make much sense to allow stopping between folds inside the inner loop,
+        # so it is only implemented on the outer loop, but this is only a design
+        # choice.
 
         for i, params in enumerate(self.param_list):
             # A subcontext for the first level of `fit` iterations must be spawned
@@ -292,9 +296,8 @@ class SimpleGridSearch(CallbackSupportMixin, BaseEstimator):
                     (y[train_id], y[test_id]) if y is not None else (None, None)
                 )
                 estimator.fit(train_X, train_y)
-                self.cv_results_.append(
-                    (params, f"split_{j}", self.score_func(estimator, test_X, test_y))
-                )
+                score = self.score_func(estimator, test_X, test_y)
+                self.cv_results_.append((params, f"split_{j}", score))
 
                 # The inner subcontext's `eval_on_fit_task_end` must be called
                 inner_subcontext.eval_on_fit_task_end(
@@ -302,11 +305,15 @@ class SimpleGridSearch(CallbackSupportMixin, BaseEstimator):
                 )
 
             # The outer subcontext's `eval_on_fit_task_end` must be called as well
+            # and is used with an `if` / `break` to eventually enable early
+            # stopping.
             if outer_subcontext.eval_on_fit_task_end(
                 estimator=self, data={"X_train": X, "y_train": y}
             ):
                 break
 
+        # Again, the callback context's `eval_on_fit_end` is taken care of
+        # automatically in the decorator.
         return self
 
 
@@ -314,14 +321,7 @@ class SimpleGridSearch(CallbackSupportMixin, BaseEstimator):
 # The main difference with a simple estimator is that the callbacks must be
 # propagated to the sub-estimators through the corresponding callback subcontext's
 # :meth:`~callback._allback_context.CallbackContext.propagate_callbacks` method.
-#
-# Also it should be noted that each level of nested iterations requires to spawn
-# a subcontext and to call that subcontext's
-# :meth:`~callback._allback_context.CallbackContext.eval_on_fit_task_end` method
-# at the end of the iteration. These methods can be used at any level to enable
-# early stopping through a ``break``. Here it does not make much sense to allow
-# stopping inside the inner iterations, so it is only implemented on the outer loop,
-# but this is only a design choice.
+
 
 # %%
 # Registering callbacks to the meta-estimator
