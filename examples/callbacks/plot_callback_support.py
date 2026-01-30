@@ -136,7 +136,7 @@ def fit(self, X, y=None):
 # be called after each task of ``fit``, here after each iteration of the loop
 # updating the centroids. Also for each of these tasks, a subcontext must be spawned
 # with :meth:`~callback.CallbackContext.subcontext`, and its ``eval_on_fit_task_end``
-# must be used.
+# must be called.
 
 
 # sphinx_gallery_start_ignore
