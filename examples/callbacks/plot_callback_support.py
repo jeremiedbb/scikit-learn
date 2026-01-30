@@ -123,8 +123,8 @@ class SimpleKMeans(CallbackSupportMixin, BaseEstimator):
 @_fit_context(prefer_skip_nested_validation=False)
 def fit(self, X, y=None):
     callback_ctx = self._callback_fit_ctx
-    # If known, he maximum number of iterative tasks must be set as an
-    # attribute of the callback context.
+    # As soon as known (it ever), the fit method should set the maximum number
+    # of iterative tasks as an attribute of the callback context.
     callback_ctx.max_subtasks = self.n_iter
     # The `eval_on_fit_begin` method will call the `on_fit_begin` methods of the
     # estimator's callbacks.
