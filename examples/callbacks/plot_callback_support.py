@@ -85,8 +85,8 @@ class SimpleKmeans(BaseEstimator):
             labels = self._get_labels(X)
 
             for k in range(self.n_clusters):
-                # For each centroid, if its cluster is note empty, its coordinates
-                # are updated with the cluster's center's coordinates.
+                # For each centroid, if its cluster is not empty, its coordinates
+                # are updated with the coordinates of the cluster centers.
                 if (labels == k).any():
                     self.centroids_[k] = X[labels == k].mean(axis=0)
 
