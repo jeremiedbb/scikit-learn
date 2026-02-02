@@ -10,7 +10,7 @@ This document shows how to make third party :term:`estimators` and
 by scikit-learn.
 
 Generally speaking, a callback is a function that is provided by the
-user to be invoked automatically at specific steps of a process, or to be
+user to be called at specific steps of a process, or to be
 triggered by specific events. Callbacks provide a clean mechanism for inserting
 custom logic like monitoring progress or metrics,
 without modifying the core algorithm of the process.
