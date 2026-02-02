@@ -125,7 +125,7 @@ class SimpleKMeans(CallbackSupportMixin, BaseEstimator):
         # The `CallbackContext` object is accessible in `fit` as the
         # `_callback_fit_ctx` attribute of the estimator.
         callback_ctx = self._callback_fit_ctx
-        # As soon as known (it ever), the `fit` method should set the maximum
+        # As soon as known (if ever), the `fit` method should set the maximum
         # number of iterative tasks as an attribute of the callback context.
         callback_ctx.max_subtasks = self.n_iter
         # Then the callback context's `eval_on_fit_begin` method must be called.
