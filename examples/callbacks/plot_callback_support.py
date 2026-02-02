@@ -60,8 +60,6 @@ X = rng.rand(n_samples, n_features)
 
 
 class SimpleKmeans(BaseEstimator):
-    _parameter_constraints: dict = {}
-
     def __init__(self, n_clusters=6, n_iter=100, random_state=None):
         self.n_clusters = n_clusters  # the number of clusters (and thus of centroids)
         self.n_iter = n_iter  # the number of iterations to find the centroids
@@ -108,8 +106,6 @@ class SimpleKmeans(BaseEstimator):
 # First things first, the estimator must inherit from the
 # `CallbackSupportMixin` class.
 class SimpleKMeans(CallbackSupportMixin, BaseEstimator):
-    _parameter_constraints: dict = {}
-
     def __init__(self, n_clusters=6, n_iter=100, random_state=None):
         self.n_clusters = n_clusters
         self.n_iter = n_iter
@@ -201,8 +197,6 @@ estimator.fit(X)
 
 
 class SimpleGridSearch(BaseEstimator):
-    _parameter_constraints: dict = {}
-
     def __init__(self, estimator, param_list, n_splits, score_func):
         self.estimator = estimator
         self.param_list = param_list  # the list of parameter combinations to iterate
@@ -244,8 +238,6 @@ class SimpleGridSearch(BaseEstimator):
 
 # The class must again inherit from `CallbackSupportMixin`.
 class SimpleGridSearch(CallbackSupportMixin, BaseEstimator):  # noqa: F811
-    _parameter_constraints: dict = {}
-
     def __init__(self, estimator, param_list, n_splits, score_func):
         self.estimator = estimator
         self.param_list = param_list
@@ -291,9 +283,9 @@ class SimpleGridSearch(CallbackSupportMixin, BaseEstimator):  # noqa: F811
                 # to that estimator with the `propagate_callbacks` method.
                 inner_subcontext.propagate_callbacks(sub_estimator=estimator)
 
-                train_X, test_X = X[train_id], X[test_id]
+                train_X, test_X = X[train_idx], X[test_idx]
                 train_y, test_y = (
-                    (y[train_id], y[test_id]) if y is not None else (None, None)
+                    (y[train_idx], y[test_idx]) if y is not None else (None, None)
                 )
                 estimator.fit(train_X, train_y)
                 score = self.score_func(estimator, test_X, test_y)
