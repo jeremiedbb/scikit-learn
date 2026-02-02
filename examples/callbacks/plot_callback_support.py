@@ -181,7 +181,7 @@ class SimpleKMeans(CallbackSupportMixin, BaseEstimator):
 
 
 # %%
-# Registering callbacks
+# Registering callbacks to the custom estimator
 # -------------------
 # Now the ``SimpleKmeans`` estimator can be used with callbacks, for example with
 # the :class:`~callback.ProgressBar` callback to monitor progress.
