@@ -224,9 +224,9 @@ class SimpleGridSearch(BaseEstimator):
                 # An estimator is initialized with the parameter combination.
                 estimator = clone(self.estimator).set_params(**params)
                 # The split of the current fold is applied to the data.
-                train_X, test_X = X[train_id], X[test_id]
+                train_X, test_X = X[train_idx], X[test_idx]
                 train_y, test_y = (
-                    (y[train_id], y[test_id]) if y is not None else (None, None)
+                    (y[train_idx], y[test_idx]) if y is not None else (None, None)
                 )
                 # The estimator is fitted.
                 estimator.fit(train_X, train_y)
