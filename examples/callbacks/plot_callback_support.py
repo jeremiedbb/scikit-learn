@@ -220,7 +220,7 @@ class SimpleGridSearch(BaseEstimator):
         # We iterate on the parameter combinations and the folds, computing
         # a score value for each param combination and fold.
         for i, params in enumerate(self.param_list):
-            for j, (train_id, test_id) in enumerate(kf.split(X)):
+            for j, (train_idx, test_idx) in enumerate(kf.split(X)):
                 # An estimator is initialized with the parameter combination.
                 estimator = clone(self.estimator).set_params(**params)
                 # The split of the current fold is applied to the data.
