@@ -159,8 +159,8 @@ class SimpleKMeans(CallbackSupportMixin, BaseEstimator):
                 data={"X_train": X, "y_train": None},
             ):
                 # The `eval_on_fit_task_end` method returns a boolean, which will
-                # be set to True if any of the callbacks' `on_fit_task_end` method
-                # returns True. This allows to implement early stopping with
+                # be set to True if any of the callbacks' `on_fit_task_end` methods
+                # return True. This allows to implement early stopping with
                 # callbacks. Thus the `eval_on_fit_task_end` method must be used
                 # in an `if` / `break` block.
                 break
