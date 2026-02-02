@@ -279,7 +279,7 @@ class SimpleGridSearch(CallbackSupportMixin, BaseEstimator):  # noqa: F811
             outer_subcontext = callback_ctx.subcontext(
                 task_name="param iteration", task_id=i, max_subtasks=self.n_splits
             )
-            for j, (train_id, test_id) in enumerate(kf.split(X)):
+            for j, (train_idx, test_idx) in enumerate(kf.split(X)):
                 # This time a second level of `fit` iterations is also used, a
                 # second level of subcontext must then be used.
                 inner_subcontext = outer_subcontext.subcontext(
