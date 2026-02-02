@@ -26,7 +26,7 @@ and at the end of the ``fit`` method.
 
 In order to support the callbacks, estimators need to manipulate
 :class:`~callback.CallbackContext` objects. As the name implies, these objects hold
-the contextual information necessary to run the calbbacks methods. They are also
+the contextual information necessary to run the callback methods. They are also
 responsible for triggering the methods of the callback at the right time.
 
 First a few imports and some random data for the rest of the script.
