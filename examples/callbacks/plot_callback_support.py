@@ -320,7 +320,7 @@ class SimpleGridSearch(CallbackSupportMixin, BaseEstimator):  # noqa: F811
 # %%
 # The main difference with a simple estimator is that the callbacks must be
 # propagated to the sub-estimators through the corresponding callback subcontext's
-# :meth:`~callback._allback_context.CallbackContext.propagate_callbacks` method.
+# :meth:`~callback._callback_context.CallbackContext.propagate_callbacks` method.
 
 
 # %%
