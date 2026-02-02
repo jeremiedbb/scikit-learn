@@ -326,7 +326,7 @@ class SimpleGridSearch(CallbackSupportMixin, BaseEstimator):  # noqa: F811
 # %%
 # Registering callbacks to the meta-estimator
 # -------------------------------------------
-# Callbacks can be registered to the meta-estimator similarly to regular
+# Callbacks are registered to a meta-estimator the same way as to regular
 # estimators. The callbacks which respect the
 # :class:`~callback.AutoPropagatedCallback` protocol (such as
 # :class:`~callback.ProgressBar`) will be propagated to the sub-estimators.
