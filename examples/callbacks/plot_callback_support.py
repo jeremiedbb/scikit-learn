@@ -148,12 +148,17 @@ class SimpleKMeans(CallbackSupportMixin, BaseEstimator):
 
             # After each task, the `eval_on_fit_task_end` method of its
             # callback context must be called. It will trigger all the callbacks'
-            # `on_fit_task_end` methods. Extra `kwargs` can be passed to the 
-            # callback. See 
-            # :func:`~sklearn.callback.CallbackContext.eval_on_fit_task_end` for 
-            # a list of params scikit-learn callbacks support.
+            # `on_fit_task_end` methods. Extra `kwargs` can be passed to
+            # provide extra contextual tools for the callbacks, such as the
+            # `reconstructed_estimator` object which is an estimator instance ready
+            # to predict, as if the fit process just stopped at this step.
+            # See the following note for more details on these `kwargs`.
+            reconstructed_estimator = SimpleKMeans(**self.get_params())
+            reconstructed_estimator.centroids_ = self.centroids_.copy()
             if subcontext.eval_on_fit_task_end(
-                estimator=self
+                estimator=self,
+                data={"X_train": X, "y_train": y, "X_val": None, "y_val": None},
+                from_reconstruction_attributes=reconstructed_estimator,
             ):
                 # The `eval_on_fit_task_end` method returns a boolean, which will
                 # be set to True if any of the callbacks' `on_fit_task_end` methods
@@ -176,6 +181,15 @@ class SimpleKMeans(CallbackSupportMixin, BaseEstimator):
         check_is_fitted(self)
         return euclidean_distances(X, self.centroids_)
 
+
+# %%
+# .. note::
+#
+#     See :func:`~sklearn.callback.CallbackContext.eval_on_fit_task_end` for a
+#     list of the possible keys of the ``kwargs`` to provide to
+#     ``eval_on_fit_task_end``. These ``kwargs`` are optional, but an estimator
+#     should provide all the ones it is capable of producing to be compatible
+#     with a maximum number of callbacks.
 
 # %%
 # Registering callbacks to the custom estimator
@@ -292,16 +306,23 @@ class SimpleGridSearch(CallbackSupportMixin, BaseEstimator):  # noqa: F811
                 score = self.score_func(estimator, test_X, test_y)
                 self.cv_results_.append((params, f"split_{j}", score))
 
-                # The inner subcontext's `eval_on_fit_task_end` must be called
+                # The inner subcontext's `eval_on_fit_task_end` must be called.
                 inner_subcontext.eval_on_fit_task_end(
-                    estimator=self, data={"X_train": train_X, "y_train": train_y}
+                    estimator=self,
+                    data={
+                        "X_train": train_X,
+                        "y_train": train_y,
+                        "X_val": test_X,
+                        "y_val": test_y,
+                    },
                 )
 
             # The outer subcontext's `eval_on_fit_task_end` must be called as well
             # and is used with an `if` / `break` to eventually enable early
             # stopping.
             if outer_subcontext.eval_on_fit_task_end(
-                estimator=self, data={"X_train": X, "y_train": y}
+                estimator=self,
+                data={"X_train": X, "y_train": y, "X_val": None, "y_val": None},
             ):
                 break
 
