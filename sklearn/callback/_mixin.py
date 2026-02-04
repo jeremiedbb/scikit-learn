@@ -1,6 +1,8 @@
 # Authors: The scikit-learn developers
 # SPDX-License-Identifier: BSD-3-Clause
 
+import copy
+
 from sklearn.callback._base import Callback
 
 
@@ -29,3 +31,26 @@ class CallbackSupportMixin:
         self._skl_callbacks = callbacks
 
         return self
+
+    def _from_reconstruction_attributes(self, *, reconstruction_attributes):
+        """Return a copy of this estimator as if it was fitted.
+
+        Parameters
+        ----------
+        reconstruction_attributes : callable
+            A callable that has no arguments and returns the necessary fitted attributes
+            to create a working fitted estimator from this instance.
+
+            Using a callable allows lazy evaluation of the potentially costly
+            reconstruction attributes.
+
+        Returns
+        -------
+        fitted_estimator : estimator instance
+            The fitted copy of this estimator.
+        """
+        new_estimator = copy.copy(self)  # XXX deepcopy ?
+        for key, val in reconstruction_attributes().items():
+            setattr(new_estimator, key, val)
+        return new_estimator
+
