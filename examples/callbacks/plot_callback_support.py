@@ -148,11 +148,12 @@ class SimpleKMeans(CallbackSupportMixin, BaseEstimator):
 
             # After each task, the `eval_on_fit_task_end` method of its
             # callback context must be called. It will trigger all the callbacks'
-            # `on_fit_task_end` methods. Data relative to the current task
-            # can be provided through the `data` argument.
+            # `on_fit_task_end` methods. Extra `kwargs` can be passed to the 
+            # callback. See 
+            # :func:`~sklearn.callback.CallbackContext.eval_on_fit_task_end` for 
+            # a list of params scikit-learn callbacks support.
             if subcontext.eval_on_fit_task_end(
-                estimator=self,
-                data={"X_train": X, "y_train": None},
+                estimator=self
             ):
                 # The `eval_on_fit_task_end` method returns a boolean, which will
                 # be set to True if any of the callbacks' `on_fit_task_end` methods
