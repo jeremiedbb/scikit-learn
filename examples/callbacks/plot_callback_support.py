@@ -75,8 +75,9 @@ class SimpleKmeans(BaseEstimator):
         # Get the index of the closest centroid for each point in X.
         return np.argmin(euclidean_distances(X, self.centroids_), axis=1)
 
-    def fit(self, X, y=None):  # `y` is not used but we need to declare it to adhere to
-        # scikit-learn's estimators fit convention.
+    def fit(self, X, y=None):
+        # `y` is not used but we need to declare it to adhere to scikit-learn's
+        # estimators fit convention.
         random_state = check_random_state(self.random_state)
         # Randomnly initialize the centroids.
         self.centroids_ = random_state.rand(self.n_clusters, X.shape[1])
