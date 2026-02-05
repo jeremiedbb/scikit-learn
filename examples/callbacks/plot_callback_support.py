@@ -29,6 +29,11 @@ In order to support the callbacks, estimators need to initialize and manage
 the contextual information necessary to run the callback methods. They are also
 responsible for triggering the methods of the callback at the right time.
 
+
+In the following, we will show how to convert an example estimator class and an
+example meta-estimator class to make them compliant with the scikit-learn callback
+infrastructure.
+ 
 First a few imports and some random data for the rest of the script.
 """
 
