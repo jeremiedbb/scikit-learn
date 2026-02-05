@@ -6,34 +6,33 @@ Supporting callbacks in third party estimators
 .. currentmodule:: sklearn
 
 This document shows how to make third party :term:`estimators` and
-:term:`meta-estimators` compatible with the callback mechanisms supported
-by scikit-learn.
+:term:`meta-estimators` compatible with the callback mechanisms supported by
+scikit-learn.
 
-Generally speaking, a callback is a function that is provided by the
-user to be called at specific steps of a process, or to be
-triggered by specific events. Callbacks provide a clean mechanism for inserting
-custom logic like monitoring progress or metrics,
+Generally speaking, a callback is a function that is provided by the user to be called
+at specific steps of a process, or to be triggered by specific events. Callbacks provide
+a clean mechanism for inserting custom logic like monitoring progress or metrics,
 without modifying the core algorithm of the process.
 
-In scikit-learn, callbacks take the form of classes following a protocol.
-This protocol requires the callback classes to implement specific methods which
-will be called at specific steps of the fitting of an estimator or a meta-estimator.
-These specific methods are :meth:`~callback._base.Callback.on_fit_begin`,
+In scikit-learn, callbacks take the form of classes following a protocol. This protocol
+requires the callback classes to implement specific methods which will be called at
+specific steps of the fitting of an estimator or a meta-estimator. These specific
+methods are :meth:`~callback._base.Callback.on_fit_begin`,
 :meth:`~callback._base.Callback.on_fit_task_end` and
-:meth:`~callback._base.Callback.on_fit_end`, which are respectively called at
-the start of the :term:`fit` method, at the end of each task in ``fit``
-and at the end of the ``fit`` method.
+:meth:`~callback._base.Callback.on_fit_end`, which are respectively called at the start
+of the :term:`fit` method, at the end of each task in ``fit`` and at the end of the
+``fit`` method.
 
 In order to support the callbacks, estimators need to initialize and manage
-:class:`~callback.CallbackContext` objects. As the name implies, these objects hold
-the contextual information necessary to run the callback methods. They are also
-responsible for triggering the methods of the callback at the right time.
+:class:`~callback.CallbackContext` objects. As the name implies, these objects hold the
+contextual information necessary to run the callback methods. They are also responsible
+for triggering the methods of the callback at the right time.
 
 
-In the following, we will show how to convert an example estimator class and an
-example meta-estimator class to make them compliant with the scikit-learn callback
+In the following, we will show how to convert an example estimator class and an example
+meta-estimator class to make them compliant with the scikit-learn callback
 infrastructure.
- 
+
 First a few imports and some random data for the rest of the script.
 """
 
@@ -48,7 +47,7 @@ from sklearn.base import BaseEstimator, clone
 from sklearn.callback import CallbackSupportMixin, ProgressBar, with_callback_context
 from sklearn.metrics.pairwise import euclidean_distances
 from sklearn.model_selection import KFold
-from sklearn.utils import check_random_state
+from sklearn.utils import check_array, check_random_state
 from sklearn.utils.validation import check_is_fitted
 
 n_samples, n_features = 100, 4
@@ -59,25 +58,32 @@ X = rng.rand(n_samples, n_features)
 # %%
 # Custom Estimator
 # ----------------
-# Here we demonstrate how to implement a custom estimator that supports
-# callbacks. For the example, a simplified version of KMeans is presented.
-# First, let's implement our SimpleKmeans without the callback support.
+# Here we demonstrate how to implement a custom estimator that supports callbacks. For
+# the example, a simplified version of KMeans is presented. First, let's implement our
+# `SimpleKmeans` estimator without the callback support.
 
 
 class SimpleKmeans(BaseEstimator):
     def __init__(self, n_clusters=6, n_iter=100, random_state=None):
-        self.n_clusters = n_clusters  # the number of clusters (and thus of centroids)
-        self.n_iter = n_iter  # the number of iterations to find the centroids
-        self.random_state = random_state  # to control the randomness of the centroids'
-        # initialization
+        # the number of clusters (and thus of centroids)
+        self.n_clusters = n_clusters
+        # the number of iterations to find the centroids
+        self.n_iter = n_iter
+        # to control the randomness of the centroids' initialization
+        self.random_state = random_state
 
-    def _get_labels(self, X):
+    def _compute_labels(self, X):
         # Get the index of the closest centroid for each point in X.
         return np.argmin(euclidean_distances(X, self.centroids_), axis=1)
 
     def fit(self, X, y=None):
         # `y` is not used but we need to declare it to adhere to scikit-learn's
         # estimators fit convention.
+
+        # Input validation is a goood practice in estimators, for more information about
+        # it you can refer to
+        # https://scikit-learn.org/stable/developers/develop.html#input-validation.
+        X = check_array(X)
         random_state = check_random_state(self.random_state)
         # Randomnly initialize the centroids.
         self.centroids_ = random_state.rand(self.n_clusters, X.shape[1])
@@ -86,11 +92,11 @@ class SimpleKmeans(BaseEstimator):
             # The fit iterations consist in getting the cluster label of each data point
             # according to their closest centroid, and then updating the centroids as
             # the center of each cluster.
-            labels = self._get_labels(X)
+            labels = self._compute_labels(X)
 
             for k in range(self.n_clusters):
-                # For each centroid, if its cluster is not empty, its coordinates
-                # are updated with the coordinates of the cluster centers.
+                # For each centroid, if its cluster is not empty, its coordinates are
+                # updated with the coordinates of the cluster centers.
                 if (labels == k).any():
                     self.centroids_[k] = X[labels == k].mean(axis=0)
 
@@ -98,7 +104,7 @@ class SimpleKmeans(BaseEstimator):
 
     def predict(self, X):
         check_is_fitted(self)
-        return self._get_labels(X)
+        return self._compute_labels(X)
 
     def transform(self, X):
         check_is_fitted(self)
@@ -109,56 +115,51 @@ class SimpleKmeans(BaseEstimator):
 # Now let's add all the elements necessary to support callbacks.
 
 
-# First things first, the estimator must inherit from the
-# `CallbackSupportMixin` class.
+# First things first, the estimator must inherit from the `CallbackSupportMixin` class.
 class SimpleKMeans(CallbackSupportMixin, BaseEstimator):
     def __init__(self, n_clusters=6, n_iter=100, random_state=None):
         self.n_clusters = n_clusters
         self.n_iter = n_iter
         self.random_state = random_state
 
-    def _get_labels(self, X):
+    def _compute_labels(self, X):
         return np.argmin(euclidean_distances(X, self.centroids_), axis=1)
 
     # Then the `fit` function must be decorated with the `with_callback_context`
     # decorator, which will create the `CallbackContext` object.
     @with_callback_context
     def fit(self, X, y=None):
-        # The `CallbackContext` object is accessible in `fit` as the
-        # `_callback_fit_ctx` attribute of the estimator.
+        X = check_array(X)
+        random_state = check_random_state(self.random_state)
+        # The `CallbackContext` object is accessible in `fit` as the `_callback_fit_ctx`
+        # attribute of the estimator.
         callback_ctx = self._callback_fit_ctx
-        # As soon as known (if ever), the `fit` method should set the maximum
-        # number of iterative tasks as an attribute of the callback context.
+        # As soon as known (if ever), the `fit` method should set the maximum number of
+        # iterative tasks as an attribute of the callback context.
         callback_ctx.max_subtasks = self.n_iter
-        # Then the callback context's `eval_on_fit_begin` method must be called.
-        # It will trigger all the callbacks' `on_fit_begin` methods.
+        # Then the callback context's `eval_on_fit_begin` method must be called. It will
+        # trigger all the callbacks' `on_fit_begin` methods.
         callback_ctx.eval_on_fit_begin(estimator=self)
 
-        random_state = check_random_state(self.random_state)
         self.centroids_ = random_state.rand(self.n_clusters, X.shape[1])
 
-        # The callback context's `eval_on_fit_task_end` method must be called
-        # after each task of `fit`, here after each iteration of the loop
-        # updating the centroids.
-
         for i in range(self.n_iter):
-            # For each of these task, a subcontext must be spawned with the
-            # callback context's `subcontext` method.
+            # For each of the fit task (here each iteration of the loop), a subcontext
+            # must be spawned with the callback context's `subcontext` method.
             subcontext = callback_ctx.subcontext(task_id=i, task_name="fit iteration")
 
-            labels = self._get_labels(X)
+            labels = self._compute_labels(X)
 
             for k in range(self.n_clusters):
                 if (labels == k).any():
                     self.centroids_[k] = X[labels == k].mean(axis=0)
 
-            # After each task, the `eval_on_fit_task_end` method of its
-            # callback context must be called. It will trigger all the callbacks'
-            # `on_fit_task_end` methods. Extra `kwargs` can be passed to
-            # provide extra contextual tools for the callbacks, such as the
-            # `reconstructed_estimator` object which is an estimator instance ready
-            # to predict, as if the fit process just stopped at this step.
-            # See the following note for more details on these `kwargs`.
+            # After each task, the `eval_on_fit_task_end` method of its callback context
+            # must be called. It will trigger all the callbacks' `on_fit_task_end`
+            # methods. Extra `kwargs` can be passed to provide extra contextual tools
+            # for the callbacks, such as the `reconstructed_estimator` object which is
+            # an estimator instance ready to predict, as if the fit process just stopped
+            # at this step. See the following note for more details on these `kwargs`.
             reconstructed_estimator = SimpleKMeans(**self.get_params())
             reconstructed_estimator.centroids_ = self.centroids_.copy()
             if subcontext.eval_on_fit_task_end(
@@ -166,22 +167,21 @@ class SimpleKMeans(CallbackSupportMixin, BaseEstimator):
                 data={"X_train": X, "y_train": y, "X_val": None, "y_val": None},
                 from_reconstruction_attributes=reconstructed_estimator,
             ):
-                # The `eval_on_fit_task_end` method returns a boolean, which will
-                # be set to True if any of the callbacks' `on_fit_task_end` methods
-                # return True. This allows to implement early stopping with
-                # callbacks. Thus the `eval_on_fit_task_end` method must be used
-                # in an `if` / `break` block.
+                # The `eval_on_fit_task_end` method returns a boolean, which will be set
+                # to True if any of the callbacks' `on_fit_task_end` methods return
+                # True. This allows to implement early stopping with callbacks. Thus the
+                # `eval_on_fit_task_end` method must be used in an `if` / `break` block.
                 break
 
-        # The callback context's `eval_on_fit_end` method does not need to be
-        # called here as it is called automatically in the decorator, after fit
-        # finishes, even if it crashes. Thus the callbacks will call their
-        # `on_fit_end` methods even if `fit` does not complete correctly.
+        # The callback context's `eval_on_fit_end` method does not need to be called
+        # here as it is called automatically in the decorator, after fit finishes, even
+        # if it crashes. Thus the callbacks will call their `on_fit_end` methods even if
+        # `fit` does not complete correctly.
         return self
 
     def predict(self, X):
         check_is_fitted(self)
-        return self._get_labels(X)
+        return self._compute_labels(X)
 
     def transform(self, X):
         check_is_fitted(self)
@@ -191,17 +191,16 @@ class SimpleKMeans(CallbackSupportMixin, BaseEstimator):
 # %%
 # .. note::
 #
-#     See :func:`~sklearn.callback.CallbackContext.eval_on_fit_task_end` for a
-#     list of the possible keys of the ``kwargs`` to provide to
-#     ``eval_on_fit_task_end``. These ``kwargs`` are optional, but an estimator
-#     should provide all the ones it is capable of producing to be compatible
-#     with a maximum number of callbacks.
+#     See :func:`~sklearn.callback.CallbackContext.eval_on_fit_task_end` for a list of
+#     the possible keys of the ``kwargs`` to provide to ``eval_on_fit_task_end``. These
+#     ``kwargs`` are optional, but an estimator should provide all the ones it is
+#     capable of producing to be compatible with a maximum number of callbacks.
 
 # %%
 # Registering callbacks to the custom estimator
 # -------------------
-# Now the ``SimpleKmeans`` estimator can be used with callbacks, for example with
-# the :class:`~callback.ProgressBar` callback to monitor progress.
+# Now the ``SimpleKmeans`` estimator can be used with callbacks, for example with the
+# :class:`~callback.ProgressBar` callback to monitor progress.
 
 estimator = SimpleKMeans(random_state=rng)
 callback = ProgressBar()
@@ -211,29 +210,33 @@ estimator.fit(X)
 # %%
 # Custom meta-estimator
 # ---------------------
-# Now we demonstrate how to implement a custom meta-estimator that supports
-# callbacks. For the example, we implement a simplified version of a grid search,
+# Now we will demonstrate how to implement a custom meta-estimator that supports
+# callbacks. For the example, we will implement a simplified version of a grid search,
 # where only a list of parameters is provided and searched through instead of a grid.
 # Again, let's start with the implementation without the callback support.
 
 
 class SimpleGridSearch(BaseEstimator):
     def __init__(self, estimator, param_list, n_splits, score_func):
+        # the estimator to evaluate
         self.estimator = estimator
-        self.param_list = param_list  # the list of parameter combinations to iterate
-        # over
-        self.n_splits = n_splits  # the number of splits for the KFold to apply.
-        self.score_func = score_func  # the scoring function
+        # the list of parameter combinations to iterate over
+        self.param_list = param_list
+        # the number of splits for the KFold to apply
+        self.n_splits = n_splits
+        # the scoring function
+        self.score_func = score_func
 
     def fit(self, X, y=None):
         # We make a KFold split to evaluate each parameter combination on
         # multiple folds.
         kf = KFold(n_splits=self.n_splits)
-        self.cv_results_ = []  # this attribute will hold the score values for each
-        # parameter combination and fold.
+        # This `cv_results_` attribute will hold the score values for each parameter
+        # combination and fold.
+        self.cv_results_ = []
 
-        # We iterate on the parameter combinations and the folds, computing
-        # a score value for each param combination and fold.
+        # We iterate on the parameter combinations and the folds, computing a score
+        # value for each param combination and fold.
         for i, params in enumerate(self.param_list):
             for j, (train_idx, test_idx) in enumerate(kf.split(X)):
                 # An estimator is initialized with the parameter combination.
@@ -278,30 +281,29 @@ class SimpleGridSearch(CallbackSupportMixin, BaseEstimator):  # noqa: F811
         kf = KFold(n_splits=self.n_splits)
         self.cv_results_ = []
 
-        # The tasks of the `fit` function are here the iterations on two
-        # levels of nested loops. Therefore, two levels of subcontexts
-        # must be used. Each level will need its subcontext to call its
-        # `eval_on_fit_task_end` method. These methods can be used at any
-        # level to enable early stopping through a `break`. Here it does not
-        # make much sense to allow stopping between folds inside the inner loop,
-        # so it is only implemented on the outer loop, but this is only a design
-        # choice.
+        # The tasks of the `fit` function are here the iterations on two levels of
+        # nested loops. Therefore, two levels of subcontexts must be used. Each level
+        # will need its subcontext to call its `eval_on_fit_task_end` method. These
+        # methods can be used at any level to enable early stopping through a `break`.
+        # Here it does not make much sense to allow stopping between folds inside the
+        # inner loop, so it is only implemented on the outer loop, but this is only a
+        # design choice.
 
         for i, params in enumerate(self.param_list):
-            # A subcontext for the first level of `fit` iterations must be spawned
+            # A subcontext for the first level of `fit` iterations must be spawned.
             outer_subcontext = callback_ctx.subcontext(
                 task_name="param iteration", task_id=i, max_subtasks=self.n_splits
             )
             for j, (train_idx, test_idx) in enumerate(kf.split(X)):
-                # This time a second level of `fit` iterations is also used, a
-                # second level of subcontext must then be used.
+                # This time a second level of `fit` iterations is also used, a second
+                # level of subcontext must then be used.
                 inner_subcontext = outer_subcontext.subcontext(
                     task_name=f"split {j}", task_id=j
                 )
 
                 estimator = clone(self.estimator).set_params(**params)
-                # Since a sub-estimator is used, the callbacks must be propagated
-                # to that estimator with the `propagate_callbacks` method.
+                # Since a sub-estimator is used, the callbacks must be propagated to
+                # that estimator with the `propagate_callbacks` method.
                 inner_subcontext.propagate_callbacks(sub_estimator=estimator)
 
                 train_X, test_X = X[train_idx], X[test_idx]
@@ -323,33 +325,31 @@ class SimpleGridSearch(CallbackSupportMixin, BaseEstimator):  # noqa: F811
                     },
                 )
 
-            # The outer subcontext's `eval_on_fit_task_end` must be called as well
-            # and is used with an `if` / `break` to eventually enable early
-            # stopping.
+            # The outer subcontext's `eval_on_fit_task_end` must be called as well and
+            # is used with an `if` / `break` to eventually enable early stopping.
             if outer_subcontext.eval_on_fit_task_end(
                 estimator=self,
                 data={"X_train": X, "y_train": y, "X_val": None, "y_val": None},
             ):
                 break
 
-        # Again, the callback context's `eval_on_fit_end` is taken care of
-        # automatically in the decorator.
+        # Again, the callback context's `eval_on_fit_end` is taken care of automatically
+        # in the decorator.
         return self
 
 
 # %%
-# The main difference with a simple estimator is that the callbacks must be
-# propagated to the sub-estimators through the corresponding callback subcontext's
+# The main difference with a simple estimator is that the callbacks must be propagated
+# to the sub-estimators through the corresponding callback subcontext's
 # :meth:`~callback._callback_context.CallbackContext.propagate_callbacks` method.
 
 
 # %%
 # Registering callbacks to the meta-estimator
 # -------------------------------------------
-# Callbacks are registered to a meta-estimator the same way as to regular
-# estimators. The callbacks which respect the
-# :class:`~callback.AutoPropagatedCallback` protocol (such as
-# :class:`~callback.ProgressBar`) will be propagated to the sub-estimators.
+# Callbacks are registered to a meta-estimator the same way as to regular estimators.
+# The callbacks which respect the :class:`~callback.AutoPropagatedCallback` protocol
+# (such as :class:`~callback.ProgressBar`) will be propagated to the sub-estimators.
 
 
 param_list = [{"n_clusters": 5, "n_iter": 20}, {"n_clusters": 4, "n_iter": 50}]
