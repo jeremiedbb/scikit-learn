@@ -164,7 +164,7 @@ class SimpleKMeans(CallbackSupportMixin, BaseEstimator):
             reconstructed_estimator.centroids_ = self.centroids_.copy()
             if subcontext.eval_on_fit_task_end(
                 estimator=self,
-                data={"X_train": X, "y_train": y, "X_val": None, "y_val": None},
+                data={"X_train": X, "y_train": y},
                 from_reconstruction_attributes=reconstructed_estimator,
             ):
                 # The `eval_on_fit_task_end` method returns a boolean, which will be set
