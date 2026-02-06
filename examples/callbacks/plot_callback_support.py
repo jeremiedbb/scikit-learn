@@ -25,7 +25,7 @@ of the :term:`fit` method, at the end of each task in ``fit`` and at the end of 
 
 In order to support the callbacks, estimators need to initialize and manage
 :class:`~callback.CallbackContext` objects. As the name implies, these objects hold the
-contextual information necessary to run the callback methods. They are also responsible
+contextual information necessary to run the callback hooks. They are also responsible
 for triggering the methods of the callback at the right time.
 
 
