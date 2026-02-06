@@ -160,12 +160,12 @@ class SimpleKMeans(CallbackSupportMixin, BaseEstimator):
             # for the callbacks, such as the `reconstructed_estimator` object which is
             # an estimator instance ready to predict, as if the fit process just stopped
             # at this step. See the following note for more details on these `kwargs`.
-            reconstructed_estimator = SimpleKMeans(**self.get_params())
-            reconstructed_estimator.centroids_ = self.centroids_.copy()
             if subcontext.eval_on_fit_task_end(
                 estimator=self,
                 data={"X_train": X, "y_train": y},
-                from_reconstruction_attributes=reconstructed_estimator,
+                reconstruction_attributes=lambda : {
+                    "centroids_": self.centroids_,
+                    },
             ):
                 # The `eval_on_fit_task_end` method returns a boolean, which will be set
                 # to True if any of the callbacks' `on_fit_task_end` methods return
