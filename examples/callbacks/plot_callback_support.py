@@ -212,7 +212,7 @@ estimator.fit(X)
 # ---------------------
 # Now we will demonstrate how to implement a custom meta-estimator that supports
 # callbacks. For the example, we will implement a simplified version of a grid search,
-# where only a list of parameters is provided and searched through instead of a grid.
+# where only a list of parameter combinations is provided and searched through instead of a grid.
 # Again, let's start with the implementation without the callback support.
 
 
