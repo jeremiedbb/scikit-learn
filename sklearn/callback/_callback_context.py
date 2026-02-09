@@ -312,10 +312,10 @@ class CallbackContext:
                 This is only provided at the innermost level of iterations, i.e. for
                 leaf tasks.
 
-            - from_reconstruction_attributes: estimator instance
-                A ready to predict, transform, etc ... estimator as if the fit stopped
-                at the end of this task. Usually it's a copy of the caller estimator
-                with the necessary attributes set.
+            - reconstruction_attributes: callable
+                A function returning a dictionary with the necessary objects to
+                instantiate a ready to predict, transform, etc ... estimator as if the
+                fit stopped at the end of this task.
 
             - fit_state: dict
                 Model specific quantities updated during fit. This is not meant to be
