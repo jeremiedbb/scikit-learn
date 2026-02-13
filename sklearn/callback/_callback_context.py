@@ -295,9 +295,32 @@ class CallbackContext:
             The estimator calling this callback hook.
 
         **kwargs : dict
-            Additional optional arguments passed to the callback. The list of possible
-            keys and corresponding values are described in detail at
-            https://scikit-learn.org/dev/developers/develop.html#callbacks.
+            arguments passed to the callback. Possible keys are
+
+            - data: dict
+                Dictionary containing the training and validation data. The possible
+                keys are "X_train", "y_train", "sample_weight_train", "X_val", "y_val",
+                and "sample_weight_val". The values are the corresponding data.
+
+            - stopping_criterion: float
+                Usually iterations stop when `stopping_criterion <= tol`.
+                This is only provided at the innermost level of iterations, i.e. for
+                leaf tasks.
+
+            - tol: float
+                Tolerance for the stopping criterion.
+                This is only provided at the innermost level of iterations, i.e. for
+                leaf tasks.
+
+            - reconstruction_attributes: callable
+                A function returning a dictionary with the necessary objects to
+                instantiate a ready to predict, transform, etc ... estimator as if the
+                fit stopped at the end of this task.
+
+            - fit_state: dict
+                Model specific quantities updated during fit. This is not meant to be
+                used by generic callbacks but by a callback designed for a specific
+                estimator instead.
 
         Returns
         -------
