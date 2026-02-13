@@ -789,3 +789,73 @@ the absolute tolerance via ``atol``.
 
 For more information, please refer to the docstring of
 `sklearn.utils._testing.assert_allclose`.
+
+
+.. _callbacks:
+
+Callback support
+================
+
+.. currentmodule:: sklearn.callback
+
+Estimators supporting scikit-learn's callback API can have callbacks registered to them.
+These callbacks hold methods called hooks which will be called at different steps of the
+estimator's fit process. The three hooks of a callback are
+:meth:`~callback._base.Callback.on_fit_begin`,
+:meth:`~callback._base.Callback.on_fit_task_end` and
+:meth:`~callback._base.Callback.on_fit_end`, which are respectively called at the start
+of the ``fit`` method, at the end of each task in ``fit`` and at the end of the
+``fit`` method. In scikit-learn estimators, a ``fit`` task is usually one step of a
+loop, with nested loops corresponding to netsed tasks. In general a task can be whatever
+unit of work the estimator's developer wants it to be, however if the defined tasks are
+too unusual it might comprommise the compatibility of the estimator with scikit-learn's
+builtin callbacks.
+
+For more details about the requirements to make third party estimators and
+meta-estimators compatible with the callback mechanisms supported by scikit-learn you
+can refer to this `example
+<https://scikit-learn.org/dev/auto_examples/miscellaneous/plot_callback_support.html>`__.
+
+In order to support the callbacks, estimators need to initialize and manage
+:class:`~callback.CallbackContext` objects. This object will call the hooks of the
+callbacks by calling its own
+:meth:`~callback._callback_context.CallbackContext.eval_on_fit_begin`,
+:meth:`~callback._callback_context.CallbackContext.eval_on_fit_task_end` and
+:meth:`~callback._callback_context.CallbackContext.eval_on_fit_end` methods.
+
+The :meth:`~callback._callback_context.CallbackContext.eval_on_fit_task_end` method can
+forward extra keyword arguments to the callback to provide additional contextual
+information about the state of the fitting process at this task. These ``kwargs`` are
+optional. However to have an estimator compatible with the largest amount of callbacks,
+it should provide all the values it is capable or producing during fit. The list of the
+possible keys and corresponding values for these ``kwargs`` is the following.
+
+- `data`: dict
+    A dictionary containing the training and validation data. The possible keys are
+    "X_train", "y_train", "sample_weight_train", "X_val", "y_val", "sample_weight_val".
+
+- `stopping_criterion`: float
+    Usually iterations stop when `stopping_criterion <= tol`. This is only provided at
+    the innermost level of iterations.
+
+- `tol`: float
+    Tolerance for the stopping criterion. This is only provided at the innermost level
+    of iterations.
+
+- `from_reconstruction_attributes`: callable
+    A function returning a ready to predict, transform, etc ... estimator as if the fit
+    stopped at the end of this task.
+
+- `fit_state`: dict
+    Model specific quantities updated during fit. This is not meant to be used by
+    generic callbacks but by a callback designed for a specific estimator instead.
+
+
+And here a list of all the built-in callbacks in scikit-learn, and which ones of the
+``kwargs`` they require to function.
+
+=========================================== ===============
+Callback                                    Required kwargs
+=========================================== ===============
+:class:`~_progressbar.ProgressBar`          None
+=========================================== ===============

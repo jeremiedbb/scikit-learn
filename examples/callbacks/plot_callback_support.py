@@ -160,10 +160,8 @@ class SimpleKMeans(CallbackSupportMixin, BaseEstimator):
             # After each task, the `eval_on_fit_task_end` method of its callback context
             # must be called. It will trigger all the callbacks' `on_fit_task_end`
             # methods. Extra `kwargs` can be passed to provide extra contextual tools
-            # for the callbacks, such as the `reconstruction_attributes` function which
-            # returns the necessary arguments to generate an estimator instance ready to
-            # predict, as if the fit process just stopped at this step. See the
-            # following note for more details on these `kwargs`.
+            # for the callbacks. See the following note for more details on these
+            # `kwargs`.
             if subcontext.eval_on_fit_task_end(
                 estimator=self,
                 data={"X_train": X, "y_train": y},
@@ -197,10 +195,13 @@ class SimpleKMeans(CallbackSupportMixin, BaseEstimator):
 # %%
 # .. note::
 #
-#     See :func:`~sklearn.callback.CallbackContext.eval_on_fit_task_end` for a list of
-#     the possible keys of the ``kwargs`` to provide to ``eval_on_fit_task_end``. These
-#     ``kwargs`` are optional, but an estimator should provide all the ones it is
-#     capable of producing to be compatible with a maximum number of callbacks.
+#     A complete list of the possible keys for the ``kwargs`` to provide to
+#     ``eval_on_fit_task_end`` and which callbacks use them can be found in the
+#     `developer guide`_. These``kwargs`` are optional, but an estimator should provide
+#     all the ones it is capable of producing to be compatible with a maximum number of
+#     callbacks.
+#
+# .. _developper guide: https://scikit-learn.org/dev/developers/develop.html#callbacks
 
 # %%
 # Registering callbacks to the custom estimator
