@@ -129,7 +129,7 @@ class CallbackContext:
     """
 
     @classmethod
-    def _from_estimator(cls, estimator, task_name):
+    def _from_estimator(cls, estimator, task_name, max_subtasks=None):
         """Private constructor to create a root context.
 
         Parameters
@@ -139,6 +139,10 @@ class CallbackContext:
 
         task_name : str
             The name of the task this context is responsible for.
+
+        max_subtasks : int or None, default=None
+            The maximum number of subtasks that can be children of the root task. None
+            means the maximum number of subtasks is not known in advance.
         """
         new_ctx = cls.__new__(cls)
 
@@ -150,7 +154,7 @@ class CallbackContext:
         new_ctx.task_id = 0
         new_ctx.parent = None
         new_ctx._children_map = {}
-        new_ctx.max_subtasks = None
+        new_ctx.max_subtasks = max_subtasks
         new_ctx.source_estimator_name = None
         new_ctx.source_task_name = None
         new_ctx._has_called_on_fit_begin = False
@@ -454,7 +458,7 @@ def get_context_path(context):
 
 @contextmanager
 def callback_management_context(estimator, fit_method_name):
-    """Context manager to setup and teardown the callback context for an estimator.
+    """Context manager to teardown the callback context for an estimator.
 
     Parameters
     ----------
@@ -468,10 +472,6 @@ def callback_management_context(estimator, fit_method_name):
     ------
     None.
     """
-    estimator._callback_fit_ctx = CallbackContext._from_estimator(
-        estimator, task_name=fit_method_name
-    )
-
     try:
         yield
     finally:
