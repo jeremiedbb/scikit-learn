@@ -13,6 +13,8 @@ from sklearn.callback.tests._utils import (
     TestingAutoPropagatedCallback,
     TestingCallback,
     ThirdPartyEstimator,
+    WrongDataKeyEstimator,
+    WrongKwargsEstimator,
 )
 
 
@@ -212,3 +214,19 @@ def test_inner_estimator_no_callback_support():
         match="The estimator NoCallbackEstimator does not support callbacks.",
     ):
         meta_estimator.fit()
+
+
+def test_unauthorized_on_fit_task_end_kwargs():
+    """Check that calling eval_on_fit_task_end with wrong kwargs raises an error."""
+    estimator = WrongKwargsEstimator()
+
+    with pytest.raises(ValueError, match="Unauthorized keyword arguments"):
+        estimator.fit()
+
+
+def test_unauthorized_on_fit_task_end_data_key():
+    """Check that calling eval_on_fit_task_end with wrong data keys raises an error."""
+    estimator = WrongDataKeyEstimator()
+
+    with pytest.raises(ValueError, match="Unauthorized keys for the 'data' dict"):
+        estimator.fit()

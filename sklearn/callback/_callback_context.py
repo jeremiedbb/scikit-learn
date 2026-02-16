@@ -7,6 +7,23 @@ from contextlib import contextmanager
 from sklearn.callback._base import AutoPropagatedCallback
 from sklearn.callback._mixin import CallbackSupportMixin
 
+_ON_FIT_TASK_END_ALLOWED_KWARGS = (
+    "data",
+    "stopping_criterion",
+    "tol",
+    "from_reconstruction_attributes",
+    "fit_state",
+)
+
+_DATA_ALLOWED_KEYS = (
+    "X_train",
+    "y_train",
+    "sample_weight_train",
+    "X_val",
+    "y_val",
+    "sample_weight_val",
+)
+
 # TODO(callbacks): move these explanations into a dedicated user guide.
 #
 # The computation tasks performed by an estimator during fit have an inherent tree
@@ -351,6 +368,26 @@ class CallbackContext:
             Whether or not to stop the current level of iterations at this end of this
             task.
         """
+        # TODO: add a link to the doc page for authorized kwargs and data keys in the
+        # error message when the page is ready.
+        disallowed_kwargs = [
+            arg for arg in kwargs if arg not in _ON_FIT_TASK_END_ALLOWED_KWARGS
+        ]
+        if disallowed_kwargs:
+            raise ValueError(
+                "Unauthorized keyword arguments provided to "
+                f"CallbackContext.eval_on_fit_task_end: {disallowed_kwargs}."
+            )
+        if "data" in kwargs:
+            disallowed_data_keys = [
+                key for key in kwargs["data"] if key not in _DATA_ALLOWED_KEYS
+            ]
+            if disallowed_data_keys:
+                raise ValueError(
+                    "Unauthorized keys for the 'data' dict provided to "
+                    f"CallbackContext.eval_on_fit_task_end: {disallowed_data_keys}."
+                )
+
         return any(
             callback.on_fit_task_end(estimator, self, **kwargs)
             for callback in self._callbacks

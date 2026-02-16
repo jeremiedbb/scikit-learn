@@ -230,3 +230,41 @@ def _func(meta_estimator, inner_estimator, X, y, *, outer_callback_ctx):
         estimator=meta_estimator,
         data={"X_train": X, "y_train": y},
     )
+
+
+class WrongKwargsEstimator(CallbackSupportMixin, BaseEstimator):
+    """An estimator providing wrong kwargs to _eval_on_fit_task_end."""
+
+    _parameter_constraints: dict = {}
+
+    @_fit_context(prefer_skip_nested_validation=False)
+    def fit(self, X=None, y=None):
+        callback_ctx = self._callback_fit_ctx
+        callback_ctx.max_subtasks = None
+        callback_ctx.eval_on_fit_begin(estimator=self)
+
+        callback_ctx.eval_on_fit_task_end(
+            estimator=self,
+            wrong_kwarg="wrong",
+        )
+
+        return self
+
+
+class WrongDataKeyEstimator(CallbackSupportMixin, BaseEstimator):
+    """An estimator providing wrong keys for 'data' to _eval_on_fit_task_end."""
+
+    _parameter_constraints: dict = {}
+
+    @_fit_context(prefer_skip_nested_validation=False)
+    def fit(self, X=None, y=None):
+        callback_ctx = self._callback_fit_ctx
+        callback_ctx.max_subtasks = None
+        callback_ctx.eval_on_fit_begin(estimator=self)
+
+        callback_ctx.eval_on_fit_task_end(
+            estimator=self,
+            data={"wrong_key": X, "wrong_key_2": y},
+        )
+
+        return self
