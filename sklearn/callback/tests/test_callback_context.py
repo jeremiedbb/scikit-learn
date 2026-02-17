@@ -6,7 +6,7 @@ import pytest
 
 from sklearn.callback._callback_context import CallbackContext, get_context_path
 from sklearn.callback.tests._utils import (
-    Estimator,
+    MaxIterEstimator,
     MetaEstimator,
     NoCallbackEstimator,
     NoSubtaskEstimator,
@@ -22,7 +22,7 @@ def test_propagate_callbacks():
     not_propagated_callback = TestingCallback()
     propagated_callback = TestingAutoPropagatedCallback()
 
-    estimator = Estimator()
+    estimator = MaxIterEstimator()
     metaestimator = MetaEstimator(estimator)
     metaestimator.set_callbacks([not_propagated_callback, propagated_callback])
 
@@ -36,7 +36,7 @@ def test_propagate_callbacks():
 
 def test_propagate_callback_no_callback():
     """Check that no callback is propagated if there's no callback."""
-    estimator = Estimator()
+    estimator = MaxIterEstimator()
     metaestimator = MetaEstimator(estimator)
 
     callback_ctx = CallbackContext._from_estimator(metaestimator, "fit")
@@ -52,7 +52,7 @@ def test_auto_propagated_callbacks():
     """Check that it's not possible to set an auto-propagated callback on the
     sub-estimator of a meta-estimator.
     """
-    estimator = Estimator()
+    estimator = MaxIterEstimator()
     estimator.set_callbacks(TestingAutoPropagatedCallback())
     meta_estimator = MetaEstimator(estimator=estimator)
 
@@ -65,7 +65,7 @@ def test_auto_propagated_callbacks():
 
 def _make_task_tree(n_children, n_grandchildren):
     """Helper function to create a tree of tasks with a context for each task."""
-    estimator = Estimator()
+    estimator = MaxIterEstimator()
     root = CallbackContext._from_estimator(estimator, "root task")
     root.max_subtasks = n_children
 
@@ -120,7 +120,7 @@ def test_task_tree():
 
 def test_add_child():
     """Sanity check for the `_add_child` method."""
-    estimator = Estimator()
+    estimator = MaxIterEstimator()
     root = CallbackContext._from_estimator(estimator, "root task")
     root.max_subtasks = 2
 
@@ -152,7 +152,7 @@ def test_add_child():
 
 def test_merge_with():
     """Sanity check for the `_merge_with` method."""
-    estimator = Estimator()
+    estimator = MaxIterEstimator()
     meta_estimator = MetaEstimator(estimator)
     outer_root = CallbackContext._from_estimator(
         meta_estimator, "root", max_subtasks=None
@@ -194,7 +194,7 @@ def test_merge_with_error_not_leaf():
 
 
 @pytest.mark.parametrize(
-    "estimator_class", [Estimator, ThirdPartyEstimator, ParentFitEstimator]
+    "estimator_class", [MaxIterEstimator, ThirdPartyEstimator, ParentFitEstimator]
 )
 def test_callback_ctx_removed_after_fit(estimator_class):
     """Check that the _callback_fit_ctx attribute gets removed after fit."""
