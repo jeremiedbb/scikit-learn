@@ -30,7 +30,7 @@ class CallbackSupportMixin:
 
         return self
 
-    def _init_callback_context(self, task_name="fit", max_subtasks=None):
+    def _init_callback_context(self, task_name="fit", task_id=0, max_subtasks=0):
         """Initialize the callback context for the estimator.
 
         Parameters
@@ -40,7 +40,8 @@ class CallbackSupportMixin:
 
         max_subtasks : int or None, default=0
             The maximum number of subtasks that can be children of the root task. None
-            means the maximum number of subtasks is not known in advance.
+            means the maximum number of subtasks is not known in advance. 0 means it's a
+            leaf.
 
         Returns
         -------
@@ -50,7 +51,10 @@ class CallbackSupportMixin:
         from sklearn.callback._callback_context import CallbackContext
 
         self._callback_fit_ctx = CallbackContext._from_estimator(
-            estimator=self, task_name=task_name, max_subtasks=max_subtasks
+            estimator=self,
+            task_name=task_name,
+            task_id=task_id,
+            max_subtasks=max_subtasks,
         )
 
         return self._callback_fit_ctx

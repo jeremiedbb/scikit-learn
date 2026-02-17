@@ -129,7 +129,7 @@ class CallbackContext:
     """
 
     @classmethod
-    def _from_estimator(cls, estimator, task_name, max_subtasks=None):
+    def _from_estimator(cls, estimator, task_name, task_id=0, max_subtasks=0):
         """Private constructor to create a root context.
 
         Parameters
@@ -140,9 +140,10 @@ class CallbackContext:
         task_name : str
             The name of the task this context is responsible for.
 
-        max_subtasks : int or None, default=None
+        max_subtasks : int or None, default=0
             The maximum number of subtasks that can be children of the root task. None
-            means the maximum number of subtasks is not known in advance.
+            means the maximum number of subtasks is not known in advance. 0 means it's a
+            leaf.
         """
         new_ctx = cls.__new__(cls)
 
@@ -151,7 +152,7 @@ class CallbackContext:
         new_ctx._callbacks = getattr(estimator, "_skl_callbacks", [])
         new_ctx.estimator_name = estimator.__class__.__name__
         new_ctx.task_name = task_name
-        new_ctx.task_id = 0
+        new_ctx.task_id = task_id
         new_ctx.parent = None
         new_ctx._children_map = {}
         new_ctx.max_subtasks = max_subtasks
@@ -174,7 +175,7 @@ class CallbackContext:
         return new_ctx
 
     @classmethod
-    def _from_parent(cls, parent_context, *, task_name, task_id, max_subtasks=None):
+    def _from_parent(cls, parent_context, *, task_name, task_id, max_subtasks=0):
         """Private constructor to create a sub-context.
 
         Parameters
@@ -188,7 +189,7 @@ class CallbackContext:
         task_id : int
             The id of the task this context is responsible for.
 
-        max_subtasks : int or None, default=None
+        max_subtasks : int or None, default=0
             The maximum number of tasks that can be children of the task this context is
             responsible for. 0 means it's a leaf. None means the maximum number of
             subtasks is not known in advance.
@@ -458,7 +459,11 @@ def get_context_path(context):
 
 @contextmanager
 def callback_management_context(estimator, fit_method_name):
-    """Context manager to teardown the callback context for an estimator.
+    """Context manager to manage the callback context's teardown for an estimator.
+
+    The context manager is also responsible for calling the callback context's
+    `eval_on_fit_end` method, which guarantees the callbacks' `on_fit_end` hook will
+    always be evaluated, whether the estimator's fit exits successfully or not.
 
     Parameters
     ----------

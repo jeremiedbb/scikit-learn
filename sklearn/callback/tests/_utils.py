@@ -84,7 +84,8 @@ class WhileEstimator(CallbackSupportMixin, BaseEstimator):
 
     @_fit_context(prefer_skip_nested_validation=False)
     def fit(self, X=None, y=None):
-        callback_ctx = self._init_callback_context().eval_on_fit_begin(estimator=self)
+        callback_ctx = self._init_callback_context(max_subtasks=None)
+        callback_ctx.eval_on_fit_begin(estimator=self)
 
         i = 0
         while True:
@@ -225,3 +226,17 @@ def _func(meta_estimator, inner_estimator, X, y, *, outer_callback_ctx):
         estimator=meta_estimator,
         data={"X_train": X, "y_train": y},
     )
+
+
+class NoSubtaskEstimator(CallbackSupportMixin, BaseEstimator):
+    """A class mimicking an estimator without subtasks in fit."""
+
+    _parameter_constraints: dict = {}
+
+    @_fit_context(prefer_skip_nested_validation=False)
+    def fit(self, X=None, y=None):
+        callback_ctx = self._init_callback_context().eval_on_fit_begin(estimator=self)
+
+        # No task performed
+
+        return self

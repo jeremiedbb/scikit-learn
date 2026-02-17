@@ -9,6 +9,7 @@ from sklearn.callback.tests._utils import (
     Estimator,
     MetaEstimator,
     NoCallbackEstimator,
+    NoSubtaskEstimator,
     ParentFitEstimator,
     TestingAutoPropagatedCallback,
     TestingCallback,
@@ -153,14 +154,16 @@ def test_merge_with():
     """Sanity check for the `_merge_with` method."""
     estimator = Estimator()
     meta_estimator = MetaEstimator(estimator)
-    outer_root = CallbackContext._from_estimator(meta_estimator, "root")
+    outer_root = CallbackContext._from_estimator(
+        meta_estimator, "root", max_subtasks=None
+    )
 
     # Add a child task within the same estimator
     outer_child = outer_root.subcontext(task_name="child", task_id=0, max_subtasks=0)
 
     # The root task of the inner estimator is merged with (and effectively replaces)
     # a leaf of the outer estimator because they correspond to the same formal task.
-    inner_root = CallbackContext._from_estimator(estimator, "root")
+    inner_root = CallbackContext._from_estimator(estimator, "root", max_subtasks=None)
     inner_root._merge_with(outer_child)
 
     assert inner_root.parent is outer_root
@@ -176,10 +179,12 @@ def test_merge_with():
 def test_merge_with_error_not_leaf():
     """Check that merging with a non-leaf node raises an error."""
     estimator = Estimator()
-    inner_root = CallbackContext._from_estimator(estimator, "root")
+    inner_root = CallbackContext._from_estimator(estimator, "root", max_subtasks=None)
 
     meta_estimator = MetaEstimator(estimator)
-    outer_root = CallbackContext._from_estimator(meta_estimator, "root")
+    outer_root = CallbackContext._from_estimator(
+        meta_estimator, "root", max_subtasks=None
+    )
 
     # Add a child task within the same estimator
     outer_root.subcontext(task_name="child", task_id=0, max_subtasks=1)
@@ -212,3 +217,14 @@ def test_inner_estimator_no_callback_support():
         match="The estimator NoCallbackEstimator does not support callbacks.",
     ):
         meta_estimator.fit()
+
+
+def test_estimator_without_subtask():
+    """Check that callback support works for an estimator without subtasks.
+
+    This test is about verifying that an estimator that does not call its callback
+    context's `eval_on_fit_task_end` does not cause a problem.
+    """
+    estimator = NoSubtaskEstimator()
+    estimator.set_callbacks([TestingCallback()])
+    estimator.fit()
