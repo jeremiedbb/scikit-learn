@@ -319,8 +319,7 @@ class CallbackContext:
 
         **kwargs : dict
             Additional optional arguments passed to the callback. The list of possible
-            keys and corresponding values are described in detail at
-            https://scikit-learn.org/dev/developers/develop.html#callbacks.
+            keys and corresponding values are described in detail at <TODO: add link>.
 
         Returns
         -------

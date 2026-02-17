@@ -32,8 +32,7 @@ class Callback(Protocol):
         **kwargs : dict
             Additional optional arguments holding information about the state of the
             fitting process at this task. The list of possible keys and corresponding
-            values are described in detail at
-            https://scikit-learn.org/dev/developers/develop.html#callbacks.
+            values are described in detail at <TODO: add link>.
 
         Returns
         -------
