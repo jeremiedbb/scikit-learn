@@ -178,7 +178,7 @@ def test_merge_with():
 
 def test_merge_with_error_not_leaf():
     """Check that merging with a non-leaf node raises an error."""
-    estimator = Estimator()
+    estimator = MaxIterEstimator()
     inner_root = CallbackContext._from_estimator(estimator, "root", max_subtasks=None)
 
     meta_estimator = MetaEstimator(estimator)
