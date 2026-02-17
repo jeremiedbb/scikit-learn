@@ -139,6 +139,9 @@ class CallbackContext:
         task_name : str
             The name of the task this context is responsible for.
 
+        task_id : int or str, default=0
+            Identifier for the task.
+
         max_subtasks : int or None, default=0
             The maximum number of subtasks that can be children of the root task. None
             means the maximum number of subtasks is not known in advance. 0 means it's a

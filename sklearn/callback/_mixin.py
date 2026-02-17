@@ -38,6 +38,9 @@ class CallbackSupportMixin:
         task_name : str, default="fit"
             The name of the root task.
 
+        task_id : int or str, default=0
+            Identifier for te root task.
+
         max_subtasks : int or None, default=0
             The maximum number of subtasks that can be children of the root task. None
             means the maximum number of subtasks is not known in advance. 0 means it's a
