@@ -35,7 +35,7 @@ class CallbackSupportMixin:
 
         Parameters
         ----------
-        task_name : str, default='fit'
+        task_name : str, default="fit"
             The name of the root task.
 
         max_subtasks : int or None, default=None
