@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from sklearn.callback._base import Callback
+from sklearn.callback._callback_context import CallbackContext
 
 
 class CallbackSupportMixin:
@@ -33,13 +34,15 @@ class CallbackSupportMixin:
     def _init_callback_context(self, task_name="fit", task_id=0, max_subtasks=0):
         """Initialize the callback context for the estimator.
 
+        This method should be called once, at the beginning of the fit method.
+
         Parameters
         ----------
         task_name : str, default="fit"
             The name of the root task.
 
         task_id : int or str, default=0
-            Identifier for te root task.
+            Identifier for the root task.
 
         max_subtasks : int or None, default=0
             The maximum number of subtasks that can be children of the root task. None
@@ -49,10 +52,8 @@ class CallbackSupportMixin:
         Returns
         -------
         callback_fit_ctx : CallbackContext
-            The callback context for the estimator.
+            The root callback context for the estimator.
         """
-        from sklearn.callback._callback_context import CallbackContext
-
         self._callback_fit_ctx = CallbackContext._from_estimator(
             estimator=self,
             task_name=task_name,

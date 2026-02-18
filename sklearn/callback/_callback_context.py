@@ -5,7 +5,6 @@ import warnings
 from contextlib import contextmanager
 
 from sklearn.callback._base import AutoPropagatedCallback
-from sklearn.callback._mixin import CallbackSupportMixin
 
 # TODO(callbacks): move these explanations into a dedicated user guide.
 #
@@ -128,7 +127,7 @@ class CallbackContext:
     """
 
     @classmethod
-    def _from_estimator(cls, estimator, task_name, task_id=0, max_subtasks=0):
+    def _from_estimator(cls, estimator, task_name, task_id, max_subtasks):
         """Private constructor to create a root context.
 
         Parameters
@@ -137,12 +136,12 @@ class CallbackContext:
             The estimator this context is responsible for.
 
         task_name : str
-            The name of the task this context is responsible for.
+            The name of the root task.
 
-        task_id : int or str, default=0
-            Identifier for the task.
+        task_id : int or str
+            Identifier for the root task.
 
-        max_subtasks : int or None, default=0
+        max_subtasks : int or None
             The maximum number of subtasks that can be children of the root task. None
             means the maximum number of subtasks is not known in advance. 0 means it's a
             leaf.
@@ -155,9 +154,9 @@ class CallbackContext:
         new_ctx.estimator_name = estimator.__class__.__name__
         new_ctx.task_name = task_name
         new_ctx.task_id = task_id
+        new_ctx.max_subtasks = max_subtasks
         new_ctx.parent = None
         new_ctx._children_map = {}
-        new_ctx.max_subtasks = max_subtasks
         new_ctx.source_estimator_name = None
         new_ctx.source_task_name = None
         new_ctx._has_called_on_fit_begin = False
@@ -177,7 +176,7 @@ class CallbackContext:
         return new_ctx
 
     @classmethod
-    def _from_parent(cls, parent_context, *, task_name, task_id, max_subtasks=0):
+    def _from_parent(cls, parent_context, *, task_name, task_id, max_subtasks):
         """Private constructor to create a sub-context.
 
         Parameters
@@ -189,9 +188,9 @@ class CallbackContext:
             The name of the task this context is responsible for.
 
         task_id : int
-            The id of the task this context is responsible for.
+            The identifier of the task this context is responsible for.
 
-        max_subtasks : int or None, default=0
+        max_subtasks : int or None
             The maximum number of tasks that can be children of the task this context is
             responsible for. 0 means it's a leaf. None means the maximum number of
             subtasks is not known in advance.
@@ -203,9 +202,9 @@ class CallbackContext:
         new_ctx._estimator_depth = parent_context._estimator_depth
         new_ctx.task_name = task_name
         new_ctx.task_id = task_id
+        new_ctx.max_subtasks = max_subtasks
         new_ctx.parent = None
         new_ctx._children_map = {}
-        new_ctx.max_subtasks = max_subtasks
         new_ctx.source_estimator_name = None
         new_ctx.source_task_name = None
         new_ctx._has_called_on_fit_begin = parent_context._has_called_on_fit_begin
@@ -394,7 +393,7 @@ class CallbackContext:
         if not callbacks_to_propagate:
             return self
 
-        if not isinstance(sub_estimator, CallbackSupportMixin):
+        if not hasattr(sub_estimator, "set_callbacks"):
             warnings.warn(
                 f"The estimator {sub_estimator.__class__.__name__} does not support "
                 f"callbacks. The callbacks attached to {self.estimator_name} will not "

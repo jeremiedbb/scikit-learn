@@ -228,9 +228,7 @@ def _func(meta_estimator, inner_estimator, X, y, *, outer_callback_ctx):
 class NoSubtaskEstimator(CallbackSupportMixin, BaseEstimator):
     """A class mimicking an estimator without subtasks in fit."""
 
-    _parameter_constraints: dict = {}
-
-    @_fit_context(prefer_skip_nested_validation=False)
+    @with_callback_context
     def fit(self, X=None, y=None):
         callback_ctx = self._init_callback_context().eval_on_fit_begin(estimator=self)
 
