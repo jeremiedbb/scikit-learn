@@ -1,6 +1,8 @@
 # Authors: The scikit-learn developers
 # SPDX-License-Identifier: BSD-3-Clause
 
+import sys
+import warnings
 from multiprocessing import Manager
 from threading import Thread
 
@@ -9,7 +11,7 @@ from sklearn.utils._optional_dependencies import check_rich_support
 
 
 class ProgressBar:
-    """Callback that displays progress bars for each iterative steps of an estimator.
+    """Callback that displays progress bars for each iterative step of an estimator.
 
     Parameters
     ----------
@@ -20,6 +22,13 @@ class ProgressBar:
     """
 
     def __init__(self, max_estimator_depth=1):
+        if sys.version_info < (3, 12, 8):
+            warnings.warn(
+                "The use of the ProgressBar callback on python versions inferior "
+                "to 3.12.8 might lead to unexpected crashes related to multiprocessing "
+                "bugs on certain platforms."
+            )
+
         check_rich_support("Progressbar")
 
         self.max_estimator_depth = max_estimator_depth
@@ -204,13 +213,13 @@ class RichTask:
 
         task_desc = f"{context.estimator_name} - {context.task_name}"
         id_mark = f" #{context.task_id}" if context.parent is not None else ""
-        prev_task_desc = (
-            f"{context.prev_estimator_name} - {context.prev_task_name} | "
-            if context.prev_estimator_name is not None
+        source_task_desc = (
+            f"{context.source_estimator_name} - {context.source_task_name} | "
+            if context.source_estimator_name is not None
             else ""
         )
 
-        return f"{style}{indent}{prev_task_desc}{task_desc}{id_mark}"
+        return f"{style}{indent}{source_task_desc}{task_desc}{id_mark}"
 
     def __iter__(self):
         """Pre-order depth-first traversal, excluding leaves."""

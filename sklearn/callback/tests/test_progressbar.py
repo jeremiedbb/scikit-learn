@@ -2,17 +2,27 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import re
+import sys
 
 import pytest
 
 from sklearn.callback import ProgressBar
-from sklearn.callback.tests._utils import Estimator, MetaEstimator, WhileEstimator
+from sklearn.callback.tests._utils import (
+    MaxIterEstimator,
+    MetaEstimator,
+    WhileEstimator,
+)
 from sklearn.utils._optional_dependencies import check_rich_support
 
 
+@pytest.mark.skipif(
+    sys.version_info < (3, 12, 8),
+    reason="Race conditions can appear because of multiprocessing issues for python"
+    " < 3.12.8.",
+)
 @pytest.mark.parametrize("n_jobs", [1, 2])
 @pytest.mark.parametrize("prefer", ["threads", "processes"])
-@pytest.mark.parametrize("InnerEstimator", [Estimator, WhileEstimator])
+@pytest.mark.parametrize("InnerEstimator", [MaxIterEstimator, WhileEstimator])
 @pytest.mark.parametrize("max_estimator_depth", [1, 2, None])
 def test_progressbar(n_jobs, prefer, InnerEstimator, max_estimator_depth, capsys):
     """Check the output of the progress bars and their completion."""
@@ -45,16 +55,15 @@ def test_progressbar(n_jobs, prefer, InnerEstimator, max_estimator_depth, capsys
 
     # Check that all bars are 100% complete
     assert re.search(r"100%", captured.out)
-    assert not re.search(r"[1-9]%", captured.out)
+    assert not re.search(r"\b[0-9]{1,2}%", captured.out)
 
 
 def test_progressbar_requires_rich_error():
     """Check that we raise an informative error when rich is not installed."""
     try:
         check_rich_support("test_progressbar_requires_rich_error")
+        pytest.skip("This test requires rich to not be installed.")
     except ImportError:
         err_msg = "Progressbar requires rich"
         with pytest.raises(ImportError, match=err_msg):
             ProgressBar()
-    else:
-        pytest.skip("This test requires rich to not be installed.")
