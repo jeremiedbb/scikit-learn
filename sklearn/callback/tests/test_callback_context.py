@@ -222,7 +222,6 @@ def test_inner_estimator_no_callback_support():
         meta_estimator.fit()
 
 
-<<<<<<< evalofte_sig_check
 def test_unauthorized_on_fit_task_end_kwargs():
     """Check that calling eval_on_fit_task_end with wrong kwargs raises an error."""
     estimator = WrongKwargsEstimator()
@@ -237,7 +236,8 @@ def test_unauthorized_on_fit_task_end_data_key():
 
     with pytest.raises(ValueError, match="Unauthorized keys for the 'data' dict"):
         estimator.fit()
-=======
+
+
 def test_estimator_without_subtask():
     """Check that callback support works for an estimator without subtasks.
 
@@ -247,4 +247,3 @@ def test_estimator_without_subtask():
     estimator = NoSubtaskEstimator()
     estimator.set_callbacks([TestingCallback()])
     estimator.fit()
->>>>>>> base_callbacks_2

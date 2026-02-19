@@ -229,7 +229,6 @@ def _func(meta_estimator, inner_estimator, X, y, *, outer_callback_ctx):
     )
 
 
-<<<<<<< evalofte_sig_check
 class WrongKwargsEstimator(CallbackSupportMixin, BaseEstimator):
     """An estimator providing wrong kwargs to _eval_on_fit_task_end."""
 
@@ -264,7 +263,8 @@ class WrongDataKeyEstimator(CallbackSupportMixin, BaseEstimator):
             estimator=self,
             data={"wrong_key": X, "wrong_key_2": y},
         )
-=======
+
+
 class NoSubtaskEstimator(CallbackSupportMixin, BaseEstimator):
     """A class mimicking an estimator without subtasks in fit."""
 
@@ -273,6 +273,5 @@ class NoSubtaskEstimator(CallbackSupportMixin, BaseEstimator):
         callback_ctx = self._init_callback_context().eval_on_fit_begin(estimator=self)
 
         # No task performed
->>>>>>> base_callbacks_2
 
         return self
