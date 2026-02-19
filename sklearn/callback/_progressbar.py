@@ -1,6 +1,8 @@
 # Authors: The scikit-learn developers
 # SPDX-License-Identifier: BSD-3-Clause
 
+import sys
+import warnings
 from multiprocessing import Manager
 from threading import Thread
 
@@ -9,17 +11,28 @@ from sklearn.utils._optional_dependencies import check_rich_support
 
 
 class ProgressBar:
-    """Callback that displays progress bars for each iterative steps of an estimator.
+    """Callback that displays progress bars for each iterative step of an estimator.
 
     Parameters
     ----------
-    max_estimator_depth : int, default=1
+    max_estimator_depth : int, default=2
         The maximum number of nested levels of estimators to display progress bars for.
-        By default, only the progress bars of the outermost estimator are displayed.
         If set to None, all levels are displayed.
+
+    Notes
+    -----
+    The use of this callback on python versions inferior to 3.12.8 might lead to
+    unexpected crashes related to multiprocessing bugs on certain platforms.
     """
 
-    def __init__(self, max_estimator_depth=1):
+    def __init__(self, max_estimator_depth=2):
+        if sys.version_info < (3, 12, 8):
+            warnings.warn(
+                "The use of the ProgressBar callback on python versions inferior "
+                "to 3.12.8 might lead to unexpected crashes related to multiprocessing "
+                "bugs on certain platforms."
+            )
+
         check_rich_support("Progressbar")
 
         self.max_estimator_depth = max_estimator_depth
@@ -30,10 +43,11 @@ class ProgressBar:
         self.progress_monitor.start()
 
     def on_fit_task_end(self, estimator, context, **kwargs):
-        print(f"{context.estimator_name}, {context.task_name}, {context.task_id}")
         self._queue.put(context)
 
     def on_fit_end(self, estimator, context):
+        # This is called by the root context. We signal that the root task is finished
+        # and the queue won't receive any more tasks.
         self._queue.put(context)
         self._queue.put(None)
         self.progress_monitor.join()
@@ -74,7 +88,7 @@ class RichProgressMonitor(Thread):
     """
 
     def __init__(self, *, queue):
-        Thread.__init__(self)
+        super().__init__()
         self.queue = queue
 
     def run(self):
@@ -205,13 +219,13 @@ class RichTask:
 
         task_desc = f"{context.estimator_name} - {context.task_name}"
         id_mark = f" #{context.task_id}" if context.parent is not None else ""
-        prev_task_desc = (
-            f"{context.prev_estimator_name} - {context.prev_task_name} | "
-            if context.prev_estimator_name is not None
+        source_task_desc = (
+            f"{context.source_estimator_name} - {context.source_task_name} | "
+            if context.source_estimator_name is not None
             else ""
         )
 
-        return f"{style}{indent}{prev_task_desc}{task_desc}{id_mark}"
+        return f"{style}{indent}{source_task_desc}{task_desc}{id_mark}"
 
     def __iter__(self):
         """Pre-order depth-first traversal, excluding leaves."""

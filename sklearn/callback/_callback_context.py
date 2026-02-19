@@ -6,17 +6,16 @@ import warnings
 from contextlib import contextmanager
 
 from sklearn.callback._base import AutoPropagatedCallback
-from sklearn.callback._mixin import CallbackSupportMixin
 
 # TODO(callbacks): move these explanations into a dedicated user guide.
 #
-# The computations tasks performed by an estimator during fit have an inherent tree
+# The computation tasks performed by an estimator during fit have an inherent tree
 # structure, where each task can be decomposed into subtasks and so on. The root of the
 # tree represents the whole fit task.
 #
 # Each loop in the estimator represents a parent task and each iteration of that loop
 # represents a child task. To allow callbacks to be generic and reusable across
-# estimators, the smallest tasks, i.e. the leaves of the task tree, correspond to
+# estimators, the innermost tasks, i.e. the leaves of the task tree, correspond to
 # operations on the full input data (or batch for incremental estimators).
 #
 # For instance, KMeans has two nested loops: the outer loop is controlled by `n_init`
@@ -68,8 +67,7 @@ from sklearn.callback._mixin import CallbackSupportMixin
 #
 #     @with_callback_context
 #     def fit(self, X, y):
-#         callback_ctx = self._callback_fit_ctx
-#         callback_ctx.max_subtasks = self.max_iter
+#         callback_ctx = self._init_callback_context(max_subtasks=self.max_iter)
 #         callback_ctx.eval_on_fit_begin(estimator=self)
 #
 #         for i in range(self.max_iter):
@@ -104,28 +102,28 @@ class CallbackContext:
 
     Attributes
     ----------
-    - task_name : str
+    task_name : str
         The name of the task this context is responsible for.
 
-    - task_id : int
+    task_id : int
         The identifier of the task this context is responsible for.
 
-    - max_subtasks : int or None
+    max_subtasks : int or None
         The maximum number of children tasks for this task. 0 means it's a leaf.
         None means the maximum number of subtasks is not known in advance.
 
-    - estimator_name : str
+    estimator_name : str
         The name of the estimator.
 
-    - prev_estimator_name : str or None
+    source_estimator_name : str or None
         The estimator name of the parent task this task was merged with. None if it
         was not merged with another context.
 
-    - prev_task_name : str or None
+    source_task_name : str or None
         The task name of the parent task this task was merged with. None if it
         was not merged with another context.
 
-    - parent : CallbackContext or None
+    parent : CallbackContext or None
         The parent context of this context. None if this context is the root.
 
     - uuid : UUID
@@ -134,7 +132,7 @@ class CallbackContext:
     """
 
     @classmethod
-    def _from_estimator(cls, estimator, task_name):
+    def _from_estimator(cls, estimator, task_name, task_id, max_subtasks):
         """Private constructor to create a root context.
 
         Parameters
@@ -143,7 +141,15 @@ class CallbackContext:
             The estimator this context is responsible for.
 
         task_name : str
-            The name of the task this context is responsible for.
+            The name of the root task.
+
+        task_id : int or str
+            Identifier for the root task.
+
+        max_subtasks : int or None
+            The maximum number of subtasks that can be children of the root task. None
+            means the maximum number of subtasks is not known in advance. 0 means it's a
+            leaf.
         """
         new_ctx = cls.__new__(cls)
 
@@ -152,14 +158,14 @@ class CallbackContext:
         new_ctx._callbacks = getattr(estimator, "_skl_callbacks", [])
         new_ctx.estimator_name = estimator.__class__.__name__
         new_ctx.task_name = task_name
-        new_ctx.task_id = 0
+        new_ctx.task_id = task_id
+        new_ctx.max_subtasks = max_subtasks
         new_ctx.parent = None
         new_ctx._children_map = {}
-        new_ctx.max_subtasks = None
-        new_ctx.prev_estimator_name = None
-        new_ctx.prev_task_name = None
-        new_ctx.uuid = uuid.uuid4()
+        new_ctx.source_estimator_name = None
+        new_ctx.source_task_name = None
         new_ctx._has_called_on_fit_begin = False
+        new_ctx.uuid = uuid.uuid4()
 
         if hasattr(estimator, "_parent_callback_ctx"):
             # This context's task is the root task of the estimator which itself
@@ -176,7 +182,7 @@ class CallbackContext:
         return new_ctx
 
     @classmethod
-    def _from_parent(cls, parent_context, *, task_name, task_id, max_subtasks=None):
+    def _from_parent(cls, parent_context, *, task_name, task_id, max_subtasks):
         """Private constructor to create a sub-context.
 
         Parameters
@@ -188,9 +194,9 @@ class CallbackContext:
             The name of the task this context is responsible for.
 
         task_id : int
-            The id of the task this context is responsible for.
+            The identifier of the task this context is responsible for.
 
-        max_subtasks : int or None, default=None
+        max_subtasks : int or None
             The maximum number of tasks that can be children of the task this context is
             responsible for. 0 means it's a leaf. None means the maximum number of
             subtasks is not known in advance.
@@ -202,13 +208,13 @@ class CallbackContext:
         new_ctx._estimator_depth = parent_context._estimator_depth
         new_ctx.task_name = task_name
         new_ctx.task_id = task_id
+        new_ctx.max_subtasks = max_subtasks
         new_ctx.parent = None
         new_ctx._children_map = {}
-        new_ctx.max_subtasks = max_subtasks
-        new_ctx.prev_estimator_name = None
-        new_ctx.prev_task_name = None
-        new_ctx.uuid = parent_context.uuid
+        new_ctx.source_estimator_name = None
+        new_ctx.source_task_name = None
         new_ctx._has_called_on_fit_begin = parent_context._has_called_on_fit_begin
+        new_ctx.uuid = parent_context.uuid
 
         # This task is a subtask of another task of a same estimator
         parent_context._add_child(new_ctx)
@@ -230,7 +236,10 @@ class CallbackContext:
                 f"task_id={child_context.task_id}."
             )
 
-        if len(self._children_map) == self.max_subtasks:
+        if (
+            self.max_subtasks is not None
+            and len(self._children_map) >= self.max_subtasks
+        ):
             raise ValueError(
                 f"Cannot add child to callback context {self.task_name} of estimator "
                 f"{self.estimator_name} because it already has its maximum "
@@ -241,7 +250,22 @@ class CallbackContext:
         child_context.parent = self
 
     def _merge_with(self, other_context):
-        """Merge this context with `other_context`."""
+        """Merge this context with `other_context`.
+
+        This method is called on a sub-estimator's root task to merge it with a
+        meta-estimator's leaf task. The sub-estimator's task tree is therefore attached
+        to the meta-estimator's task tree. The root node of the sub-estimator's task
+        tree and the leaf node of the meta-estimator's task tree are both represented
+        by a single node in this combined task tree.
+        """
+        if other_context.max_subtasks != 0:
+            raise ValueError(
+                f"Cannot merge callback context (task {self.task_name!r} of estimator "
+                f"{self.estimator_name}) with callback context "
+                f"(task {other_context.task_name!r} of estimator "
+                f"{other_context.estimator_name}) because the latter is not a leaf."
+            )
+
         # Set the parent of the sub-estimator's root context to the parent of the
         # meta-estimator's leaf context
         self.parent = other_context.parent
@@ -250,10 +274,10 @@ class CallbackContext:
         other_context.parent._children_map[self.task_id] = self
 
         # Keep information about the context it was merged with
-        self.prev_task_name = other_context.task_name
-        self.prev_estimator_name = other_context.estimator_name
+        self.source_task_name = other_context.task_name
+        self.source_estimator_name = other_context.estimator_name
 
-    def subcontext(self, task_name="", task_id=0, max_subtasks=None):
+    def subcontext(self, task_name="", task_id=0, max_subtasks=0):
         """Create a context for a subtask of the current task.
 
         Parameters
@@ -266,7 +290,7 @@ class CallbackContext:
             number of sibling contexts, but can be any identifier as long as it's unique
             among the siblings.
 
-        max_subtasks : int or None, default=None
+        max_subtasks : int or None, default=0
             The maximum number of tasks that can be children of the subtask. 0 means
             it's a leaf. None means the maximum number of subtasks is not known in
             advance.
@@ -307,32 +331,8 @@ class CallbackContext:
             The estimator calling this callback hook.
 
         **kwargs : dict
-            arguments passed to the callback. Possible keys are
-
-            - data: dict
-                Dictionary containing the training and validation data. The possible
-                keys are "X_train", "y_train", "sample_weight_train", "X_val", "y_val",
-                and "sample_weight_val". The values are the corresponding data.
-
-            - stopping_criterion: float
-                Usually iterations stop when `stopping_criterion <= tol`.
-                This is only provided at the innermost level of iterations, i.e. for
-                leaf tasks.
-
-            - tol: float
-                Tolerance for the stopping criterion.
-                This is only provided at the innermost level of iterations, i.e. for
-                leaf tasks.
-
-            - from_reconstruction_attributes: estimator instance
-                A ready to predict, transform, etc ... estimator as if the fit stopped
-                at the end of this task. Usually it's a copy of the caller estimator
-                with the necessary attributes set.
-
-            - fit_state: dict
-                Model specific quantities updated during fit. This is not meant to be
-                used by generic callbacks but by a callback designed for a specific
-                estimator instead.
+            Additional optional arguments passed to the callback. The list of possible
+            keys and corresponding values are described in detail at <TODO: add link>.
 
         Returns
         -------
@@ -401,7 +401,7 @@ class CallbackContext:
         if not callbacks_to_propagate:
             return self
 
-        if not isinstance(sub_estimator, CallbackSupportMixin):
+        if not hasattr(sub_estimator, "set_callbacks"):
             warnings.warn(
                 f"The estimator {sub_estimator.__class__.__name__} does not support "
                 f"callbacks. The callbacks attached to {self.estimator_name} will not "
@@ -430,7 +430,7 @@ def get_context_path(context):
 
     Returns
     -------
-    list of dict
+    list of `CallbackContext` instances
         The list of the ancestors (itself included) of the given context. The list is
         ordered from the root context to the given context.
     """
@@ -443,7 +443,11 @@ def get_context_path(context):
 
 @contextmanager
 def callback_management_context(estimator, fit_method_name):
-    """Context manager to setup and teardown the callback context for an estimator.
+    """Context manager to manage the callback context's teardown for an estimator.
+
+    The context manager is also responsible for calling the callback context's
+    `eval_on_fit_end` method, which guarantees the callbacks' `on_fit_end` hook will
+    always be evaluated, whether the estimator's fit exits successfully or not.
 
     Parameters
     ----------
@@ -457,10 +461,6 @@ def callback_management_context(estimator, fit_method_name):
     ------
     None.
     """
-    estimator._callback_fit_ctx = CallbackContext._from_estimator(
-        estimator, task_name=fit_method_name
-    )
-
     try:
         yield
     finally:
