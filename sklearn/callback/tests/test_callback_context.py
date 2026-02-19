@@ -6,9 +6,10 @@ import pytest
 
 from sklearn.callback._callback_context import CallbackContext, get_context_path
 from sklearn.callback.tests._utils import (
-    Estimator,
+    MaxIterEstimator,
     MetaEstimator,
     NoCallbackEstimator,
+    NoSubtaskEstimator,
     ParentFitEstimator,
     TestingAutoPropagatedCallback,
     TestingCallback,
@@ -23,11 +24,11 @@ def test_propagate_callbacks():
     not_propagated_callback = TestingCallback()
     propagated_callback = TestingAutoPropagatedCallback()
 
-    estimator = Estimator()
+    estimator = MaxIterEstimator()
     metaestimator = MetaEstimator(estimator)
     metaestimator.set_callbacks([not_propagated_callback, propagated_callback])
 
-    callback_ctx = CallbackContext._from_estimator(metaestimator, "fit")
+    callback_ctx = CallbackContext._from_estimator(metaestimator, "fit", 0, 0)
     callback_ctx.propagate_callbacks(estimator)
 
     assert hasattr(estimator, "_parent_callback_ctx")
@@ -37,10 +38,10 @@ def test_propagate_callbacks():
 
 def test_propagate_callback_no_callback():
     """Check that no callback is propagated if there's no callback."""
-    estimator = Estimator()
+    estimator = MaxIterEstimator()
     metaestimator = MetaEstimator(estimator)
 
-    callback_ctx = CallbackContext._from_estimator(metaestimator, "fit")
+    callback_ctx = CallbackContext._from_estimator(metaestimator, "fit", 0, 0)
     assert len(callback_ctx._callbacks) == 0
 
     callback_ctx.propagate_callbacks(estimator)
@@ -53,7 +54,7 @@ def test_auto_propagated_callbacks():
     """Check that it's not possible to set an auto-propagated callback on the
     sub-estimator of a meta-estimator.
     """
-    estimator = Estimator()
+    estimator = MaxIterEstimator()
     estimator.set_callbacks(TestingAutoPropagatedCallback())
     meta_estimator = MetaEstimator(estimator=estimator)
 
@@ -66,9 +67,8 @@ def test_auto_propagated_callbacks():
 
 def _make_task_tree(n_children, n_grandchildren):
     """Helper function to create a tree of tasks with a context for each task."""
-    estimator = Estimator()
-    root = CallbackContext._from_estimator(estimator, "root task")
-    root.max_subtasks = n_children
+    estimator = MaxIterEstimator()
+    root = CallbackContext._from_estimator(estimator, "root task", 0, n_children)
 
     for i in range(n_children):
         child = root.subcontext(
@@ -121,11 +121,12 @@ def test_task_tree():
 
 def test_add_child():
     """Sanity check for the `_add_child` method."""
-    estimator = Estimator()
-    root = CallbackContext._from_estimator(estimator, "root task")
-    root.max_subtasks = 2
+    estimator = MaxIterEstimator()
+    root = CallbackContext._from_estimator(estimator, "root task", 0, max_subtasks=2)
 
-    first_child = CallbackContext._from_estimator(estimator, "child task")
+    first_child = CallbackContext._from_estimator(
+        estimator, "child task", task_id=0, max_subtasks=0
+    )
 
     root._add_child(first_child)
     assert root.max_subtasks == 2
@@ -133,7 +134,9 @@ def test_add_child():
     assert first_child.task_id == 0
 
     # root already has a child with id 0
-    second_child = CallbackContext._from_estimator(estimator, "child task")
+    second_child = CallbackContext._from_estimator(
+        estimator, "child task", task_id=0, max_subtasks=0
+    )
     with pytest.raises(
         ValueError, match=r"Callback context .* already has a child with task_id=0"
     ):
@@ -144,8 +147,9 @@ def test_add_child():
     assert len(root._children_map) == 2
 
     # root can have at most 2 children
-    third_child = CallbackContext._from_estimator(estimator, "child task")
-    third_child.task_id = 2
+    third_child = CallbackContext._from_estimator(
+        estimator, "child task", task_id=2, max_subtasks=0
+    )
 
     with pytest.raises(ValueError, match=r"Cannot add child to callback context"):
         root._add_child(third_child)
@@ -153,16 +157,18 @@ def test_add_child():
 
 def test_merge_with():
     """Sanity check for the `_merge_with` method."""
-    estimator = Estimator()
+    estimator = MaxIterEstimator()
     meta_estimator = MetaEstimator(estimator)
-    outer_root = CallbackContext._from_estimator(meta_estimator, "root")
+    outer_root = CallbackContext._from_estimator(
+        meta_estimator, "root", 0, max_subtasks=None
+    )
 
     # Add a child task within the same estimator
     outer_child = outer_root.subcontext(task_name="child", task_id=0, max_subtasks=0)
 
     # The root task of the inner estimator is merged with (and effectively replaces)
     # a leaf of the outer estimator because they correspond to the same formal task.
-    inner_root = CallbackContext._from_estimator(estimator, "root")
+    inner_root = CallbackContext._from_estimator(estimator, "root", 0, None)
     inner_root._merge_with(outer_child)
 
     assert inner_root.parent is outer_root
@@ -177,11 +183,11 @@ def test_merge_with():
 
 def test_merge_with_error_not_leaf():
     """Check that merging with a non-leaf node raises an error."""
-    estimator = Estimator()
-    inner_root = CallbackContext._from_estimator(estimator, "root")
+    estimator = MaxIterEstimator()
+    inner_root = CallbackContext._from_estimator(estimator, "root", 0, None)
 
     meta_estimator = MetaEstimator(estimator)
-    outer_root = CallbackContext._from_estimator(meta_estimator, "root")
+    outer_root = CallbackContext._from_estimator(meta_estimator, "root", 0, None)
 
     # Add a child task within the same estimator
     outer_root.subcontext(task_name="child", task_id=0, max_subtasks=1)
@@ -191,7 +197,7 @@ def test_merge_with_error_not_leaf():
 
 
 @pytest.mark.parametrize(
-    "estimator_class", [Estimator, ThirdPartyEstimator, ParentFitEstimator]
+    "estimator_class", [MaxIterEstimator, ThirdPartyEstimator, ParentFitEstimator]
 )
 def test_callback_ctx_removed_after_fit(estimator_class):
     """Check that the _callback_fit_ctx attribute gets removed after fit."""
@@ -216,6 +222,7 @@ def test_inner_estimator_no_callback_support():
         meta_estimator.fit()
 
 
+<<<<<<< evalofte_sig_check
 def test_unauthorized_on_fit_task_end_kwargs():
     """Check that calling eval_on_fit_task_end with wrong kwargs raises an error."""
     estimator = WrongKwargsEstimator()
@@ -230,3 +237,14 @@ def test_unauthorized_on_fit_task_end_data_key():
 
     with pytest.raises(ValueError, match="Unauthorized keys for the 'data' dict"):
         estimator.fit()
+=======
+def test_estimator_without_subtask():
+    """Check that callback support works for an estimator without subtasks.
+
+    This test is about verifying that an estimator that does not call its callback
+    context's `eval_on_fit_task_end` does not cause a problem.
+    """
+    estimator = NoSubtaskEstimator()
+    estimator.set_callbacks([TestingCallback()])
+    estimator.fit()
+>>>>>>> base_callbacks_2

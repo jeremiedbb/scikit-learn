@@ -9,7 +9,11 @@ from sklearn.utils.parallel import Parallel, delayed
 
 
 class TestingCallback:
-    """A minimal callback used for smoke testing purposes."""
+    """A minimal callback used for smoke testing purposes.
+
+    This callback doesn't define `max_estimator_depth` and is therefore not an
+    `AutoPropagatedCallback`: it should not be propagated to sub-estimators.
+    """
 
     def on_fit_begin(self, estimator):
         pass
@@ -28,7 +32,7 @@ class TestingAutoPropagatedCallback(TestingCallback):
 
 
 class NotValidCallback:
-    """Invalid callback since it's missing a method from the protocol.'"""
+    """Invalid callback since it's missing a method from the protocol."""
 
     def on_fit_begin(self, estimator):
         pass  # pragma: no cover
@@ -37,7 +41,7 @@ class NotValidCallback:
         pass  # pragma: no cover
 
 
-class Estimator(CallbackSupportMixin, BaseEstimator):
+class MaxIterEstimator(CallbackSupportMixin, BaseEstimator):
     """A class that mimics the behavior of an estimator.
 
     The iterative part uses a loop with a max number of iterations known in advance.
@@ -51,8 +55,7 @@ class Estimator(CallbackSupportMixin, BaseEstimator):
 
     @_fit_context(prefer_skip_nested_validation=False)
     def fit(self, X=None, y=None):
-        callback_ctx = self._callback_fit_ctx
-        callback_ctx.max_subtasks = self.max_iter
+        callback_ctx = self._init_callback_context(max_subtasks=self.max_iter)
         callback_ctx.eval_on_fit_begin(estimator=self)
 
         for i in range(self.max_iter):
@@ -85,8 +88,7 @@ class WhileEstimator(CallbackSupportMixin, BaseEstimator):
 
     @_fit_context(prefer_skip_nested_validation=False)
     def fit(self, X=None, y=None):
-        callback_ctx = self._callback_fit_ctx
-        callback_ctx.max_subtasks = None
+        callback_ctx = self._init_callback_context(max_subtasks=None)
         callback_ctx.eval_on_fit_begin(estimator=self)
 
         i = 0
@@ -114,16 +116,13 @@ class ThirdPartyEstimator(CallbackSupportMixin, BaseEstimator):
     public API.
     """
 
-    _parameter_constraints: dict = {}
-
     def __init__(self, max_iter=20, computation_intensity=0.001):
         self.max_iter = max_iter
         self.computation_intensity = computation_intensity
 
     @with_callback_context
     def fit(self, X=None, y=None):
-        callback_ctx = self._callback_fit_ctx
-        callback_ctx.max_subtasks = self.max_iter
+        callback_ctx = self._init_callback_context(max_subtasks=self.max_iter)
         callback_ctx.eval_on_fit_begin(estimator=self)
 
         for i in range(self.max_iter):
@@ -142,7 +141,7 @@ class ThirdPartyEstimator(CallbackSupportMixin, BaseEstimator):
         return self
 
 
-class ParentFitEstimator(Estimator):
+class ParentFitEstimator(MaxIterEstimator):
     """A class that mimics an estimator using its parent fit method."""
 
     _parameter_constraints: dict = {}
@@ -157,8 +156,6 @@ class ParentFitEstimator(Estimator):
 
 class NoCallbackEstimator(BaseEstimator):
     """A class that mimics an estimator without callback support."""
-
-    _parameter_constraints: dict = {}
 
     def __init__(self, max_iter=20, computation_intensity=0.001):
         self.max_iter = max_iter
@@ -175,7 +172,8 @@ class MetaEstimator(CallbackSupportMixin, BaseEstimator):
     """A class that mimics the behavior of a meta-estimator.
 
     It has two levels of iterations. The outer level uses parallelism and the inner
-    level is done in a function that is not a method of the class.
+    level is done in a function that is not a method of the class. That function must
+    therefore receive the estimator and the callback context as arguments.
     """
 
     _parameter_constraints: dict = {}
@@ -191,8 +189,7 @@ class MetaEstimator(CallbackSupportMixin, BaseEstimator):
 
     @_fit_context(prefer_skip_nested_validation=False)
     def fit(self, X=None, y=None):
-        callback_ctx = self._callback_fit_ctx
-        callback_ctx.max_subtasks = self.n_outer
+        callback_ctx = self._init_callback_context(max_subtasks=self.n_outer)
         callback_ctx.eval_on_fit_begin(estimator=self)
 
         Parallel(n_jobs=self.n_jobs, prefer=self.prefer)(
@@ -232,6 +229,7 @@ def _func(meta_estimator, inner_estimator, X, y, *, outer_callback_ctx):
     )
 
 
+<<<<<<< evalofte_sig_check
 class WrongKwargsEstimator(CallbackSupportMixin, BaseEstimator):
     """An estimator providing wrong kwargs to _eval_on_fit_task_end."""
 
@@ -266,5 +264,15 @@ class WrongDataKeyEstimator(CallbackSupportMixin, BaseEstimator):
             estimator=self,
             data={"wrong_key": X, "wrong_key_2": y},
         )
+=======
+class NoSubtaskEstimator(CallbackSupportMixin, BaseEstimator):
+    """A class mimicking an estimator without subtasks in fit."""
+
+    @with_callback_context
+    def fit(self, X=None, y=None):
+        callback_ctx = self._init_callback_context().eval_on_fit_begin(estimator=self)
+
+        # No task performed
+>>>>>>> base_callbacks_2
 
         return self
