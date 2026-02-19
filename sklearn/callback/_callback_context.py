@@ -160,6 +160,7 @@ class CallbackContext:
         new_ctx.source_estimator_name = None
         new_ctx.source_task_name = None
         new_ctx._has_called_on_fit_begin = False
+        new_ctx._raised_warnings = set()
 
         if hasattr(estimator, "_parent_callback_ctx"):
             # This context's task is the root task of the estimator which itself
@@ -394,11 +395,16 @@ class CallbackContext:
             return self
 
         if not hasattr(sub_estimator, "set_callbacks"):
-            warnings.warn(
+            warning_msg = (
                 f"The estimator {sub_estimator.__class__.__name__} does not support "
                 f"callbacks. The callbacks attached to {self.estimator_name} will not "
                 f"be propagated to this estimator."
             )
+            root_context = get_context_path(self)[0]
+            # Check on the root context not to repeat the same warning.
+            if warning_msg not in root_context._raised_warnings:
+                warnings.warn(warning_msg)
+                root_context._raised_warnings.add(warning_msg)
             return self
 
         # We store the parent context in the sub-estimator to be able to merge the
