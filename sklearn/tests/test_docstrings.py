@@ -27,7 +27,10 @@ def get_all_methods():
         for name in dir(Klass):
             if name.startswith("_"):
                 continue
-            # skip callback hooks
+            # Skip callback hooks: the callbacks hooks are documented in the
+            # Callback protocol, so there is no need for callback implementations
+            # to duplicate this information. Since we use a protocol rather than
+            # class inheritance, docstrings for those methods are not inherited.
             if isinstance(Klass, Callback) and name in (
                 "on_fit_begin",
                 "on_fit_end",
@@ -60,7 +63,7 @@ def filter_errors(errors, method, Klass=None):
         # We ignore following error code,
         #  - RT02: The first line of the Returns section
         #    should contain only the type, ..
-        #   (as we may need refer to the name of the returned
+        #   (as we may need to refer to the name of the returned
         #    object)
         #  - GL01: Docstring text (summary) should start in the line
         #    immediately after the opening quotes (not in the same line,
