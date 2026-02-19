@@ -108,8 +108,7 @@ Here is a minimal example of how a callback context can be handled in an estimat
 
         @with_callback_context
         def fit(self, X, y):
-            callback_ctx = self._callback_fit_ctx
-            callback_ctx.max_subtasks = self.max_iter
+            callback_ctx = self._init_callback_context(max_subtasks=self.max_iter)
             callback_ctx.eval_on_fit_begin(estimator=self)
 
             for i in range(self.max_iter):
