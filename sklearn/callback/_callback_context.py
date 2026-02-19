@@ -1,6 +1,7 @@
 # Authors: The scikit-learn developers
 # SPDX-License-Identifier: BSD-3-Clause
 
+import uuid
 import warnings
 from contextlib import contextmanager
 
@@ -124,6 +125,10 @@ class CallbackContext:
 
     parent : CallbackContext or None
         The parent context of this context. None if this context is the root.
+
+    - uuid : UUID
+        The UUID relative to the task tree, meaning the same UUID is shared by a context
+        and all its children.
     """
 
     @classmethod
@@ -160,6 +165,7 @@ class CallbackContext:
         new_ctx.source_estimator_name = None
         new_ctx.source_task_name = None
         new_ctx._has_called_on_fit_begin = False
+        new_ctx.uuid = uuid.uuid4()
 
         if hasattr(estimator, "_parent_callback_ctx"):
             # This context's task is the root task of the estimator which itself
@@ -208,6 +214,7 @@ class CallbackContext:
         new_ctx.source_estimator_name = None
         new_ctx.source_task_name = None
         new_ctx._has_called_on_fit_begin = parent_context._has_called_on_fit_begin
+        new_ctx.uuid = parent_context.uuid
 
         # This task is a subtask of another task of a same estimator
         parent_context._add_child(new_ctx)
@@ -263,6 +270,7 @@ class CallbackContext:
         # meta-estimator's leaf context
         self.parent = other_context.parent
         self.task_id = other_context.task_id
+        self.uuid = other_context.uuid
         other_context.parent._children_map[self.task_id] = self
 
         # Keep information about the context it was merged with
