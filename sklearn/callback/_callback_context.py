@@ -314,6 +314,8 @@ class CallbackContext:
         estimator : estimator instance
             The estimator calling this callback hook.
         """
+        self._has_called_on_fit_begin = True
+
         for callback in self._callbacks:
             # Only call the on_fit_begin method of callbacks that are not
             # propagated from a meta-estimator.
@@ -321,8 +323,6 @@ class CallbackContext:
                 isinstance(callback, AutoPropagatedCallback) and self.parent is not None
             ):
                 callback.on_fit_begin(estimator)
-
-        self._has_called_on_fit_begin = True
 
         return self
 
