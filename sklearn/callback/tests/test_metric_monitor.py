@@ -12,115 +12,221 @@ from sklearn.callback import MetricMonitor
 from sklearn.callback.tests._utils import (
     MaxIterEstimator,
     MetaEstimator,
-    WhileEstimator,
 )
-from sklearn.metrics import mean_pinball_loss, mean_squared_error
+from sklearn.metrics import check_scoring
+from sklearn.metrics._scorer import _Scorer
+
+
+def make_expected_ouptput_MaxIterEstimator(
+    max_iter, scorer, on, X_train, y_train, X_val, y_val
+):
+    """Generate the expected dict output of a MetricMonitor on a MaxIterEstimator."""
+    if isinstance(scorer, _Scorer):
+        name = scorer._score_func.__name__
+        if scorer._sign == -1:
+            name = "neg_" + name
+        metric_names = [name]
+        expected_log_dict = {name: []}
+    else:
+        metric_names = list(scorer._scorers.keys())
+        expected_log_dict = {name: [] for name in metric_names}
+
+    expected_log_dict.update(
+        {
+            "on": [],
+            f"0_{MaxIterEstimator.__name__}_fit": [],
+            f"1_{MaxIterEstimator.__name__}_iteration": [],
+        }
+    )
+
+    for i in range(max_iter):
+        fitted_est = MaxIterEstimator(max_iter=i + 1).fit()
+        if on in ("train_set", "both"):
+            expected_log_dict[f"0_{MaxIterEstimator.__name__}_fit"].append(0)
+            expected_log_dict[f"1_{MaxIterEstimator.__name__}_iteration"].append(i)
+            expected_log_dict["on"].append("train_set")
+            score = scorer(fitted_est, X_train, y_train)
+            if isinstance(score, dict):
+                for key, val in score.items():
+                    expected_log_dict[key].append(val)
+            else:
+                expected_log_dict[metric_names[0]].append(score)
+
+        if on in ("validation_set", "both"):
+            expected_log_dict[f"0_{MaxIterEstimator.__name__}_fit"].append(0)
+            expected_log_dict[f"1_{MaxIterEstimator.__name__}_iteration"].append(i)
+            expected_log_dict["on"].append("validation_set")
+            score = scorer(fitted_est, X_val, y_val)
+            if isinstance(score, dict):
+                for key, val in score.items():
+                    expected_log_dict[key].append(val)
+            else:
+                expected_log_dict[metric_names[0]].append(score)
+
+    return expected_log_dict, metric_names
+
+
+def make_expected_ouptput_MetaEstimator(
+    n_outer, n_inner, max_iter, scorer, on, X_train, y_train, X_val, y_val
+):
+    """Generate the expected dict output of a MetricMonitor on a MetaEstimator.
+
+    The sub-estimators are expected to be MaxIterEstimator.
+    """
+    if isinstance(scorer, _Scorer):
+        name = scorer._score_func.__name__
+        if scorer._sign == -1:
+            name = "neg_" + name
+        metric_names = [name]
+        expected_log_dict = {name: []}
+    else:
+        metric_names = list(scorer._scorers.keys())
+        expected_log_dict = {name: [] for name in metric_names}
+
+    expected_log_dict.update(
+        {
+            "on": [],
+            f"0_{MetaEstimator.__name__}_fit": [],
+            f"1_{MetaEstimator.__name__}_outer": [],
+            f"2_{MetaEstimator.__name__}_inner|{MaxIterEstimator.__name__}_fit": [],
+            f"3_{MaxIterEstimator.__name__}_iteration": [],
+        }
+    )
+
+    for i_outer, i_inner in product(range(n_outer), range(n_inner)):
+        for i_estimator_iteration in range(max_iter):
+            fitted_est = MaxIterEstimator(max_iter=i_estimator_iteration + 1).fit()
+            if on in ("train_set", "both"):
+                expected_log_dict["on"].append("train_set")
+                expected_log_dict[f"0_{MetaEstimator.__name__}_fit"].append(0)
+                expected_log_dict[f"1_{MetaEstimator.__name__}_outer"].append(i_outer)
+                expected_log_dict[
+                    f"2_{MetaEstimator.__name__}_inner|{MaxIterEstimator.__name__}_fit"
+                ].append(i_inner)
+                expected_log_dict[f"3_{MaxIterEstimator.__name__}_iteration"].append(
+                    i_estimator_iteration
+                )
+                score = scorer(fitted_est, X_train, y_train)
+                if isinstance(score, dict):
+                    for key, val in score.items():
+                        expected_log_dict[key].append(val)
+                else:
+                    expected_log_dict[metric_names[0]].append(score)
+
+            if on in ("validation_set", "both"):
+                expected_log_dict["on"].append("validation_set")
+                expected_log_dict[f"0_{MetaEstimator.__name__}_fit"].append(0)
+                expected_log_dict[f"1_{MetaEstimator.__name__}_outer"].append(i_outer)
+                expected_log_dict[
+                    f"2_{MetaEstimator.__name__}_inner|{MaxIterEstimator.__name__}_fit"
+                ].append(i_inner)
+                expected_log_dict[f"3_{MaxIterEstimator.__name__}_iteration"].append(
+                    i_estimator_iteration
+                )
+                score = scorer(fitted_est, X_val, y_val)
+                if isinstance(score, dict):
+                    for key, val in score.items():
+                        expected_log_dict[key].append(val)
+                else:
+                    expected_log_dict[metric_names[0]].append(score)
+
+    return expected_log_dict, metric_names
 
 
 @pytest.mark.parametrize(
-    "metric, metric_params",
-    [(mean_squared_error, None), (mean_pinball_loss, {"alpha": 0.6})],
+    "scoring",
+    ["neg_mean_squared_error", ("neg_mean_squared_error", "r2")],
 )
 @pytest.mark.parametrize(
     "on",
     ["train_set", "validation_set", "both"],
 )
-def test_metric_monitor_logged_values(metric, metric_params, on):
+def test_metric_monitor_logged_values_dict(scoring, on):
     """Test that the correct values are logged with a simple estimator.
 
-    The type of the log output depends on the availability of the pandas library.
+    This test only looks at the dict outputs from `get_logs`.
     """
     max_iter = 3
     n_dim = 5
     n_samples = 3
     estimator = MaxIterEstimator(max_iter=max_iter)
-    callback = MetricMonitor(metric, metric_params=metric_params, on=on)
+    callback = MetricMonitor(scoring, on=on)
     estimator.set_callbacks(callback)
     rng = np.random.RandomState(0)
     X_train, y_train = rng.uniform(size=(n_dim, n_samples)), rng.uniform(size=n_dim)
     X_val, y_val = rng.uniform(size=(n_dim, n_samples)), rng.uniform(size=n_dim)
 
     estimator.fit(X=X_train, y=y_train, X_val=X_val, y_val=y_val)
-    estimator_name = estimator.__class__.__name__
+    logs = callback.get_logs(as_frame=False, select="most_recent")
 
-    metric_params = metric_params or dict()
+    scorer = check_scoring(None, scoring)
 
-    expected_log_dict = {
-        f"0_{estimator_name}_fit": [],
-        f"1_{estimator_name}_iteration": [],
-        metric.__name__: [],
-        "on": [],
-    }
-    for i in range(max_iter):
-        if on in ("train_set", "both"):
-            expected_log_dict[f"0_{estimator_name}_fit"].append(0)
-            expected_log_dict[f"1_{estimator_name}_iteration"].append(i)
-            expected_log_dict["on"].append("train_set")
-            expected_log_dict[metric.__name__].append(
-                metric(y_train, X_train.mean(axis=1) * (i + 1), **metric_params)
-            )
-        if on in ("validation_set", "both"):
-            expected_log_dict[f"0_{estimator_name}_fit"].append(0)
-            expected_log_dict[f"1_{estimator_name}_iteration"].append(i)
-            expected_log_dict["on"].append("validation_set")
-            expected_log_dict[metric.__name__].append(
-                metric(y_val, X_val.mean(axis=1) * (i + 1), **metric_params)
-            )
-
-    try:  # Check dataframes logs if pandas is installed
-        import pandas as pd
-
-        run_id, log_df = callback.logs
-
-        expected_log_df = pd.DataFrame(expected_log_dict)
-        expected_log_df = expected_log_df.set_index(
-            [
-                col
-                for col in expected_log_df.columns
-                if col not in (metric.__name__, "on")
-            ]
-        )
-
-        assert log_df.equals(expected_log_df)
-        assert np.array_equal(log_df.index.names, expected_log_df.index.names)
-
-    except ImportError:  # Check dict of lists logs if pandas is not installed
-        logs = callback.logs
-        assert set(logs.keys()) == set(expected_log_dict.keys()).union(set(["run"]))
-        for key, val in logs.items():
-            if key != "run":
-                assert val == expected_log_dict[key]
+    expected_log_dict, metric_names = make_expected_ouptput_MaxIterEstimator(
+        max_iter, scorer, on, X_train, y_train, X_val, y_val
+    )
+    assert set(logs.keys()) == set(expected_log_dict.keys())
+    for key, val in logs.items():
+        assert val == expected_log_dict[key]
 
 
-def test_no_predict_error():
-    """Test the error raised when the estimator does not have a predict method."""
-    estimator = WhileEstimator()
-    callback = MetricMonitor(mean_pinball_loss, metric_params={"alpha": 0.6})
-    estimator.set_callbacks(callback)
-
-    with pytest.raises(ValueError, match="does not have a predict method"):
-        estimator.fit()
-
-
-def test_wrong_kwarg_error():
-    """Test the error raised when giving wrong kwargs for the metric."""
-    with pytest.raises(ValueError, match="cannot be used with the function"):
-        MetricMonitor(mean_pinball_loss, metric_params={"wrong_name": 0.6})
-
-
-@pytest.mark.parametrize("prefer", ["processes", "threads"])
 @pytest.mark.parametrize(
-    "metric, metric_params",
-    [(mean_squared_error, None), (mean_pinball_loss, {"alpha": 0.6})],
+    "scoring",
+    ["neg_mean_squared_error", ("neg_mean_squared_error", "r2")],
 )
 @pytest.mark.parametrize(
     "on",
     ["train_set", "validation_set", "both"],
 )
-def test_metric_monitor_logged_values_meta_estimator(prefer, metric, metric_params, on):
+def test_metric_monitor_logged_values_dataframe(scoring, on):
+    """Test that the correct values are logged with a simple estimator.
+
+    This test only looks at the pandas dataframe outputs from `get_logs`.
+    """
+    pd = pytest.importorskip("pandas")
+
+    max_iter = 3
+    n_dim = 5
+    n_samples = 3
+    estimator = MaxIterEstimator(max_iter=max_iter)
+    callback = MetricMonitor(scoring, on=on)
+    estimator.set_callbacks(callback)
+    rng = np.random.RandomState(0)
+    X_train, y_train = rng.uniform(size=(n_dim, n_samples)), rng.uniform(size=n_dim)
+    X_val, y_val = rng.uniform(size=(n_dim, n_samples)), rng.uniform(size=n_dim)
+
+    estimator.fit(X=X_train, y=y_train, X_val=X_val, y_val=y_val)
+    log_df = callback.get_logs(as_frame=True, select="most_recent")
+
+    scorer = check_scoring(None, scoring)
+
+    expected_log_dict, metric_names = make_expected_ouptput_MaxIterEstimator(
+        max_iter, scorer, on, X_train, y_train, X_val, y_val
+    )
+    expected_log_df = pd.DataFrame(expected_log_dict)
+    expected_log_df = expected_log_df.set_index(
+        [
+            col
+            for col in expected_log_df.columns
+            if col not in metric_names and col != "on"
+        ]
+    )
+    assert np.array_equal(log_df.index.names, expected_log_df.index.names)
+    assert log_df.equals(expected_log_df)
+
+
+@pytest.mark.parametrize("prefer", ["processes", "threads"])
+@pytest.mark.parametrize(
+    "scoring",
+    ["neg_mean_squared_error", ("neg_mean_squared_error", "r2")],
+)
+@pytest.mark.parametrize(
+    "on",
+    ["train_set", "validation_set", "both"],
+)
+def test_metric_monitor_logged_values_dict_meta_estimator(prefer, scoring, on):
     """Test that the correct values are logged with a meta-estimator.
 
-    The type of the log output depends on the availability of the pandas library.
+    This test only looks at the dict outputs from `get_logs`.
     """
     n_outer = 3
     n_inner = 2
@@ -130,107 +236,141 @@ def test_metric_monitor_logged_values_meta_estimator(prefer, metric, metric_para
     rng = np.random.RandomState(0)
     X_train, y_train = rng.uniform(size=(n_dim, n_samples)), rng.uniform(size=n_dim)
     X_val, y_val = rng.uniform(size=(n_dim, n_samples)), rng.uniform(size=n_dim)
-    callback = MetricMonitor(metric, metric_params=metric_params, on=on)
+    callback = MetricMonitor(scoring, on=on)
     est = MaxIterEstimator(max_iter=max_iter)
     est.set_callbacks(callback)
     meta_est = MetaEstimator(
         est, n_outer=n_outer, n_inner=n_inner, n_jobs=2, prefer=prefer
     )
-    meta_est_name = meta_est.__class__.__name__
-    est_name = est.__class__.__name__
 
     meta_est.fit(X=X_train, y=y_train, X_val=X_val, y_val=y_val)
+    logs = callback.get_logs(as_frame=False, select="most_recent")
 
-    metric_params = metric_params or dict()
-    expected_log_dict = {
-        metric.__name__: [],
-        "on": [],
-        f"0_{meta_est_name}_fit": [],
-        f"1_{meta_est_name}_outer": [],
-        f"2_{meta_est_name}_inner|{est_name}_fit": [],
-        f"3_{est_name}_iteration": [],
-    }
+    scorer = check_scoring(None, scoring)
+    expected_log_dict, metric_names = make_expected_ouptput_MetaEstimator(
+        n_outer, n_inner, max_iter, scorer, on, X_train, y_train, X_val, y_val
+    )
+    logs = callback.get_logs(as_frame=False, select="most_recent")
+    assert set(logs.keys()) == set(expected_log_dict.keys())
+    for key, val in logs.items():
+        # Verify list equality up to a permutation because the parallelization
+        # of the meta-est can change the logging order.
+        assert Counter(val) == Counter(expected_log_dict[key])
 
-    for i_outer, i_inner in product(range(n_outer), range(n_inner)):
-        for i_estimator_iteration in range(max_iter):
-            if on in ("train_set", "both"):
-                expected_log_dict[metric.__name__].append(
-                    metric(
-                        y_train,
-                        X_train.mean(axis=1) * (i_estimator_iteration + 1),
-                        **metric_params,
-                    )
-                )
-                expected_log_dict["on"].append("train_set")
-                expected_log_dict[f"0_{meta_est_name}_fit"].append(0)
-                expected_log_dict[f"1_{meta_est_name}_outer"].append(i_outer)
-                expected_log_dict[f"2_{meta_est_name}_inner|{est_name}_fit"].append(
-                    i_inner
-                )
-                expected_log_dict[f"3_{est_name}_iteration"].append(
-                    i_estimator_iteration
-                )
 
-            if on in ("validation_set", "both"):
-                expected_log_dict[metric.__name__].append(
-                    metric(
-                        y_val,
-                        X_val.mean(axis=1) * (i_estimator_iteration + 1),
-                        **metric_params,
-                    )
-                )
-                expected_log_dict["on"].append("validation_set")
-                expected_log_dict[f"0_{meta_est_name}_fit"].append(0)
-                expected_log_dict[f"1_{meta_est_name}_outer"].append(i_outer)
-                expected_log_dict[f"2_{meta_est_name}_inner|{est_name}_fit"].append(
-                    i_inner
-                )
-                expected_log_dict[f"3_{est_name}_iteration"].append(
-                    i_estimator_iteration
-                )
+@pytest.mark.parametrize("prefer", ["processes", "threads"])
+@pytest.mark.parametrize(
+    "scoring",
+    ["neg_mean_squared_error", ("neg_mean_squared_error", "r2")],
+)
+@pytest.mark.parametrize(
+    "on",
+    ["train_set", "validation_set", "both"],
+)
+def test_metric_monitor_logged_values_dataframe_meta_estimator(prefer, scoring, on):
+    """Test that the correct values are logged with a meta-estimator.
 
-    try:  # Check dataframes logs if pandas is installed
+    This test only looks at the pandas dataframe outputs from `get_logs`.
+    """
+    pd = pytest.importorskip("pandas")
+    n_outer = 3
+    n_inner = 2
+    max_iter = 4
+    n_dim = 5
+    n_samples = 3
+    rng = np.random.RandomState(0)
+    X_train, y_train = rng.uniform(size=(n_dim, n_samples)), rng.uniform(size=n_dim)
+    X_val, y_val = rng.uniform(size=(n_dim, n_samples)), rng.uniform(size=n_dim)
+    callback = MetricMonitor(scoring, on=on)
+    est = MaxIterEstimator(max_iter=max_iter)
+    est.set_callbacks(callback)
+    meta_est = MetaEstimator(
+        est, n_outer=n_outer, n_inner=n_inner, n_jobs=2, prefer=prefer
+    )
+
+    meta_est.fit(X=X_train, y=y_train, X_val=X_val, y_val=y_val)
+    logs = callback.get_logs(as_frame=False, select="most_recent")
+
+    scorer = check_scoring(None, scoring)
+    expected_log_dict, metric_names = make_expected_ouptput_MetaEstimator(
+        n_outer, n_inner, max_iter, scorer, on, X_train, y_train, X_val, y_val
+    )
+    log_df = callback.get_logs(as_frame=True, select="most_recent")
+
+    expected_log_df = pd.DataFrame(expected_log_dict)
+    expected_log_df = expected_log_df.set_index(
+        [
+            col
+            for col in expected_log_df.columns
+            if col not in metric_names and col != "on"
+        ]
+    )
+
+    assert np.array_equal(log_df.index.names, expected_log_df.index.names)
+    assert log_df.equals(expected_log_df)
+
+
+@pytest.mark.parametrize(
+    "as_frame",
+    [False, "auto"],
+)
+def test_get_logs_output_type_no_pandas(as_frame):
+    """Test the type of the get_logs when not explicitly asking for dataframes."""
+    estimator = MaxIterEstimator()
+    callback = MetricMonitor("neg_mean_squared_error")
+    estimator.set_callbacks(callback)
+
+    empty_logs_all = callback.get_logs(select="all", as_frame=as_frame)
+    assert isinstance(empty_logs_all, dict)
+    assert not empty_logs_all
+
+    empty_logs_most_recent = callback.get_logs(select="most_recent", as_frame=as_frame)
+
+    estimator.fit()
+    estimator.fit()
+
+    logs_all = callback.get_logs(select="all", as_frame=as_frame)
+    logs_most_recent = callback.get_logs(select="most_recent", as_frame=as_frame)
+
+    assert isinstance(logs_all, dict)
+    assert len(logs_all) == 2
+
+    if find_spec("pandas") and as_frame == "auto":
         import pandas as pd
 
-        run_id, log_df = callback.logs
-
-        expected_log_df = pd.DataFrame(expected_log_dict)
-        expected_log_df = expected_log_df.set_index(
-            [
-                col
-                for col in expected_log_df.columns
-                if col not in (metric.__name__, "on")
-            ]
-        )
-
-        assert np.array_equal(log_df.index.names, expected_log_df.index.names)
-        assert log_df.equals(expected_log_df)
-
-    except ImportError:  # Check dict of lists logs if pandas is not installed
-        logs = callback.logs
-        assert set(logs.keys()) == set(expected_log_dict.keys()).union(set(["run"]))
-        for key, val in logs.items():
-            if key != "run":
-                # Verify list equality up to a permutation because the parallelization
-                # of the meta-est can change the logging order.
-                assert Counter(val) == Counter(expected_log_dict[key])
-
-
-def test_get_logs_output_type():
-    """Test the type of the get_logs output."""
-    estimator = MaxIterEstimator()
-    callback = MetricMonitor(mean_squared_error)
-    estimator.set_callbacks(callback)
-    estimator.fit()
-
-    if find_spec("pandas"):
-        assert isinstance(callback.logs, tuple)
+        assert isinstance(next(iter(logs_all.values())), pd.DataFrame)
+        assert isinstance(empty_logs_most_recent, pd.DataFrame)
+        assert empty_logs_most_recent.empty
+        assert isinstance(logs_most_recent, pd.DataFrame)
 
     else:
-        assert isinstance(callback.logs, dict)
+        assert isinstance(empty_logs_most_recent, dict)
+        assert not empty_logs_most_recent
+        assert isinstance(logs_most_recent, dict)
+
+
+def test_get_logs_output_type_pandas():
+    """Test the type of the get_logs when explicitly asking for dataframes."""
+    pd = pytest.importorskip("pandas")
+    estimator = MaxIterEstimator()
+    callback = MetricMonitor("neg_mean_squared_error")
+    estimator.set_callbacks(callback)
+
+    empty_logs_all = callback.get_logs(select="all", as_frame=True)
+    assert isinstance(empty_logs_all, dict)
+    assert not empty_logs_all
+
+    empty_logs_most_recent = callback.get_logs(select="most_recent", as_frame=True)
+    assert isinstance(empty_logs_most_recent, pd.DataFrame)
+    assert empty_logs_most_recent.empty
 
     estimator.fit()
-    logs = callback.logs
+    estimator.fit()
 
-    assert isinstance(logs, list)
-    assert len(logs) == 2
+    logs_all = callback.get_logs(select="all", as_frame=True)
+    assert isinstance(logs_all, dict)
+    assert len(logs_all) == 2
+    assert isinstance(next(iter(logs_all.values())), pd.DataFrame)
+
+    logs_most_recent = callback.get_logs(select="most_recent", as_frame=True)
+    assert isinstance(logs_most_recent, pd.DataFrame)

@@ -5,7 +5,7 @@ import copy
 import uuid
 import warnings
 from contextlib import contextmanager
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sklearn.callback._base import AutoPropagatedCallback
 
@@ -157,7 +157,7 @@ class CallbackContext:
 
         # We don't store the estimator in the context to avoid circular references
         # because the estimator already holds a reference to the context.
-        new_ctx.init_time = datetime.now()
+        new_ctx.init_time = datetime.now(timezone.utc)
         new_ctx._callbacks = getattr(estimator, "_skl_callbacks", [])
         new_ctx.estimator_name = estimator.__class__.__name__
         new_ctx.uuid = uuid.uuid4()
@@ -354,7 +354,7 @@ class CallbackContext:
             "reconstruction_attributes" in required_info
             and "reconstruction_attributes" in kwargs
         ):
-            kwargs["evaluable_estimator"] = _from_reconstruction_attributes(
+            kwargs["fitted_estimator"] = _from_reconstruction_attributes(
                 estimator, kwargs["reconstruction_attributes"]()
             )
         return any(

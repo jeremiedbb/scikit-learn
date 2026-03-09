@@ -1,10 +1,16 @@
 # Authors: The scikit-learn developers
 # SPDX-License-Identifier: BSD-3-Clause
 
-import inspect
 
 from sklearn.callback._callback_context import get_context_path
 from sklearn.callback._callback_support import get_callback_manager
+from sklearn.metrics import check_scoring
+from sklearn.utils._optional_dependencies import check_pandas_support
+from sklearn.utils._param_validation import (
+    InvalidParameterError,
+    StrOptions,
+    validate_params,
+)
 
 
 class MetricMonitor:
@@ -16,151 +22,188 @@ class MetricMonitor:
 
     Parameters
     ----------
-    metric : function
-        The metric to compute.
-    metric_params : dict or None, default=None
-        Additional keyword arguments for the metric function.
+    scoring : str, callable, list, tuple or dict, default=None
+        Strategy to evaluate the metric on the model.
+
+        If `scoring` represents a single score, one can use:
+
+        - a single string (see :ref:`scoring_string_names`);
+        - a callable (see :ref:`scoring_callable`) that returns a single value;
+        - `None`, the `estimator`'s
+          :ref:`default evaluation criterion <scoring_api_overview>` is used.
+
+        If `scoring` represents multiple scores, one can use:
+
+        - a list or tuple of unique strings;
+        - a callable returning a dictionary where the keys are the metric
+          names and the values are the metric scores;
+        - a dictionary with metric names as keys and callables as values.
+
     on : str, default="train_set"
         Which data to compue the metric on. Possible values are "train_set",
         "validation_set" and "both". "train_set" corresponds to using the X and y
         arguments of the fit function, "validation_set" corresponds to using the X_val
         and y_val arguments, "both" corresponds to using both.
-
-    Attributes
-    ----------
-    logs : list of tuples (str, pandas.DataFrame) or list of dicts of lists
-        A list of tuples containing structured dataframes is returned if pandas is
-        installed, otherwise a list of dicts of lists is returned. In both cases, if
-        there is only one run in the logs, the item is returned directly instead of a
-        singleton list.
-
-        If pandas is installed, each tuple contains a run id and a mulit-index Dataframe
-        with indices corresponding to the task tree as values. The run ids are strings
-        of the form : "<estimator name>_<run id>_<timestamp>".
-
-        If pandas is not available, each dictionary corresponds to a run and contains :
-            "<name of the metric>": list of metric values,
-            "run": <estimator name>_<run id>_<timestamp>
-        and several pairs of key values describing the task tree :
-            "<task depth>_<estimator name>_<task name>": list of task id
-
     """
 
     requires_fit_info = ["reconstruction_attributes"]
 
-    def __init__(self, metric, metric_params=None, on="train_set"):
-        # TODO: use a scorer for the metric
+    def __init__(self, scoring, on="train_set"):
         possible_on_values = ("train_set", "validation_set", "both")
         if on not in possible_on_values:
-            raise ValueError(
-                f"'on' should be one of {possible_on_values}, got {on} instead."
+            raise InvalidParameterError(
+                f"The 'on' parameter of {self.__class__.__name__} must be a str among "
+                f"{possible_on_values}. Got {on} instead."
             )
         self.on = on
-        self.metric_params = metric_params or dict()
-        if metric_params is not None:
-            valid_params = inspect.signature(metric).parameters
-            invalid_params = [arg for arg in metric_params if arg not in valid_params]
-            if invalid_params:
-                raise ValueError(
-                    f"The parameters '{invalid_params}' cannot be used with the"
-                    f" function {metric.__module__}.{metric.__name__}."
-                )
-        self.metric_func = metric
+        check_scoring(None, scoring, allow_none=True)  # validate the scoring param
+        self.scoring = scoring
         self._shared_log = get_callback_manager().list()
 
     def on_fit_begin(self, estimator):
-        if not hasattr(estimator, "predict"):
-            raise ValueError(
-                f"Estimator {estimator.__class__} does not have a predict method, which"
-                " is necessary to use a MetricMonitor callback."
-            )
+        self.scorer = check_scoring(estimator, self.scoring)
 
-    def on_fit_task_end(self, estimator, context, data, evaluable_estimator, **kwargs):
+    def on_fit_task_end(
+        self, estimator, context, data, fitted_estimator=None, **kwargs
+    ):
         # TODO: add a task_info dict in the logs
+        if fitted_estimator is None:
+            return
         context_path = get_context_path(context)
         if self.on == "train_set" or self.on == "both":
             X, y = None, None
             if "X_train" in data and "y_train" in data:
                 X, y = data["X_train"], data["y_train"]
-            self._log_item(X, y, "train_set", evaluable_estimator, context_path)
+            self._add_log_entry(X, y, "train_set", fitted_estimator, context_path)
         if self.on == "validation_set" or self.on == "both":
             X, y = None, None
             if "X_val" in data and "y_val" in data:
                 X, y = data["X_val"], data["y_val"]
-            self._log_item(X, y, "validation_set", evaluable_estimator, context_path)
+            self._add_log_entry(X, y, "validation_set", fitted_estimator, context_path)
 
-    def _log_item(self, X, y, on, evaluable_estimator, context_path):
+    def _add_log_entry(self, X, y, on, fitted_estimator, context_path):
         if X is not None and y is not None:
-            y_pred = evaluable_estimator.predict(X)
-            metric_value = self.metric_func(y, y_pred, **self.metric_params)
+            metric_value = self.scorer(fitted_estimator, X, y)
         else:
             metric_value = None
-        log_item = {self.metric_func.__name__: metric_value, "on": on}
+
+        if isinstance(metric_value, dict):
+            log_item = metric_value
+        else:
+            metric_name = self.scorer._score_func.__name__
+            if self.scorer._sign == -1:
+                metric_name = "neg_" + metric_name
+            log_item = {metric_name: metric_value}
+        log_item["on"] = on
         for depth, ctx in enumerate(context_path):
             if depth == 0:
-                timestamp = ctx.init_time.strftime("%Y-%m-%d_%H:%M:%S.%f")
-                log_item["run"] = f"{ctx.estimator_name}_{ctx.uuid}_{timestamp}"
+                timestamp = ctx.init_time.strftime("UTC%Y-%m-%d_%H:%M:%S.%f")
+                run_id = f"{ctx.estimator_name}_{timestamp}_{ctx.uuid}"
             prev_task_str = (
                 f"{ctx.source_estimator_name}_{ctx.source_task_name}|"
                 if ctx.source_estimator_name is not None
                 else ""
             )
-            log_item[f"{depth}_{prev_task_str}{ctx.estimator_name}_{ctx.task_name}"] = (
-                ctx.task_id
-            )
+            log_item[
+                f"__index__{depth}_{prev_task_str}{ctx.estimator_name}_{ctx.task_name}"
+            ] = ctx.task_id
 
-        self._shared_log.append(log_item)
+        self._shared_log.append((run_id, log_item))
 
     def on_fit_end(self, estimator, context):
         pass
 
-    @property
-    def logs(self):
-        logs = list(self._shared_log)
+    @validate_params(
+        {
+            "select": [StrOptions({"all", "most_recent"})],
+            "as_frame": [StrOptions({"auto"}), "boolean"],
+        },
+        prefer_skip_nested_validation=True,
+    )
+    def get_logs(self, select="all", as_frame="auto"):
+        """Get the logged values.
 
-        try:
-            import pandas as pd
+        Returns the logs. If select is "all", a dictionary is returned with run ids as
+        keys and logs as values. The logs take the form of pandas DataFrames or
+        dictionaries depending on the `as_frame` parameter.
 
-            logs = pd.DataFrame(logs)
-            log_list = []
-            if not logs.empty:
-                for run_id in logs["run"].unique():
-                    run_log = logs.loc[logs["run"] == run_id].copy()
-                    # Drop columns that correspond to other runs task_id which are
-                    # filled with NaNs.
-                    columns_to_keep = ~(run_log.isnull().all())
-                    columns_to_keep["run"] = False
-                    columns_to_keep[self.metric_func.__name__] = True
-                    run_log = run_log.loc[:, columns_to_keep]
-                    log_list.append(
-                        (
-                            run_id,
-                            run_log.set_index(
-                                [
-                                    col
-                                    for col in run_log.columns
-                                    if col not in (self.metric_func.__name__, "on")
-                                ]
-                            ).sort_index(),
-                        )
-                    )
-            return log_list[0] if len(log_list) == 1 else log_list
+        The run ids are strings of the form : "<estimator name>_<timestamp>_<id>".
 
-        except ImportError:
-            runs_dict_list = []
-            for log_item in logs:
-                run_name = log_item["run"]
-                for run_dict in runs_dict_list:
-                    if run_dict["run"] == run_name:
-                        for key, val in log_item.items():
-                            if key != "run":
-                                run_dict[key].append(val)
-                        break
-                else:
-                    run_dict = {"run": run_name}
-                    for key, val in log_item.items():
-                        if key != "run":
-                            run_dict[key] = [val]
-                    runs_dict_list.append(run_dict)
+        Parameters
+        ----------
+        select : "all" or "most_recent", default="all"
+            Which log run to return.
 
-            return runs_dict_list[0] if len(runs_dict_list) == 1 else runs_dict_list
+            If set to "all", all runs are returned in a dictionary, and the dictionary
+            is empty if there are no logs.
+
+            If set to "most_recent", only the log from the last run is directly
+            returned, and if there are no logs, an empty dictionary or DataFrame is
+            returned.
+
+        as_frame : "auto" or bool, default="auto"
+            Whether to have the logs formatted as multi-index pandas DataFrames. If set
+            to False the logs are formatted as dictionaries instead. If set to "auto",
+            the avialbility of pandas is evaluated and the format is chosen accordingly.
+
+        Returns
+        -------
+        logs : dict or pandas DataFrame
+            The logged values, either from all the runs or only the most recent one,
+            depending on the `select` parameter. Each run's log is formatted as a pandas
+            DataFrame or a dictionary depending on the `as_frame` parameter.
+        """
+        log_item_list = list(self._shared_log)
+
+        index_prefix = "__index__"
+        logs_dict = {}
+        index_names = set()
+        for run_id, log_item in log_item_list:
+            if run_id not in logs_dict:
+                logs_dict[run_id] = {}
+                for key, val in log_item.items():
+                    if key.startswith(index_prefix):
+                        key = key[len(index_prefix) :]
+                        index_names.add(key)
+                    logs_dict[run_id][key] = [val]
+
+            else:
+                for key, val in log_item.items():
+                    if key.startswith(index_prefix):
+                        key = key[len(index_prefix) :]
+                    logs_dict[run_id][key].append(val)
+
+        if select == "most_recent":
+            if not logs_dict:
+                # In case there is no log, here an empty dict is added so that when
+                # select is "most_recent" we can always assume hat logs_dict contains
+                # just one item and return it.
+                logs_dict = {"": {}}
+            else:
+                run_ids = list(logs_dict.keys())
+                sorted(run_ids)
+                for run_id in run_ids[:-1]:
+                    logs_dict.pop(run_id)
+
+        if as_frame:
+            try:
+                pd = check_pandas_support(f"`{self.__class__.__name__}.get_logs`")
+
+                for run_id in logs_dict:
+                    df = pd.DataFrame(logs_dict[run_id])
+                    logs_dict[run_id] = df.set_index(
+                        [col for col in df.columns if col in index_names]
+                    ).sort_index()
+
+            except ImportError as exc:
+                if as_frame != "auto":
+                    raise ImportError(
+                        "Returning pandas objects requires pandas to be installed. "
+                        "Alternatively, set 'as_frame' to False or 'auto'."
+                    ) from exc
+
+        if select == "most_recent":
+            # We return the only value in logs_dict.
+            return next(iter(logs_dict.values()))
+
+        return logs_dict
