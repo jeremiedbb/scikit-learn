@@ -193,9 +193,11 @@ class MetricMonitor:
 
                 for run_id in logs_dict:
                     df = pd.DataFrame(logs_dict[run_id])
-                    logs_dict[run_id] = df.set_index(
-                        [col for col in df.columns if col in index_names]
-                    ).sort_index()
+                    if not df.empty:
+                        df = df.set_index(
+                            [col for col in df.columns if col in index_names]
+                        ).sort_index()
+                    logs_dict[run_id] = df
 
             except ImportError as exc:
                 if as_frame != "auto":
