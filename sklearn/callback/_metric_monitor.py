@@ -8,8 +8,6 @@ from sklearn.metrics import check_scoring
 from sklearn.utils._optional_dependencies import check_pandas_support
 from sklearn.utils._param_validation import (
     InvalidParameterError,
-    StrOptions,
-    validate_params,
 )
 
 
@@ -113,13 +111,6 @@ class MetricMonitor:
     def on_fit_end(self, estimator, context):
         pass
 
-    @validate_params(
-        {
-            "select": [StrOptions({"all", "most_recent"})],
-            "as_frame": [StrOptions({"auto"}), "boolean"],
-        },
-        prefer_skip_nested_validation=True,
-    )
     def get_logs(self, select="all", as_frame="auto"):
         """Get the logged values.
 
