@@ -42,7 +42,9 @@ def test_set_callbacks_error(callbacks):
         estimator.set_callbacks(callbacks)
 
 
-@pytest.mark.parametrize("fail_at", ["on_fit_begin", "on_fit_task_end", "on_fit_end"])
+@pytest.mark.parametrize(
+    "fail_at", ["fit_setup", "on_fit_task_begin", "on_fit_task_end", "fit_teardown"]
+)
 def test_callback_error(fail_at):
     """Check that a failing callback is properly teared down."""
     callback = FailingCallback(fail_at=fail_at)
@@ -50,5 +52,5 @@ def test_callback_error(fail_at):
     with pytest.raises(ValueError, match=f"Failing callback failed at {fail_at}"):
         estimator.fit()
 
-    assert callback.count_hooks("on_fit_begin") == 1
-    assert callback.count_hooks("on_fit_end") == 1
+    assert callback.count_hooks("fit_setup") == 1
+    assert callback.count_hooks("fit_teardown") == 1

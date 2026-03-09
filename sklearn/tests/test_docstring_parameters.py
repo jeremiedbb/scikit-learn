@@ -120,8 +120,9 @@ def test_docstring_parameters():
                 # to duplicate this information. Since we use a protocol rather than
                 # class inheritance, docstrings for those methods are not inherited.
                 if isinstance(cls, Callback) and method_name in (
-                    "on_fit_begin",
-                    "on_fit_end",
+                    "fit_setup",
+                    "fit_teardown",
+                    "on_fit_task_begin",
                     "on_fit_task_end",
                 ):
                     continue

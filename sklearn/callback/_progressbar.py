@@ -37,18 +37,19 @@ class ProgressBar:
 
         self.max_estimator_depth = max_estimator_depth
 
-    def on_fit_begin(self, estimator):
+    def fit_setup(self):
         self._queue = get_callback_manager().Queue()
         self.progress_monitor = RichProgressMonitor(queue=self._queue)
         self.progress_monitor.start()
 
+    def on_fit_task_begin(self, estimator, context, **kwargs):
+        pass
+
     def on_fit_task_end(self, estimator, context, **kwargs):
         self._queue.put(context)
 
-    def on_fit_end(self, estimator, context):
-        # This is called by the root context. We signal that the root task is finished
-        # and the queue won't receive any more tasks.
-        self._queue.put(context)
+    def fit_teardown(self):
+        # Signal that the queue won't receive any more tasks.
         self._queue.put(None)
         self.progress_monitor.join()
 
