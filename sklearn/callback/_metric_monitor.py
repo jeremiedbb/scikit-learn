@@ -145,6 +145,17 @@ class MetricMonitor:
             DataFrame or a dictionary depending on the `as_frame` parameter.
         """
         log_item_list = list(self._shared_log)
+        possible_select_values = {"all", "most_recent"}
+        if select not in possible_select_values:
+            raise ValueError(
+                f"The 'select' parameter of {self.__class__.__name__}.get_logs must be "
+                f"a str among {possible_select_values}. Got {select} instead."
+            )
+        if as_frame != "auto" and not isinstance(as_frame, bool):
+            raise ValueError(
+                f"The 'as_frame' parameter of {self.__class__.__name__}.get_logs must "
+                f"be a bool or the str 'auto'. Got {as_frame} instead."
+            )
 
         index_prefix = "__index__"
         logs_dict = {}

@@ -374,3 +374,20 @@ def test_get_logs_output_type_pandas():
 
     logs_most_recent = callback.get_logs(select="most_recent", as_frame=True)
     assert isinstance(logs_most_recent, pd.DataFrame)
+
+
+def test_get_logs_wrong_param_error():
+    """Test the error when using wrong values in `get_logs`."""
+
+    callback = MetricMonitor("r2")
+
+    with pytest.raises(
+        ValueError, match=f"The 'select' parameter of {MetricMonitor.__name__}.get_logs"
+    ):
+        callback.get_logs(select="wrong_value")
+
+    with pytest.raises(
+        ValueError,
+        match=f"The 'as_frame' parameter of {MetricMonitor.__name__}.get_logs",
+    ):
+        callback.get_logs(as_frame="wrong_value")
