@@ -350,12 +350,14 @@ class CallbackContext:
             if hasattr(callback, "requires_fit_info"):
                 required_info = required_info.union(callback.requires_fit_info)
 
+        reconstruction_attributes = kwargs.pop("reconstruction_attributes", None)
+
         if (
             "reconstruction_attributes" in required_info
-            and "reconstruction_attributes" in kwargs
+            and reconstruction_attributes is not None
         ):
             kwargs["fitted_estimator"] = _from_reconstruction_attributes(
-                estimator, kwargs["reconstruction_attributes"]()
+                estimator, reconstruction_attributes()
             )
         return any(
             callback.on_fit_task_end(estimator, self, **kwargs)

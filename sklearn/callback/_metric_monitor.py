@@ -8,6 +8,8 @@ from sklearn.metrics import check_scoring
 from sklearn.utils._optional_dependencies import check_pandas_support
 from sklearn.utils._param_validation import (
     InvalidParameterError,
+    StrOptions,
+    validate_params,
 )
 
 
@@ -88,9 +90,7 @@ class MetricMonitor:
         if isinstance(metric_value, dict):
             log_item = metric_value
         else:
-            metric_name = self.scorer._score_func.__name__
-            if self.scorer._sign == -1:
-                metric_name = "neg_" + metric_name
+            metric_name = self.scoring if isinstance(self.scoring, str) else "score"
             log_item = {metric_name: metric_value}
         log_item["on"] = on
         for depth, ctx in enumerate(context_path):
@@ -111,6 +111,13 @@ class MetricMonitor:
     def on_fit_end(self, estimator, context):
         pass
 
+    @validate_params(
+        {
+            "select": [StrOptions({"all", "most_recent"})],
+            "as_frame": [StrOptions({"auto"}), "boolean"],
+        },
+        prefer_skip_nested_validation=True,
+    )
     def get_logs(self, select="all", as_frame="auto"):
         """Get the logged values.
 
@@ -145,17 +152,6 @@ class MetricMonitor:
             DataFrame or a dictionary depending on the `as_frame` parameter.
         """
         log_item_list = list(self._shared_log)
-        possible_select_values = {"all", "most_recent"}
-        if select not in possible_select_values:
-            raise ValueError(
-                f"The 'select' parameter of {self.__class__.__name__}.get_logs must be "
-                f"a str among {possible_select_values}. Got {select} instead."
-            )
-        if as_frame != "auto" and not isinstance(as_frame, bool):
-            raise ValueError(
-                f"The 'as_frame' parameter of {self.__class__.__name__}.get_logs must "
-                f"be a bool or the str 'auto'. Got {as_frame} instead."
-            )
 
         index_prefix = "__index__"
         logs_dict = {}

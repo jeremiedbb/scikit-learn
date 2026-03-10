@@ -27,9 +27,6 @@ class TestingCallback:
         self.record.append(("on_fit_begin", estimator, None, None))
 
     def on_fit_task_end(self, estimator, context, **kwargs):
-        for key, val in kwargs.items():
-            if callable(val):
-                kwargs[key] = val()  # function are not picklable
         self.record.append(("on_fit_task_end", estimator, context, kwargs))
 
     def on_fit_end(self, estimator, context):

@@ -14,19 +14,16 @@ from sklearn.callback.tests._utils import (
     MetaEstimator,
 )
 from sklearn.metrics import check_scoring
-from sklearn.metrics._scorer import _Scorer
 
 
 def make_expected_ouptput_MaxIterEstimator(
-    max_iter, scorer, on, X_train, y_train, X_val, y_val
+    max_iter, scoring, on, X_train, y_train, X_val, y_val
 ):
     """Generate the expected dict output of a MetricMonitor on a MaxIterEstimator."""
-    if isinstance(scorer, _Scorer):
-        name = scorer._score_func.__name__
-        if scorer._sign == -1:
-            name = "neg_" + name
-        metric_names = [name]
-        expected_log_dict = {name: []}
+    scorer = check_scoring(None, scoring)
+    if isinstance(scoring, str):
+        metric_names = [scoring]
+        expected_log_dict = {scoring: []}
     else:
         metric_names = list(scorer._scorers.keys())
         expected_log_dict = {name: [] for name in metric_names}
@@ -50,7 +47,7 @@ def make_expected_ouptput_MaxIterEstimator(
                 for key, val in score.items():
                     expected_log_dict[key].append(val)
             else:
-                expected_log_dict[metric_names[0]].append(score)
+                expected_log_dict[scoring].append(score)
 
         if on in ("validation_set", "both"):
             expected_log_dict[f"0_{MaxIterEstimator.__name__}_fit"].append(0)
@@ -61,24 +58,22 @@ def make_expected_ouptput_MaxIterEstimator(
                 for key, val in score.items():
                     expected_log_dict[key].append(val)
             else:
-                expected_log_dict[metric_names[0]].append(score)
+                expected_log_dict[scoring].append(score)
 
     return expected_log_dict, metric_names
 
 
 def make_expected_ouptput_MetaEstimator(
-    n_outer, n_inner, max_iter, scorer, on, X_train, y_train, X_val, y_val
+    n_outer, n_inner, max_iter, scoring, on, X_train, y_train, X_val, y_val
 ):
     """Generate the expected dict output of a MetricMonitor on a MetaEstimator.
 
     The sub-estimators are expected to be MaxIterEstimator.
     """
-    if isinstance(scorer, _Scorer):
-        name = scorer._score_func.__name__
-        if scorer._sign == -1:
-            name = "neg_" + name
-        metric_names = [name]
-        expected_log_dict = {name: []}
+    scorer = check_scoring(None, scoring)
+    if isinstance(scoring, str):
+        metric_names = [scoring]
+        expected_log_dict = {scoring: []}
     else:
         metric_names = list(scorer._scorers.keys())
         expected_log_dict = {name: [] for name in metric_names}
@@ -159,10 +154,8 @@ def test_metric_monitor_logged_values_dict(scoring, on):
     estimator.fit(X=X_train, y=y_train, X_val=X_val, y_val=y_val)
     logs = callback.get_logs(as_frame=False, select="most_recent")
 
-    scorer = check_scoring(None, scoring)
-
     expected_log_dict, metric_names = make_expected_ouptput_MaxIterEstimator(
-        max_iter, scorer, on, X_train, y_train, X_val, y_val
+        max_iter, scoring, on, X_train, y_train, X_val, y_val
     )
     assert set(logs.keys()) == set(expected_log_dict.keys())
     for key, val in logs.items():
@@ -197,10 +190,8 @@ def test_metric_monitor_logged_values_dataframe(scoring, on):
     estimator.fit(X=X_train, y=y_train, X_val=X_val, y_val=y_val)
     log_df = callback.get_logs(as_frame=True, select="most_recent")
 
-    scorer = check_scoring(None, scoring)
-
     expected_log_dict, metric_names = make_expected_ouptput_MaxIterEstimator(
-        max_iter, scorer, on, X_train, y_train, X_val, y_val
+        max_iter, scoring, on, X_train, y_train, X_val, y_val
     )
     expected_log_df = pd.DataFrame(expected_log_dict)
     expected_log_df = expected_log_df.set_index(
@@ -246,9 +237,8 @@ def test_metric_monitor_logged_values_dict_meta_estimator(prefer, scoring, on):
     meta_est.fit(X=X_train, y=y_train, X_val=X_val, y_val=y_val)
     logs = callback.get_logs(as_frame=False, select="most_recent")
 
-    scorer = check_scoring(None, scoring)
     expected_log_dict, metric_names = make_expected_ouptput_MetaEstimator(
-        n_outer, n_inner, max_iter, scorer, on, X_train, y_train, X_val, y_val
+        n_outer, n_inner, max_iter, scoring, on, X_train, y_train, X_val, y_val
     )
     logs = callback.get_logs(as_frame=False, select="most_recent")
     assert set(logs.keys()) == set(expected_log_dict.keys())
@@ -291,9 +281,8 @@ def test_metric_monitor_logged_values_dataframe_meta_estimator(prefer, scoring, 
     meta_est.fit(X=X_train, y=y_train, X_val=X_val, y_val=y_val)
     logs = callback.get_logs(as_frame=False, select="most_recent")
 
-    scorer = check_scoring(None, scoring)
     expected_log_dict, metric_names = make_expected_ouptput_MetaEstimator(
-        n_outer, n_inner, max_iter, scorer, on, X_train, y_train, X_val, y_val
+        n_outer, n_inner, max_iter, scoring, on, X_train, y_train, X_val, y_val
     )
     log_df = callback.get_logs(as_frame=True, select="most_recent")
 
@@ -374,20 +363,3 @@ def test_get_logs_output_type_pandas():
 
     logs_most_recent = callback.get_logs(select="most_recent", as_frame=True)
     assert isinstance(logs_most_recent, pd.DataFrame)
-
-
-def test_get_logs_wrong_param_error():
-    """Test the error when using wrong values in `get_logs`."""
-
-    callback = MetricMonitor("r2")
-
-    with pytest.raises(
-        ValueError, match=f"The 'select' parameter of {MetricMonitor.__name__}.get_logs"
-    ):
-        callback.get_logs(select="wrong_value")
-
-    with pytest.raises(
-        ValueError,
-        match=f"The 'as_frame' parameter of {MetricMonitor.__name__}.get_logs",
-    ):
-        callback.get_logs(as_frame="wrong_value")
