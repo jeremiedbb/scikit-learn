@@ -11,6 +11,9 @@ class Callback(Protocol):
     def fit_setup(self, estimator):
         """Method called before running the fit method of the estimator.
 
+        For auto-propagated callbacks, this method is called only once, before running
+        the fit method of the outermost estimator.
+
         Parameters
         ----------
         estimator : estimator instance
@@ -58,6 +61,9 @@ class Callback(Protocol):
 
     def fit_teardown(self, estimator):
         """Method called after finishing the fit method of the estimator.
+
+        For auto-propagated callbacks, this method is called only once, after finishing
+        the fit method of the outermost estimator.
 
         Parameters
         ----------
