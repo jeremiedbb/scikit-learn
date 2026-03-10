@@ -294,7 +294,7 @@ def test_meta_estimator_callback_hooks_called(n_jobs):
     each fit of the sub-estimator. The number of task ends is the sum of the number of
     task ends from all the sub-estimators.
     """
-    n_outer, n_inner, max_iter = 4, 3, 10
+    n_outer, n_inner, max_iter = 2, 3, 5
     callback = TestingCallback()
     est = MaxIterEstimator(max_iter=max_iter).set_callbacks(callback)
     MetaEstimator(est, n_outer=n_outer, n_inner=n_inner, n_jobs=n_jobs).fit()
@@ -304,3 +304,28 @@ def test_meta_estimator_callback_hooks_called(n_jobs):
     assert callback.count_hooks("on_fit_task_begin") == n_fits * (1 + max_iter)
     assert callback.count_hooks("on_fit_task_end") == n_fits * (1 + max_iter)
     assert callback.count_hooks("fit_teardown") == n_fits
+
+
+def test_callback_unsupported_hooks_called():
+    """Check the number of hooks calls when the sub-estimator doesn't support callbacks.
+
+    The number of task begins and ends is just the number of nodes in the context tree
+    of the meta-estimator.
+    """
+    n_outer, n_inner = 2, 3
+    callback = TestingAutoPropagatedCallback()
+    meta_estimator = MetaEstimator(
+        NoCallbackEstimator(), n_outer=n_outer, n_inner=n_inner
+    ).set_callbacks(callback)
+
+    with pytest.warns(
+        UserWarning,
+        match="The estimator NoCallbackEstimator does not support callbacks.",
+    ):
+        meta_estimator.fit()
+
+    assert callback.count_hooks("fit_setup") == 1
+    expected_n_tasks = np.sum(np.cumprod([1, n_outer, n_inner]))
+    assert callback.count_hooks("on_fit_task_begin") == expected_n_tasks
+    assert callback.count_hooks("on_fit_task_end") == expected_n_tasks
+    assert callback.count_hooks("fit_teardown") == 1

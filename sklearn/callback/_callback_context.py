@@ -373,7 +373,7 @@ class CallbackContext:
         # whole tree.
         sub_estimator._parent_callback_ctx = self
 
-        self._propagated_callbacks = [
+        callbacks_to_propagate = [
             callback
             for callback in self._callbacks
             if isinstance(callback, AutoPropagatedCallback)
@@ -382,7 +382,7 @@ class CallbackContext:
                 or self._estimator_depth < callback.max_estimator_depth - 1
             )
         ]
-        if not self._propagated_callbacks:
+        if not callbacks_to_propagate:
             return self
 
         if not hasattr(sub_estimator, "set_callbacks"):
@@ -392,6 +392,8 @@ class CallbackContext:
                 f"be propagated to this estimator."
             )
             return self
+
+        self._propagated_callbacks = callbacks_to_propagate
 
         sub_estimator.set_callbacks(
             getattr(sub_estimator, "_skl_callbacks", []) + self._propagated_callbacks

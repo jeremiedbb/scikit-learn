@@ -8,8 +8,14 @@ from typing import Protocol, runtime_checkable
 class Callback(Protocol):
     """Protocol for the callbacks."""
 
-    def fit_setup(self):
-        """Method called before running the fit method of the estimator."""
+    def fit_setup(self, estimator):
+        """Method called before running the fit method of the estimator.
+
+        Parameters
+        ----------
+        estimator : estimator instance
+            The estimator calling this callback hook.
+        """
 
     def on_fit_task_begin(self, estimator, context, **kwargs):
         """Method called at the beginning of each task of the estimator.
@@ -50,8 +56,14 @@ class Callback(Protocol):
             Whether or not to stop the current level of iterations at this task.
         """
 
-    def fit_teardown(self):
-        """Method called after finishing the fit method of the estimator."""
+    def fit_teardown(self, estimator):
+        """Method called after finishing the fit method of the estimator.
+
+        Parameters
+        ----------
+        estimator : estimator instance
+            The estimator calling this callback hook.
+        """
 
 
 @runtime_checkable

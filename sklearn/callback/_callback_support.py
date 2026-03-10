@@ -109,7 +109,7 @@ def callback_management_context(estimator):
                 isinstance(callback, AutoPropagatedCallback)
                 and hasattr(estimator, "_parent_callback_ctx")
             ):
-                callback.fit_setup()
+                callback.fit_setup(estimator)
         yield
     finally:
         for callback in getattr(estimator, "_skl_callbacks", []):
@@ -119,7 +119,7 @@ def callback_management_context(estimator):
                 isinstance(callback, AutoPropagatedCallback)
                 and hasattr(estimator, "_parent_callback_ctx")
             ):
-                callback.fit_teardown()
+                callback.fit_teardown(estimator)
 
 
 def with_fit_callbacks(fit_method):

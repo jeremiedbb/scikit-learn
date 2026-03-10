@@ -21,7 +21,7 @@ class TestingCallback:
     def __init__(self):
         self.record = get_callback_manager().list()
 
-    def fit_setup(self):
+    def fit_setup(self, estimator):
         self.record.append(("fit_setup", None, None, None))
 
     def on_fit_task_begin(self, estimator, context, **kwargs):
@@ -30,7 +30,7 @@ class TestingCallback:
     def on_fit_task_end(self, estimator, context, **kwargs):
         self.record.append(("on_fit_task_end", estimator, context, kwargs))
 
-    def fit_teardown(self):
+    def fit_teardown(self, estimator):
         self.record.append(("fit_teardown", None, None, None))
 
     def count_hooks(self, hook_name):
@@ -53,7 +53,7 @@ class TestingAutoPropagatedCallback(TestingCallback):
 class NotValidCallback:
     """Invalid callback since it's missing methods from the protocol."""
 
-    def fit_setup(self):
+    def fit_setup(self, estimator):
         pass  # pragma: no cover
 
     def on_fit_task_end(self, estimator, context, **kwargs):
@@ -67,8 +67,8 @@ class FailingCallback(TestingCallback):
         super().__init__()
         self.fail_at = fail_at
 
-    def fit_setup(self):
-        super().fit_setup()
+    def fit_setup(self, estimator):
+        super().fit_setup(estimator)
         if self.fail_at == "fit_setup":
             raise ValueError("Failing callback failed at fit_setup")
 
@@ -82,8 +82,8 @@ class FailingCallback(TestingCallback):
         if self.fail_at == "on_fit_task_end":
             raise ValueError("Failing callback failed at on_fit_task_end")
 
-    def fit_teardown(self):
-        super().fit_teardown()
+    def fit_teardown(self, estimator):
+        super().fit_teardown(estimator)
         if self.fail_at == "fit_teardown":
             raise ValueError("Failing callback failed at fit_teardown")
 
