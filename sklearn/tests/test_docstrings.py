@@ -4,7 +4,7 @@ from typing import Optional
 
 import pytest
 
-from sklearn.callback import _BaseCallback
+from sklearn.callback._base import _BaseCallback
 
 # make it possible to discover experimental estimators when calling `all_estimators`
 from sklearn.experimental import (

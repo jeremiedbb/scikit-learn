@@ -12,7 +12,7 @@ import numpy as np
 import pytest
 
 import sklearn
-from sklearn.callback import _BaseCallback
+from sklearn.callback._base import _BaseCallback
 from sklearn.datasets import make_classification
 
 # make it possible to discover experimental estimators when calling `all_estimators`
