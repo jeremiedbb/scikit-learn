@@ -32,8 +32,8 @@ def get_all_methods():
             # to duplicate this information. Since we use a protocol rather than
             # class inheritance, docstrings for those methods are not inherited.
             if isinstance(Klass, _BaseCallback) and name in (
-                "fit_setup",
-                "fit_teardown",
+                "setup",
+                "teardown",
                 "on_fit_task_begin",
                 "on_fit_task_end",
             ):
