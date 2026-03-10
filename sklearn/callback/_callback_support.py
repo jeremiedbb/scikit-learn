@@ -5,7 +5,7 @@ from contextlib import contextmanager
 from multiprocessing import Manager
 from threading import Lock
 
-from sklearn.callback._base import AutoPropagatedCallback, Callback
+from sklearn.callback._base import AutoPropagatedCallback, _BaseCallback
 from sklearn.callback._callback_context import CallbackContext
 
 
@@ -46,7 +46,7 @@ class CallbackSupportMixin:
         if not isinstance(callbacks, list):
             callbacks = [callbacks]
 
-        if not all(isinstance(callback, Callback) for callback in callbacks):
+        if not all(isinstance(callback, _BaseCallback) for callback in callbacks):
             raise TypeError("callbacks must follow the Callback protocol.")
 
         self._skl_callbacks = callbacks
@@ -88,8 +88,8 @@ class CallbackSupportMixin:
 def callback_management_context(estimator):
     """Context manager to manage callback lifecycle around estimator fit.
 
-    The context manager is responsible for calling the callbacks `fit_setup` and
-    `fit_teardown` hooks in a `try finally` block, which guarantees callbacks teardown
+    The context manager is responsible for calling the callbacks `setup` and
+    `teardown` hooks in a `try finally` block, which guarantees callbacks teardown
     will always be evaluated, whether the estimator's fit exits successfully or not.
 
     Parameters
@@ -103,34 +103,39 @@ def callback_management_context(estimator):
     """
     try:
         for callback in getattr(estimator, "_skl_callbacks", []):
-            # Only call the fit_setup hook of callbacks that are not
-            # propagated from a meta-estimator.
+            # Only call the setup hook of callbacks that are not propagated from a
+            # meta-estimator.
             if not (
                 isinstance(callback, AutoPropagatedCallback)
                 and hasattr(estimator, "_parent_callback_ctx")
             ):
-                callback.fit_setup(estimator)
+                callback.setup(estimator)
         yield
     finally:
         for callback in getattr(estimator, "_skl_callbacks", []):
-            # Only call the fit_teardown hook of callbacks that are not
-            # propagated from a meta-estimator.
+            # Only call the teardown hook of callbacks that are not propagated from a
+            # meta-estimator.
             if not (
                 isinstance(callback, AutoPropagatedCallback)
                 and hasattr(estimator, "_parent_callback_ctx")
             ):
-                callback.fit_teardown(estimator)
+                callback.teardown(estimator)
+
+        # Remove the parent context if it exists to avoid keeping circular references
+        # when the parent context is not needed anymore.
+        if hasattr(estimator, "_parent_callback_ctx"):
+            del estimator._parent_callback_ctx
 
 
 def with_fit_callbacks(fit_method):
     """Decorator to run the fit methods within a callback context manager.
 
-    This decorator is responsible for calling the callbacks `fit_setup` and
-    `fit_teardown` hooks of callbacks in a `try finally` block, which guarantees
+    This decorator is responsible for calling the callbacks `setup` and
+    `teardown` hooks of callbacks in a `try finally` block, which guarantees
     callbacks teardown will always be evaluated, whether the estimator's fit exits
     successfully or not.
 
-    It will only call the `fit_setup` and `fit_teardown` hooks of callbacks that are not
+    It will only call the `setup` and `teardown` hooks of callbacks that are not
     propagated from a meta-estimator.
 
     Parameters

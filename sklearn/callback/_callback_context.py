@@ -110,12 +110,15 @@ class CallbackContext:
         The maximum number of children tasks for this task. 0 means it's a leaf.
         None means the maximum number of subtasks is not known in advance.
 
+    estimator : estimator instance
+        The estimator that holds this context.
+
     estimator_name : str
-        The name of the estimator.
+        The name of the estimator that holds this context.
 
     source_estimator_name : str or None
-        The estimator name of the parent task this task was merged with. None if it
-        was not merged with another context.
+        The name of the estimator that holds the parent task this task was
+        merged with. None if it was not merged with another context.
 
     source_task_name : str or None
         The task name of the parent task this task was merged with. None if it
@@ -150,6 +153,7 @@ class CallbackContext:
         # We don't store the estimator in the context to avoid circular references
         # because the estimator already holds a reference to the context.
         new_ctx._callbacks = getattr(estimator, "_skl_callbacks", [])
+        new_ctx.estimator = estimator
         new_ctx.estimator_name = estimator.__class__.__name__
         new_ctx.task_name = task_name
         new_ctx.task_id = task_id
@@ -167,9 +171,9 @@ class CallbackContext:
             # the meta-estimator on the way.
             parent_ctx = estimator._parent_callback_ctx
             new_ctx._merge_with(parent_ctx)
-            new_ctx._estimator_depth = parent_ctx._estimator_depth + 1
+            new_ctx._propagation_depth = parent_ctx._propagation_depth + 1
         else:
-            new_ctx._estimator_depth = 0
+            new_ctx._propagation_depth = 0
 
         return new_ctx
 
@@ -196,8 +200,9 @@ class CallbackContext:
         new_ctx = cls.__new__(cls)
 
         new_ctx._callbacks = parent_context._callbacks
+        new_ctx.estimator = parent_context.estimator
         new_ctx.estimator_name = parent_context.estimator_name
-        new_ctx._estimator_depth = parent_context._estimator_depth
+        new_ctx._propagation_depth = parent_context._propagation_depth
         new_ctx.task_name = task_name
         new_ctx.task_id = task_id
         new_ctx.max_subtasks = max_subtasks
@@ -291,14 +296,11 @@ class CallbackContext:
             max_subtasks=max_subtasks,
         )
 
-    def eval_on_fit_task_begin(self, estimator, **kwargs):
+    def eval_on_fit_task_begin(self, **kwargs):
         """Evaluate the `on_fit_task_begin` hook of the callbacks.
 
         Parameters
         ----------
-        estimator : estimator instance
-            The estimator calling this callback hook.
-
         **kwargs : dict
             Additional optional arguments passed to the callback. The list of possible
             keys and corresponding values are described in detail at <TODO: add link>.
@@ -308,18 +310,15 @@ class CallbackContext:
             # propagated. For propagated callbacks, the hook will be called by the
             # sub-estimator's root context (both represent the same task).
             if callback not in getattr(self, "_propagated_callbacks", []):
-                callback.on_fit_task_begin(estimator, self, **kwargs)
+                callback.on_fit_task_begin(self, **kwargs)
 
         return self
 
-    def eval_on_fit_task_end(self, estimator, **kwargs):
+    def eval_on_fit_task_end(self, **kwargs):
         """Evaluate the `on_fit_task_end` hook of the callbacks.
 
         Parameters
         ----------
-        estimator : estimator instance
-            The estimator calling this callback hook.
-
         **kwargs : dict
             Additional optional arguments passed to the callback. The list of possible
             keys and corresponding values are described in detail at <TODO: add link>.
@@ -331,7 +330,7 @@ class CallbackContext:
             task.
         """
         return any(
-            callback.on_fit_task_end(estimator, self, **kwargs)
+            callback.on_fit_task_end(self, **kwargs)
             for callback in self._callbacks
             # Only call the `on_fit_task_end` hook of callbacks that are not
             # propagated. For propagated callbacks, the hook will be called by the
@@ -378,8 +377,8 @@ class CallbackContext:
             for callback in self._callbacks
             if isinstance(callback, AutoPropagatedCallback)
             and (
-                callback.max_estimator_depth is None
-                or self._estimator_depth < callback.max_estimator_depth - 1
+                callback.max_propagation_depth is None
+                or self._propagation_depth < callback.max_propagation_depth - 1
             )
         ]
         if not callbacks_to_propagate:

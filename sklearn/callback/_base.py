@@ -5,10 +5,10 @@ from typing import Protocol, runtime_checkable
 
 
 @runtime_checkable
-class Callback(Protocol):
-    """Protocol for the callbacks."""
+class _BaseCallback(Protocol):
+    """Protocol for the base callbacks."""
 
-    def fit_setup(self, estimator):
+    def setup(self, estimator):
         """Method called before running the fit method of the estimator.
 
         For auto-propagated callbacks, this method is called only once, before running
@@ -20,14 +20,28 @@ class Callback(Protocol):
             The estimator calling this callback hook.
         """
 
-    def on_fit_task_begin(self, estimator, context, **kwargs):
-        """Method called at the beginning of each task of the estimator.
+    def teardown(self, estimator):
+        """Method called after finishing the fit method of the estimator.
+
+        For auto-propagated callbacks, this method is called only once, after finishing
+        the fit method of the outermost estimator.
 
         Parameters
         ----------
         estimator : estimator instance
             The estimator calling this callback hook.
+        """
 
+
+@runtime_checkable
+class FitCallback(_BaseCallback, Protocol):
+    """Protocol for the fit callbacks."""
+
+    def on_fit_task_begin(self, context, **kwargs):
+        """Method called at the beginning of each task of the estimator.
+
+        Parameters
+        ----------
         context : `sklearn.callback.CallbackContext` instance
             Context of the corresponding task.
 
@@ -37,14 +51,11 @@ class Callback(Protocol):
             values are described in detail at <TODO: add link>.
         """
 
-    def on_fit_task_end(self, estimator, context, **kwargs):
+    def on_fit_task_end(self, context, **kwargs):
         """Method called at the end of each task of the estimator.
 
         Parameters
         ----------
-        estimator : estimator instance
-            The estimator calling this callback hook.
-
         context : `sklearn.callback.CallbackContext` instance
             Context of the corresponding task.
 
@@ -59,21 +70,9 @@ class Callback(Protocol):
             Whether or not to stop the current level of iterations at this task.
         """
 
-    def fit_teardown(self, estimator):
-        """Method called after finishing the fit method of the estimator.
-
-        For auto-propagated callbacks, this method is called only once, after finishing
-        the fit method of the outermost estimator.
-
-        Parameters
-        ----------
-        estimator : estimator instance
-            The estimator calling this callback hook.
-        """
-
 
 @runtime_checkable
-class AutoPropagatedCallback(Callback, Protocol):
+class AutoPropagatedCallback(_BaseCallback, Protocol):
     """Protocol for the auto-propagated callbacks
 
     An auto-propagated callback is a callback that is meant to be set on a top-level
@@ -81,7 +80,7 @@ class AutoPropagatedCallback(Callback, Protocol):
     """
 
     @property
-    def max_estimator_depth(self):
+    def max_propagation_depth(self):
         """The maximum number of nested estimators at which the callback should be
         propagated.
 

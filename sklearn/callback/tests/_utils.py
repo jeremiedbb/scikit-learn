@@ -14,27 +14,31 @@ class TestingCallback:
 
     This callback keeps a record of the hooks called for introspection.
 
-    This callback doesn't define `max_estimator_depth` and is therefore not an
+    This callback doesn't define `max_propagation_depth` and is therefore not an
     `AutoPropagatedCallback`: it should not be propagated to sub-estimators.
     """
 
     def __init__(self):
         self.record = get_callback_manager().list()
 
-    def fit_setup(self, estimator):
-        self.record.append(("fit_setup", estimator, None, None))
+    def setup(self, estimator):
+        self.record.append({"name": "setup", "estimator": estimator})
 
-    def on_fit_task_begin(self, estimator, context, **kwargs):
-        self.record.append(("on_fit_task_begin", estimator, context, kwargs))
+    def on_fit_task_begin(self, context, **kwargs):
+        self.record.append(
+            {"name": "on_fit_task_begin", "context": context, "kwargs": kwargs}
+        )
 
-    def on_fit_task_end(self, estimator, context, **kwargs):
-        self.record.append(("on_fit_task_end", estimator, context, kwargs))
+    def on_fit_task_end(self, context, **kwargs):
+        self.record.append(
+            {"name": "on_fit_task_end", "context": context, "kwargs": kwargs}
+        )
 
-    def fit_teardown(self, estimator):
-        self.record.append(("fit_teardown", estimator, None, None))
+    def teardown(self, estimator):
+        self.record.append({"name": "teardown", "estimator": estimator})
 
     def count_hooks(self, hook_name):
-        return len([rec for rec in self.record if rec[0] == hook_name])
+        return len([rec for rec in self.record if rec["name"] == hook_name])
 
 
 class TestingAutoPropagatedCallback(TestingCallback):
@@ -42,21 +46,21 @@ class TestingAutoPropagatedCallback(TestingCallback):
 
     This callback keeps a record of the hooks called for introspection.
 
-    This callback defines `max_estimator_depth` and is therefore an
+    This callback defines `max_propagation_depth` and is therefore an
     `AutoPropagatedCallback`: it should be set on a top-level estimator and propagated
     to sub-estimators.
     """
 
-    max_estimator_depth = None
+    max_propagation_depth = None
 
 
 class NotValidCallback:
     """Invalid callback since it's missing methods from the protocol."""
 
-    def fit_setup(self, estimator):
+    def setup(self, estimator):
         pass  # pragma: no cover
 
-    def on_fit_task_end(self, estimator, context, **kwargs):
+    def on_fit_task_end(self, context, **kwargs):
         pass  # pragma: no cover
 
 
@@ -67,25 +71,25 @@ class FailingCallback(TestingCallback):
         super().__init__()
         self.fail_at = fail_at
 
-    def fit_setup(self, estimator):
-        super().fit_setup(estimator)
-        if self.fail_at == "fit_setup":
-            raise ValueError("Failing callback failed at fit_setup")
+    def setup(self, estimator):
+        super().setup(estimator)
+        if self.fail_at == "setup":
+            raise ValueError("Failing callback failed at setup")
 
-    def on_fit_task_begin(self, estimator, context, **kwargs):
-        super().on_fit_task_begin(estimator, context, **kwargs)
+    def on_fit_task_begin(self, context, **kwargs):
+        super().on_fit_task_begin(context, **kwargs)
         if self.fail_at == "on_fit_task_begin":
             raise ValueError("Failing callback failed at on_fit_task_begin")
 
-    def on_fit_task_end(self, estimator, context, **kwargs):
-        super().on_fit_task_end(estimator, context, **kwargs)
+    def on_fit_task_end(self, context, **kwargs):
+        super().on_fit_task_end(context, **kwargs)
         if self.fail_at == "on_fit_task_end":
             raise ValueError("Failing callback failed at on_fit_task_end")
 
-    def fit_teardown(self, estimator):
-        super().fit_teardown(estimator)
-        if self.fail_at == "fit_teardown":
-            raise ValueError("Failing callback failed at fit_teardown")
+    def teardown(self, estimator):
+        super().teardown(estimator)
+        if self.fail_at == "teardown":
+            raise ValueError("Failing callback failed at teardown")
 
 
 class MaxIterEstimator(CallbackSupportMixin, BaseEstimator):
@@ -104,23 +108,19 @@ class MaxIterEstimator(CallbackSupportMixin, BaseEstimator):
     def fit(self, X=None, y=None):
         callback_ctx = self._init_callback_context(
             max_subtasks=self.max_iter
-        ).eval_on_fit_task_begin(estimator=self)
+        ).eval_on_fit_task_begin()
 
         for i in range(self.max_iter):
-            subcontext = callback_ctx.subcontext(task_id=i).eval_on_fit_task_begin(
-                estimator=self
-            )
+            subcontext = callback_ctx.subcontext(task_id=i).eval_on_fit_task_begin()
 
             time.sleep(self.computation_intensity)  # Computation intensive task
 
             if subcontext.eval_on_fit_task_end(
-                estimator=self,
                 data={"X_train": X, "y_train": y},
             ):
                 break
 
         callback_ctx.eval_on_fit_task_end(
-            estimator=self,
             data={"X_train": X, "y_train": y},
         )
 
@@ -145,18 +145,15 @@ class WhileEstimator(CallbackSupportMixin, BaseEstimator):
     def fit(self, X=None, y=None):
         callback_ctx = self._init_callback_context(
             max_subtasks=None
-        ).eval_on_fit_task_begin(estimator=self)
+        ).eval_on_fit_task_begin()
 
         i = 0
         while True:
-            subcontext = callback_ctx.subcontext(task_id=i).eval_on_fit_task_begin(
-                estimator=self
-            )
+            subcontext = callback_ctx.subcontext(task_id=i).eval_on_fit_task_begin()
 
             time.sleep(self.computation_intensity)  # Computation intensive task
 
             if subcontext.eval_on_fit_task_end(
-                estimator=self,
                 data={"X_train": X, "y_train": y},
             ):
                 break
@@ -167,7 +164,6 @@ class WhileEstimator(CallbackSupportMixin, BaseEstimator):
             i += 1
 
         callback_ctx.eval_on_fit_task_end(
-            estimator=self,
             data={"X_train": X, "y_train": y},
         )
 
@@ -187,23 +183,19 @@ class ThirdPartyEstimator(CallbackSupportMixin, BaseEstimator):
     def fit(self, X=None, y=None):
         callback_ctx = self._init_callback_context(
             max_subtasks=self.max_iter
-        ).eval_on_fit_task_begin(estimator=self)
+        ).eval_on_fit_task_begin()
 
         for i in range(self.max_iter):
-            subcontext = callback_ctx.subcontext(task_id=i).eval_on_fit_task_begin(
-                estimator=self
-            )
+            subcontext = callback_ctx.subcontext(task_id=i).eval_on_fit_task_begin()
 
             time.sleep(self.computation_intensity)  # Computation intensive task
 
             if subcontext.eval_on_fit_task_end(
-                estimator=self,
                 data={"X_train": X, "y_train": y},
             ):
                 break
 
         callback_ctx.eval_on_fit_task_end(
-            estimator=self,
             data={"X_train": X, "y_train": y},
         )
 
@@ -262,7 +254,7 @@ class MetaEstimator(CallbackSupportMixin, BaseEstimator):
     def fit(self, X=None, y=None):
         callback_ctx = self._init_callback_context(
             max_subtasks=self.n_outer
-        ).eval_on_fit_task_begin(estimator=self)
+        ).eval_on_fit_task_begin()
 
         Parallel(n_jobs=self.n_jobs, prefer=self.prefer)(
             delayed(_func)(
@@ -286,7 +278,7 @@ class MetaEstimator(CallbackSupportMixin, BaseEstimator):
 
 
 def _func(meta_estimator, inner_estimator, X, y, *, outer_callback_ctx):
-    outer_callback_ctx.eval_on_fit_task_begin(estimator=meta_estimator)
+    outer_callback_ctx.eval_on_fit_task_begin()
 
     for i in range(meta_estimator.n_inner):
         est = clone(inner_estimator)
@@ -294,18 +286,16 @@ def _func(meta_estimator, inner_estimator, X, y, *, outer_callback_ctx):
         inner_ctx = (
             outer_callback_ctx.subcontext(task_name="inner", task_id=i)
             .propagate_callback_context(sub_estimator=est)
-            .eval_on_fit_task_begin(estimator=meta_estimator)
+            .eval_on_fit_task_begin()
         )
 
         est.fit(X, y)
 
         inner_ctx.eval_on_fit_task_end(
-            estimator=meta_estimator,
             data={"X_train": X, "y_train": y},
         )
 
     outer_callback_ctx.eval_on_fit_task_end(
-        estimator=meta_estimator,
         data={"X_train": X, "y_train": y},
     )
 
@@ -315,12 +305,10 @@ class NoSubtaskEstimator(CallbackSupportMixin, BaseEstimator):
 
     @with_fit_callbacks
     def fit(self, X=None, y=None):
-        callback_ctx = self._init_callback_context().eval_on_fit_task_begin(
-            estimator=self
-        )
+        callback_ctx = self._init_callback_context().eval_on_fit_task_begin()
 
         # No task performed
 
-        callback_ctx.eval_on_fit_task_end(estimator=self)
+        callback_ctx.eval_on_fit_task_end()
 
         return self

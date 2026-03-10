@@ -243,11 +243,11 @@ def test_callback_hooks_called(Callback):
     max_iter = 10
     callback = Callback()
     MaxIterEstimator(max_iter=max_iter).set_callbacks(callback).fit()
-    assert callback.count_hooks("fit_setup") == 1
+    assert callback.count_hooks("setup") == 1
     # 1 root + max_iter leaves
     assert callback.count_hooks("on_fit_task_begin") == 1 + max_iter
     assert callback.count_hooks("on_fit_task_end") == 1 + max_iter
-    assert callback.count_hooks("fit_teardown") == 1
+    assert callback.count_hooks("teardown") == 1
 
 
 @pytest.mark.skipif(
@@ -259,7 +259,7 @@ def test_callback_hooks_called(Callback):
 def test_meta_estimator_autopropagated_callback_hooks_called(n_jobs):
     """Check the number of callback hook calls in a meta-estimator.
 
-    For an auto-propagated callback, fit_setup and fit_teardown are called only once,
+    For an auto-propagated callback, setup and teardown are called only once,
     by the meta-estimator. To count the number of task ends, we need to aggregate the
     number of tasks from all the levels of the global task tree (which contains the
     task tree of the meta-estimator and the task trees of each sub-estimator).
@@ -274,11 +274,11 @@ def test_meta_estimator_autopropagated_callback_hooks_called(n_jobs):
         n_jobs=n_jobs,
     ).set_callbacks(callback).fit()
 
-    assert callback.count_hooks("fit_setup") == 1
+    assert callback.count_hooks("setup") == 1
     expected_n_tasks = np.sum(np.cumprod([1, n_outer, n_inner, max_iter]))
     assert callback.count_hooks("on_fit_task_begin") == expected_n_tasks
     assert callback.count_hooks("on_fit_task_end") == expected_n_tasks
-    assert callback.count_hooks("fit_teardown") == 1
+    assert callback.count_hooks("teardown") == 1
 
 
 @pytest.mark.skipif(
@@ -290,7 +290,7 @@ def test_meta_estimator_autopropagated_callback_hooks_called(n_jobs):
 def test_meta_estimator_callback_hooks_called(n_jobs):
     """Check the number of callback hook calls in a meta-estimator.
 
-    For a non auto-propagated callback, fit_setup and fit_teardown are called once for
+    For a non auto-propagated callback, setup and teardown are called once for
     each fit of the sub-estimator. The number of task ends is the sum of the number of
     task ends from all the sub-estimators.
     """
@@ -300,10 +300,10 @@ def test_meta_estimator_callback_hooks_called(n_jobs):
     MetaEstimator(est, n_outer=n_outer, n_inner=n_inner, n_jobs=n_jobs).fit()
 
     n_fits = n_outer * n_inner
-    assert callback.count_hooks("fit_setup") == n_fits
+    assert callback.count_hooks("setup") == n_fits
     assert callback.count_hooks("on_fit_task_begin") == n_fits * (1 + max_iter)
     assert callback.count_hooks("on_fit_task_end") == n_fits * (1 + max_iter)
-    assert callback.count_hooks("fit_teardown") == n_fits
+    assert callback.count_hooks("teardown") == n_fits
 
 
 def test_unsupported_callback_hooks_called():
@@ -324,8 +324,8 @@ def test_unsupported_callback_hooks_called():
     ):
         meta_estimator.fit()
 
-    assert callback.count_hooks("fit_setup") == 1
+    assert callback.count_hooks("setup") == 1
     expected_n_tasks = np.sum(np.cumprod([1, n_outer, n_inner]))
     assert callback.count_hooks("on_fit_task_begin") == expected_n_tasks
     assert callback.count_hooks("on_fit_task_end") == expected_n_tasks
-    assert callback.count_hooks("fit_teardown") == 1
+    assert callback.count_hooks("teardown") == 1

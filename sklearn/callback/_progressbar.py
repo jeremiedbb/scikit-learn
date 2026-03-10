@@ -15,7 +15,7 @@ class ProgressBar:
 
     Parameters
     ----------
-    max_estimator_depth : int, default=2
+    max_propagation_depth : int, default=2
         The maximum number of nested levels of estimators to display progress bars for.
         If set to None, all levels are displayed.
 
@@ -25,7 +25,7 @@ class ProgressBar:
     unexpected crashes related to multiprocessing bugs on certain platforms.
     """
 
-    def __init__(self, max_estimator_depth=2):
+    def __init__(self, max_propagation_depth=2):
         if sys.version_info < (3, 12, 8):
             warnings.warn(
                 "The use of the ProgressBar callback on python versions inferior "
@@ -35,20 +35,20 @@ class ProgressBar:
 
         check_rich_support("Progressbar")
 
-        self.max_estimator_depth = max_estimator_depth
+        self.max_propagation_depth = max_propagation_depth
 
-    def fit_setup(self, estimator):
+    def setup(self, estimator):
         self._queue = get_callback_manager().Queue()
         self.progress_monitor = RichProgressMonitor(queue=self._queue)
         self.progress_monitor.start()
 
-    def on_fit_task_begin(self, estimator, context, **kwargs):
+    def on_fit_task_begin(self, context, **kwargs):
         pass
 
-    def on_fit_task_end(self, estimator, context, **kwargs):
+    def on_fit_task_end(self, context, **kwargs):
         self._queue.put(context)
 
-    def fit_teardown(self, estimator):
+    def teardown(self, estimator):
         # Signal that the queue won't receive any more tasks.
         self._queue.put(None)
         self.progress_monitor.join()
