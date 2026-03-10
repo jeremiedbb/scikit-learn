@@ -235,7 +235,7 @@ def test_estimator_without_subtask():
 
 @pytest.mark.parametrize("Callback", [TestingAutoPropagatedCallback, TestingCallback])
 def test_callback_hooks_called(Callback):
-    """Check the number of callback hooks calls in a regular estimator.
+    """Check the number of callback hook calls in a regular estimator.
 
     For a regular estimator, it does not depend whether it's an autopropagated callback
     or not.
@@ -257,7 +257,7 @@ def test_callback_hooks_called(Callback):
 )
 @pytest.mark.parametrize("n_jobs", [1, 2])
 def test_meta_estimator_autopropagated_callback_hooks_called(n_jobs):
-    """Check the number of callback hooks calls in a meta-estimator.
+    """Check the number of callback hook calls in a meta-estimator.
 
     For an auto-propagated callback, fit_setup and fit_teardown are called only once,
     by the meta-estimator. To count the number of task ends, we need to aggregate the
@@ -288,7 +288,7 @@ def test_meta_estimator_autopropagated_callback_hooks_called(n_jobs):
 )
 @pytest.mark.parametrize("n_jobs", [1, 2])
 def test_meta_estimator_callback_hooks_called(n_jobs):
-    """Check the number of callback hooks calls in a meta-estimator.
+    """Check the number of callback hook calls in a meta-estimator.
 
     For a non auto-propagated callback, fit_setup and fit_teardown are called once for
     each fit of the sub-estimator. The number of task ends is the sum of the number of
@@ -306,8 +306,8 @@ def test_meta_estimator_callback_hooks_called(n_jobs):
     assert callback.count_hooks("fit_teardown") == n_fits
 
 
-def test_callback_unsupported_hooks_called():
-    """Check the number of hooks calls when the sub-estimator doesn't support callbacks.
+def test_unsupported_callback_hooks_called():
+    """Check the number of hook calls when the sub-estimator doesn't support callbacks.
 
     The number of task begins and ends is just the number of nodes in the context tree
     of the meta-estimator.
