@@ -12,7 +12,7 @@ import numpy as np
 import pytest
 
 import sklearn
-from sklearn.callback import Callback
+from sklearn.callback import _BaseCallback
 from sklearn.datasets import make_classification
 
 # make it possible to discover experimental estimators when calling `all_estimators`
@@ -119,7 +119,7 @@ def test_docstring_parameters():
                 # Callback protocol, so there is no need for callback implementations
                 # to duplicate this information. Since we use a protocol rather than
                 # class inheritance, docstrings for those methods are not inherited.
-                if isinstance(cls, Callback) and method_name in (
+                if isinstance(cls, _BaseCallback) and method_name in (
                     "fit_setup",
                     "fit_teardown",
                     "on_fit_task_begin",

@@ -4,7 +4,7 @@ from typing import Optional
 
 import pytest
 
-from sklearn.callback import Callback
+from sklearn.callback import _BaseCallback
 
 # make it possible to discover experimental estimators when calling `all_estimators`
 from sklearn.experimental import (
@@ -31,7 +31,7 @@ def get_all_methods():
             # Callback protocol, so there is no need for callback implementations
             # to duplicate this information. Since we use a protocol rather than
             # class inheritance, docstrings for those methods are not inherited.
-            if isinstance(Klass, Callback) and name in (
+            if isinstance(Klass, _BaseCallback) and name in (
                 "fit_setup",
                 "fit_teardown",
                 "on_fit_task_begin",
