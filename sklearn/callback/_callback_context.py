@@ -1,6 +1,7 @@
 # Authors: The scikit-learn developers
 # SPDX-License-Identifier: BSD-3-Clause
 
+import uuid
 import warnings
 from contextlib import contextmanager
 
@@ -156,6 +157,7 @@ class CallbackContext:
         new_ctx.task_id = task_id
         new_ctx.max_subtasks = max_subtasks
         new_ctx.parent = None
+        new_ctx.uuid = uuid.uuid4()
         new_ctx._children_map = {}
         new_ctx.source_estimator_name = None
         new_ctx.source_task_name = None
@@ -203,6 +205,7 @@ class CallbackContext:
         new_ctx.task_name = task_name
         new_ctx.task_id = task_id
         new_ctx.max_subtasks = max_subtasks
+        new_ctx.uuid = parent_context.uuid
         new_ctx.parent = None
         new_ctx._children_map = {}
         new_ctx.source_estimator_name = None
@@ -263,6 +266,7 @@ class CallbackContext:
         # meta-estimator's leaf context
         self.parent = other_context.parent
         self.task_id = other_context.task_id
+        self.uuid = other_context.uuid
         other_context.parent._children_map[self.task_id] = self
 
         # Keep information about the context it was merged with
@@ -310,7 +314,7 @@ class CallbackContext:
             if not (
                 isinstance(callback, AutoPropagatedCallback) and self.parent is not None
             ):
-                callback.on_fit_begin(estimator)
+                callback.on_fit_begin(estimator, self)
 
         return self
 

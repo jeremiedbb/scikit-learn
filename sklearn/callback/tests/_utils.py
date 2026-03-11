@@ -21,8 +21,8 @@ class TestingCallback:
     def __init__(self):
         self.record = get_callback_manager().list()
 
-    def on_fit_begin(self, estimator):
-        self.record.append(("on_fit_begin", estimator, None, None))
+    def on_fit_begin(self, estimator, context):
+        self.record.append(("on_fit_begin", estimator, context, None))
 
     def on_fit_task_end(self, estimator, context, **kwargs):
         self.record.append(("on_fit_task_end", estimator, context, kwargs))
@@ -64,8 +64,8 @@ class FailingCallback(TestingCallback):
         super().__init__()
         self.fail_at = fail_at
 
-    def on_fit_begin(self, estimator):
-        super().on_fit_begin(estimator)
+    def on_fit_begin(self, estimator, context):
+        super().on_fit_begin(estimator, context)
         if self.fail_at == "on_fit_begin":
             raise ValueError("Failing callback failed at on_fit_begin")
 
