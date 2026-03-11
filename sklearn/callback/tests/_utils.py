@@ -3,7 +3,7 @@
 
 import time
 
-from sklearn.base import BaseEstimator, _fit_context, clone
+from sklearn.base import BaseEstimator, _fit_context
 from sklearn.callback import CallbackSupportMixin, with_fit_callbacks
 from sklearn.callback._callback_support import get_callback_manager
 from sklearn.utils.parallel import Parallel, delayed
@@ -281,13 +281,11 @@ def _func(meta_estimator, inner_estimator, X, y, *, outer_callback_ctx):
     outer_callback_ctx.eval_on_fit_task_begin()
 
     for i in range(meta_estimator.n_inner):
-        est = clone(inner_estimator)
-
-        inner_ctx = (
-            outer_callback_ctx.subcontext(task_name="inner", task_id=i)
-            .propagate_callback_context(sub_estimator=est)
-            .eval_on_fit_task_begin()
+        inner_ctx = outer_callback_ctx.subcontext(task_name="inner", task_id=i)
+        est = inner_ctx.clone_and_propagate_callback_context(
+            sub_estimator=inner_estimator
         )
+        inner_ctx.eval_on_fit_task_begin()
 
         est.fit(X, y)
 
