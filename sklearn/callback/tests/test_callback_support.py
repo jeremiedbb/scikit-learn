@@ -2,8 +2,8 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import pytest
-from joblib import Parallel, delayed
 
+from sklearn.utils.parallel import Parallel, delayed
 from sklearn.base import clone
 from sklearn.callback.tests._utils import (
     FailingCallback,
