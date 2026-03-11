@@ -182,6 +182,8 @@ class MetricMonitor:
                 sorted(run_ids)
                 for run_id in run_ids[:-1]:
                     logs_dict.pop(run_id)
+        else:
+            logs_dict = dict(sorted(logs_dict.items()))  # sort by run_id
 
         if as_frame:
             try:
