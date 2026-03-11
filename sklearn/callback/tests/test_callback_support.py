@@ -40,7 +40,9 @@ def test_set_callbacks_error(callbacks):
     """Check the error message when not passing a valid callback to `set_callbacks`."""
     estimator = MaxIterEstimator()
 
-    with pytest.raises(TypeError, match="callbacks must follow the Callback protocol."):
+    with pytest.raises(
+        TypeError, match="callbacks must follow the FitCallback protocol."
+    ):
         estimator.set_callbacks(callbacks)
 
 

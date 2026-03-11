@@ -337,6 +337,7 @@ def test_meta_estimator_callback_hooks_called(n_jobs):
 
     n_fits = n_outer * n_inner
     assert callback.count_hooks("setup") == n_fits
+    # 1 root + max_iter leaves
     assert callback.count_hooks("on_fit_task_begin") == n_fits * (1 + max_iter)
     assert callback.count_hooks("on_fit_task_end") == n_fits * (1 + max_iter)
     assert callback.count_hooks("teardown") == n_fits

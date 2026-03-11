@@ -5,7 +5,7 @@ from contextlib import contextmanager
 from multiprocessing import Manager
 from threading import Lock
 
-from sklearn.callback._base import AutoPropagatedCallback, _BaseCallback
+from sklearn.callback._base import AutoPropagatedCallback, FitCallback
 from sklearn.callback._callback_context import CallbackContext
 
 
@@ -46,8 +46,8 @@ class CallbackSupportMixin:
         if not isinstance(callbacks, list):
             callbacks = [callbacks]
 
-        if not all(isinstance(callback, _BaseCallback) for callback in callbacks):
-            raise TypeError("callbacks must follow the Callback protocol.")
+        if not all(isinstance(callback, FitCallback) for callback in callbacks):
+            raise TypeError("callbacks must follow the FitCallback protocol.")
 
         self._skl_callbacks = callbacks
 
