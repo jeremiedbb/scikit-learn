@@ -3,7 +3,6 @@
 
 import pytest
 
-from sklearn.utils.parallel import Parallel, delayed
 from sklearn.base import clone
 from sklearn.callback.tests._utils import (
     FailingCallback,
@@ -12,6 +11,7 @@ from sklearn.callback.tests._utils import (
     TestingAutoPropagatedCallback,
     TestingCallback,
 )
+from sklearn.utils.parallel import Parallel, delayed
 
 
 @pytest.mark.parametrize(
