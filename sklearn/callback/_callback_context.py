@@ -495,7 +495,7 @@ def _from_reconstruction_attributes(estimator, reconstruction_attributes):
         The estimator from which to make a ready-to-be-evaluated copy.
 
     reconstruction_attributes : dict
-        A dictionary containing the necessary fitted attributes to create a working
+        A dictionary containing the necessary attributes to create a working
         fitted estimator from this instance.
 
     Returns

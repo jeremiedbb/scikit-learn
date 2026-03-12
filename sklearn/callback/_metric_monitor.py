@@ -39,7 +39,7 @@ class MetricMonitor:
           names and the values are the metric scores;
         - a dictionary with metric names as keys and callables as values.
 
-    on : str, default="train_set"
+    on : {"train_set", "validation_set", "both"}, default="train_set"
         Which data to compue the metric on. Possible values are "train_set",
         "validation_set" and "both". "train_set" corresponds to using the X and y
         arguments of the fit function, "validation_set" corresponds to using the X_val
@@ -48,7 +48,7 @@ class MetricMonitor:
 
     requires_fit_info = ["reconstruction_attributes"]
 
-    def __init__(self, scoring, on="train_set"):
+    def __init__(self, *, on="train_set", scoring):
         possible_on_values = ("train_set", "validation_set", "both")
         if on not in possible_on_values:
             raise InvalidParameterError(
@@ -70,7 +70,7 @@ class MetricMonitor:
         if fitted_estimator is None:
             return
         context_path = get_context_path(context)
-        if self.on == "train_set" or self.on == "both":
+        if self.on in ("train_set", "both"):
             X, y = None, None
             if "X_train" in data and "y_train" in data:
                 X, y = data["X_train"], data["y_train"]
@@ -129,7 +129,7 @@ class MetricMonitor:
 
         Parameters
         ----------
-        select : "all" or "most_recent", default="all"
+        select : {"all", "most_recent"}, default="all"
             Which log run to return.
 
             If set to "all", all runs are returned in a dictionary, and the dictionary
