@@ -1,10 +1,10 @@
 # Authors: The scikit-learn developers
 # SPDX-License-Identifier: BSD-3-Clause
 
+import uuid
 import warnings
 
 from sklearn.callback._base import AutoPropagatedCallback
-from sklearn.exceptions import CloneWithCallbacksWarning
 
 # TODO(callbacks): move these explanations into a dedicated user guide.
 #
@@ -97,7 +97,7 @@ class CallbackContext:
     the `subcontext` method of this class to create sub-contexts.
 
     These contexts are passed to the callback hooks to be able to keep track of the
-    position of a task in the task tree within the callbacks.
+    position of a task in the task tree from within the callbacks.
 
     Attributes
     ----------
@@ -117,6 +117,13 @@ class CallbackContext:
     estimator_name : str
         The name of the estimator that holds this context.
 
+    parent : CallbackContext or None
+        The parent context of this context. None if this context is the root.
+
+    root_uuid : uuid.UUID instance
+        The UUID of the root context. All contexts in the same task tree have the same
+        root UUID that is used to identify the task tree itself.
+
     source_estimator_name : str or None
         The name of the estimator that holds the parent task this task was
         merged with. None if it was not merged with another context.
@@ -124,9 +131,6 @@ class CallbackContext:
     source_task_name : str or None
         The task name of the parent task this task was merged with. None if it
         was not merged with another context.
-
-    parent : CallbackContext or None
-        The parent context of this context. None if this context is the root.
     """
 
     @classmethod
@@ -160,6 +164,7 @@ class CallbackContext:
         new_ctx.task_id = task_id
         new_ctx.max_subtasks = max_subtasks
         new_ctx.parent = None
+        new_ctx.root_uuid = uuid.uuid4()
         new_ctx._children_map = {}
         new_ctx.source_estimator_name = None
         new_ctx.source_task_name = None
@@ -207,6 +212,7 @@ class CallbackContext:
         new_ctx.task_name = task_name
         new_ctx.task_id = task_id
         new_ctx.max_subtasks = max_subtasks
+        new_ctx.root_uuid = parent_context.root_uuid
         new_ctx.parent = None
         new_ctx._children_map = {}
         new_ctx.source_estimator_name = None
@@ -266,6 +272,7 @@ class CallbackContext:
         # meta-estimator's leaf context
         self.parent = other_context.parent
         self.task_id = other_context.task_id
+        self.root_uuid = other_context.root_uuid
         other_context.parent._children_map[self.task_id] = self
 
         # Keep information about the context it was merged with
@@ -339,39 +346,6 @@ class CallbackContext:
             if callback not in getattr(self, "_propagated_callbacks", [])
         )
 
-    def clone_and_propagate_callback_context(self, sub_estimator):
-        """Clone a sub-estimator and propagate the context and callbacks to the clone.
-
-        Auto-propagated callbacks from the context are added to the cloned
-        sub-estimator. An error is raised if the sub-estimator already holds
-        auto-propagated callbacks.
-
-        The clone receives this context as an attribute named `_parent_callback_ctx` so
-        that the meta-estimator's task tree can be merged with the clone's one.
-
-        Parameters
-        ----------
-        sub_estimator : estimator instance
-            The estimator to clone; callbacks and context are propagated to this clone.
-
-        Returns
-        -------
-        cloned_estimator : estimator instance
-            A clone of the sub-estimator, to which the callbacks and context were
-            propagated.
-        """
-        from sklearn.base import clone
-
-        with warnings.catch_warnings():
-            warnings.filterwarnings("ignore", category=CloneWithCallbacksWarning)
-            cloned_estimator = clone(sub_estimator)
-        if hasattr(sub_estimator, "_skl_callbacks"):
-            cloned_estimator.set_callbacks(sub_estimator._skl_callbacks)
-
-        self.propagate_callback_context(cloned_estimator)
-
-        return cloned_estimator
-
     def propagate_callback_context(self, sub_estimator):
         """Propagate the context and callbacks to a sub-estimator.
 
@@ -386,11 +360,6 @@ class CallbackContext:
         ----------
         sub_estimator : estimator instance
             The estimator to propagate the callbacks and context to.
-
-        Returns
-        -------
-        sub_estimator : estimator instance
-            The sub-estimator to which the callbacks and context were propagated.
         """
         bad_callbacks = [
             callback.__class__.__name__

@@ -76,12 +76,24 @@ class CallbackSupportMixin:
         callback_fit_ctx : CallbackContext
             The root callback context for the estimator.
         """
-        return CallbackContext._from_estimator(
+        self._callback_fit_ctx = CallbackContext._from_estimator(
             estimator=self,
             task_name=task_name,
             task_id=task_id,
             max_subtasks=max_subtasks,
         )
+
+        # setup callbacks
+        for callback in getattr(self, "_skl_callbacks", []):
+            # Only call the setup hook of callbacks that are not propagated from a
+            # meta-estimator.
+            if not (
+                isinstance(callback, AutoPropagatedCallback)
+                and hasattr(self, "_parent_callback_ctx")
+            ):
+                callback.setup(self._callback_fit_ctx)
+
+        return self._callback_fit_ctx
 
 
 @contextmanager
@@ -102,29 +114,23 @@ def callback_management_context(estimator):
     None.
     """
     try:
-        for callback in getattr(estimator, "_skl_callbacks", []):
-            # Only call the setup hook of callbacks that are not propagated from a
-            # meta-estimator.
-            if not (
-                isinstance(callback, AutoPropagatedCallback)
-                and hasattr(estimator, "_parent_callback_ctx")
-            ):
-                callback.setup(estimator)
         yield
     finally:
-        for callback in getattr(estimator, "_skl_callbacks", []):
-            # Only call the teardown hook of callbacks that are not propagated from a
-            # meta-estimator.
-            if not (
-                isinstance(callback, AutoPropagatedCallback)
-                and hasattr(estimator, "_parent_callback_ctx")
-            ):
-                callback.teardown(estimator)
+        if hasattr(estimator, "_callback_fit_ctx"):
+            for callback in getattr(estimator, "_skl_callbacks", []):
+                # Only call the teardown hook of callbacks that are not propagated from
+                # a meta-estimator.
+                if not (
+                    isinstance(callback, AutoPropagatedCallback)
+                    and hasattr(estimator, "_parent_callback_ctx")
+                ):
+                    callback.teardown(estimator._callback_fit_ctx)
 
-        # Remove the parent context if it exists to avoid keeping circular references
-        # when the parent context is not needed anymore.
-        if hasattr(estimator, "_parent_callback_ctx"):
-            del estimator._parent_callback_ctx
+            # Remove the context and parent context to avoid keeping circular references
+            # when they're notneeded anymore.
+            del estimator._callback_fit_ctx
+            if hasattr(estimator, "_parent_callback_ctx"):
+                del estimator._parent_callback_ctx
 
 
 def with_fit_callbacks(fit_method):

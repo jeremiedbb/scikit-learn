@@ -11,7 +11,7 @@ from sklearn.callback.tests._utils import (
     TestingAutoPropagatedCallback,
     TestingCallback,
 )
-from sklearn.exceptions import CloneWithCallbacksWarning
+from sklearn.utils.parallel import Parallel, delayed
 
 
 @pytest.mark.parametrize(
@@ -46,15 +46,6 @@ def test_set_callbacks_error(callbacks):
         estimator.set_callbacks(callbacks)
 
 
-def test_clone_warning():
-    """Test the warning when cloning an estimator with callback registered to it."""
-    estimator = MaxIterEstimator()
-    estimator.set_callbacks(TestingCallback())
-    with pytest.warns(CloneWithCallbacksWarning):
-        cloned_estimator = clone(estimator)
-    assert not hasattr(cloned_estimator, "_skl_callbacks")
-
-
 @pytest.mark.parametrize(
     "fail_at", ["setup", "on_fit_task_begin", "on_fit_task_end", "teardown"]
 )
@@ -67,3 +58,30 @@ def test_callback_error(fail_at):
 
     assert callback.count_hooks("setup") == 1
     assert callback.count_hooks("teardown") == 1
+
+
+@pytest.mark.parametrize("n_jobs", [1, 2])
+@pytest.mark.parametrize("prefer", ["threads", "processes"])
+@pytest.mark.parametrize("Callback", [TestingCallback, TestingAutoPropagatedCallback])
+def test_function_no_callback_support(n_jobs, prefer, Callback):
+    """Check callbacks on estimators within function not supporting callbacks."""
+
+    def clone_and_fit(estimator):
+        clone(estimator).fit()
+
+    def func(estimator, n_fits, n_jobs, prefer):
+        Parallel(n_jobs=n_jobs, prefer=prefer)(
+            delayed(clone_and_fit)(estimator) for _ in range(n_fits)
+        )
+
+    n_fits, max_iter = 5, 7
+    callback = Callback()
+    estimator = MaxIterEstimator(max_iter=max_iter).set_callbacks(callback)
+
+    func(estimator, n_fits, n_jobs, prefer)
+
+    assert callback.count_hooks("setup") == n_fits
+    # 1 root + max_iter leaves per fit
+    assert callback.count_hooks("on_fit_task_begin") == n_fits * (1 + max_iter)
+    assert callback.count_hooks("on_fit_task_end") == n_fits * (1 + max_iter)
+    assert callback.count_hooks("teardown") == n_fits

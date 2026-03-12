@@ -14,6 +14,7 @@ from sklearn.callback.tests._utils import (
     WhileEstimator,
 )
 from sklearn.utils._optional_dependencies import check_rich_support
+from sklearn.utils.parallel import Parallel, delayed
 
 
 @pytest.mark.skipif(
@@ -73,7 +74,7 @@ def test_progressbar_requires_rich_error():
 def test_clone_after_fit():
     """Smoke test for cloning after fit with a progressbar attached.
 
-    Initialized `ProgressBar` instances use a multiprocessing.Manager instance
+    Initialized `ProgressBar` instances use a multiprocessing.Manager.Queue instance
     that cannot be deepcopied. This test is there to ensure that future changes
     in clone will not make it attempt to naively call copy.deepcopy on the
     _skl_callbacks attribute of the estimator.
@@ -81,3 +82,20 @@ def test_clone_after_fit():
     pytest.importorskip("rich")
     est = MaxIterEstimator().set_callbacks(ProgressBar()).fit()
     clone(est)
+
+
+def test_progressbar_no_callback_support():
+    """Sanity check for ProgressBar within function not supporting callbacks.
+
+    It's hard to check the output from sbu-processes so this test only checks that it
+    doesn't crash.
+    """
+    pytest.importorskip("rich")
+
+    def clone_and_fit(estimator):
+        clone(estimator).fit()
+
+    def func(estimator):
+        Parallel(n_jobs=2)(delayed(clone_and_fit)(estimator) for _ in range(4))
+
+    func(MaxIterEstimator().set_callbacks(ProgressBar()))

@@ -36,27 +36,39 @@ class ProgressBar:
         check_rich_support("Progressbar")
 
         self.max_propagation_depth = max_propagation_depth
+        self._manager = get_callback_manager()
+        # Queue proxies need to be shared across callback copies in subprocesses,
+        # while monitor threads must stay process-local (they are not picklable).
+        self._run_queues = self._manager.dict()
+        self._run_monitors = {}
 
-    def setup(self, estimator):
-        self._queue = get_callback_manager().Queue()
-        self.progress_monitor = RichProgressMonitor(queue=self._queue)
-        self.progress_monitor.start()
+    def setup(self, context):
+        if not hasattr(self, "_manager"):
+            self._manager = get_callback_manager()
+            self._run_queues = self._manager.dict()
+            self._run_monitors = {}
+
+        queue = self._manager.Queue()
+        progress_monitor = RichProgressMonitor(queue=queue)
+        progress_monitor.start()
+        self._run_queues[context.root_uuid] = queue
+        self._run_monitors[context.root_uuid] = progress_monitor
 
     def on_fit_task_begin(self, context, **kwargs):
         pass
 
     def on_fit_task_end(self, context, **kwargs):
-        self._queue.put(context)
+        self._run_queues[context.root_uuid].put(context)
 
-    def teardown(self, estimator):
+    def teardown(self, context):
         # Signal that the queue won't receive any more tasks.
-        self._queue.put(None)
-        self.progress_monitor.join()
+        self._run_queues[context.root_uuid].put(None)
+        self._run_monitors[context.root_uuid].join()
 
     def __getstate__(self):
         state = self.__dict__.copy()
-        if "progress_monitor" in state:
-            del state["progress_monitor"]  # a thread is not picklable
+        state.pop("_manager", None)
+        state.pop("_run_monitors", None)
         return state
 
 

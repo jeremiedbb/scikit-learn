@@ -3,8 +3,11 @@
 
 import time
 
-from sklearn.base import BaseEstimator, _fit_context
-from sklearn.callback import CallbackSupportMixin, with_fit_callbacks
+from sklearn.base import BaseEstimator, _fit_context, clone
+from sklearn.callback import (
+    CallbackSupportMixin,
+    with_fit_callbacks,
+)
 from sklearn.callback._callback_support import get_callback_manager
 from sklearn.utils.parallel import Parallel, delayed
 
@@ -21,8 +24,8 @@ class TestingCallback:
     def __init__(self):
         self.record = get_callback_manager().list()
 
-    def setup(self, estimator):
-        self.record.append({"name": "setup", "estimator": estimator})
+    def setup(self, context):
+        self.record.append({"name": "setup", "context": context})
 
     def on_fit_task_begin(self, context, **kwargs):
         self.record.append(
@@ -34,8 +37,8 @@ class TestingCallback:
             {"name": "on_fit_task_end", "context": context, "kwargs": kwargs}
         )
 
-    def teardown(self, estimator):
-        self.record.append({"name": "teardown", "estimator": estimator})
+    def teardown(self, context):
+        self.record.append({"name": "teardown", "context": context})
 
     def count_hooks(self, hook_name):
         return len([rec for rec in self.record if rec["name"] == hook_name])
@@ -71,8 +74,8 @@ class FailingCallback(TestingCallback):
         super().__init__()
         self.fail_at = fail_at
 
-    def setup(self, estimator):
-        super().setup(estimator)
+    def setup(self, context):
+        super().setup(context)
         if self.fail_at == "setup":
             raise ValueError("Failing callback failed at setup")
 
@@ -86,8 +89,8 @@ class FailingCallback(TestingCallback):
         if self.fail_at == "on_fit_task_end":
             raise ValueError("Failing callback failed at on_fit_task_end")
 
-    def teardown(self, estimator):
-        super().teardown(estimator)
+    def teardown(self, context):
+        super().teardown(context)
         if self.fail_at == "teardown":
             raise ValueError("Failing callback failed at teardown")
 
@@ -281,11 +284,13 @@ def _func(meta_estimator, inner_estimator, X, y, *, outer_callback_ctx):
     outer_callback_ctx.eval_on_fit_task_begin()
 
     for i in range(meta_estimator.n_inner):
-        inner_ctx = outer_callback_ctx.subcontext(task_name="inner", task_id=i)
-        est = inner_ctx.clone_and_propagate_callback_context(
-            sub_estimator=inner_estimator
+        est = clone(inner_estimator)
+
+        inner_ctx = (
+            outer_callback_ctx.subcontext(task_name="inner", task_id=i)
+            .propagate_callback_context(sub_estimator=est)
+            .eval_on_fit_task_begin()
         )
-        inner_ctx.eval_on_fit_task_begin()
 
         est.fit(X, y)
 
