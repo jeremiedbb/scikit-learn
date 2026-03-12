@@ -98,7 +98,7 @@ class CallbackContext:
     the `subcontext` method of this class to create sub-contexts.
 
     These contexts are passed to the callback hooks to be able to keep track of the
-    position of a task in the task tree within the callbacks.
+    position of a task in the task tree from within the callbacks.
 
     Attributes
     ----------
@@ -115,6 +115,13 @@ class CallbackContext:
     estimator_name : str
         The name of the estimator.
 
+    parent : CallbackContext or None
+        The parent context of this context. None if this context is the root.
+
+    root_uuid : uuid.UUID instance
+        The UUID of the root context. All contexts in the same task tree have the same
+        root UUID that is used to identify the task tree itself.
+
     source_estimator_name : str or None
         The estimator name of the parent task this task was merged with. None if it
         was not merged with another context.
@@ -122,9 +129,6 @@ class CallbackContext:
     source_task_name : str or None
         The task name of the parent task this task was merged with. None if it
         was not merged with another context.
-
-    parent : CallbackContext or None
-        The parent context of this context. None if this context is the root.
     """
 
     @classmethod
@@ -157,7 +161,7 @@ class CallbackContext:
         new_ctx.task_id = task_id
         new_ctx.max_subtasks = max_subtasks
         new_ctx.parent = None
-        new_ctx.uuid = uuid.uuid4()
+        new_ctx.root_uuid = uuid.uuid4()
         new_ctx._children_map = {}
         new_ctx.source_estimator_name = None
         new_ctx.source_task_name = None
@@ -205,7 +209,7 @@ class CallbackContext:
         new_ctx.task_name = task_name
         new_ctx.task_id = task_id
         new_ctx.max_subtasks = max_subtasks
-        new_ctx.uuid = parent_context.uuid
+        new_ctx.root_uuid = parent_context.root_uuid
         new_ctx.parent = None
         new_ctx._children_map = {}
         new_ctx.source_estimator_name = None
@@ -266,7 +270,7 @@ class CallbackContext:
         # meta-estimator's leaf context
         self.parent = other_context.parent
         self.task_id = other_context.task_id
-        self.uuid = other_context.uuid
+        self.root_uuid = other_context.root_uuid
         other_context.parent._children_map[self.task_id] = self
 
         # Keep information about the context it was merged with

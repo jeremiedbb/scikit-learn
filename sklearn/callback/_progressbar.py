@@ -51,18 +51,18 @@ class ProgressBar:
         queue = self._manager.Queue()
         progress_monitor = RichProgressMonitor(queue=queue)
         progress_monitor.start()
-        self._run_queues[context.uuid] = queue
-        self._run_monitors[context.uuid] = progress_monitor
+        self._run_queues[context.root_uuid] = queue
+        self._run_monitors[context.root_uuid] = progress_monitor
 
     def on_fit_task_end(self, estimator, context, **kwargs):
-        self._run_queues[context.uuid].put(context)
+        self._run_queues[context.root_uuid].put(context)
 
     def on_fit_end(self, estimator, context):
         # This is called by the root context. We signal that the root task is finished
         # and the queue won't receive any more tasks.
-        self._run_queues[context.uuid].put(context)
-        self._run_queues[context.uuid].put(None)
-        self._run_monitors[context.uuid].join()
+        self._run_queues[context.root_uuid].put(context)
+        self._run_queues[context.root_uuid].put(None)
+        self._run_monitors[context.root_uuid].join()
 
     def __getstate__(self):
         state = self.__dict__.copy()
