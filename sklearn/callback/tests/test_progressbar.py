@@ -120,4 +120,6 @@ def test_progressbar_no_callback_support(backend):
         # All monitor threads are finished.
         assert not any(mon.is_alive() for mon in progressbar._run_monitors.values())
         # All queues are empty.
+        for q in progressbar._run_queues.values():
+            print(q.empty())
         assert all(q.empty() for q in list(progressbar._run_queues.values()))
