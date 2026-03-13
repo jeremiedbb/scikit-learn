@@ -84,6 +84,11 @@ def test_clone_after_fit():
     clone(est)
 
 
+@pytest.mark.skipif(
+    sys.version_info < (3, 12, 8),
+    reason="Race conditions can appear because of multiprocessing issues for python"
+    " < 3.12.8.",
+)
 @pytest.mark.parametrize("backend", ["threading", "loky"])
 def test_progressbar_no_callback_support(backend):
     """Sanity check for ProgressBar within function not supporting callbacks.
@@ -120,6 +125,4 @@ def test_progressbar_no_callback_support(backend):
         # All monitor threads are finished.
         assert not any(mon.is_alive() for mon in progressbar._run_monitors.values())
         # All queues are empty.
-        for q in progressbar._run_queues.values():
-            print(q.empty())
-        assert all(q.empty() for q in list(progressbar._run_queues.values()))
+        assert all(queue.empty() for queue in progressbar._run_queues.values())
