@@ -307,7 +307,7 @@ def test_meta_estimator_callback_hooks_called(n_jobs):
     assert callback.count_hooks("teardown") == n_fits
 
 
-def test_unsupported_callback_hooks_called():
+def test_autopropagation_to_callback_agnostic_subestimator():
     """Check the number of hook calls when the sub-estimator doesn't support callbacks.
 
     The number of task begins and ends is just the number of nodes in the context tree

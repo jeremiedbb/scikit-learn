@@ -4,10 +4,7 @@
 import time
 
 from sklearn.base import BaseEstimator, _fit_context, clone
-from sklearn.callback import (
-    CallbackSupportMixin,
-    with_fit_callbacks,
-)
+from sklearn.callback import CallbackSupportMixin, with_fit_callbacks
 from sklearn.callback._callback_support import get_callback_manager
 from sklearn.utils.parallel import Parallel, delayed
 
@@ -255,9 +252,8 @@ class MetaEstimator(CallbackSupportMixin, BaseEstimator):
 
     @_fit_context(prefer_skip_nested_validation=False)
     def fit(self, X=None, y=None):
-        callback_ctx = self._init_callback_context(
-            max_subtasks=self.n_outer
-        ).eval_on_fit_task_begin()
+        callback_ctx = self._init_callback_context(max_subtasks=self.n_outer)
+        callback_ctx.eval_on_fit_task_begin()
 
         Parallel(n_jobs=self.n_jobs, prefer=self.prefer)(
             delayed(_func)(
@@ -273,7 +269,6 @@ class MetaEstimator(CallbackSupportMixin, BaseEstimator):
         )
 
         callback_ctx.eval_on_fit_task_end(
-            estimator=self,
             data={"X_train": X, "y_train": y},
         )
 
@@ -286,11 +281,9 @@ def _func(meta_estimator, inner_estimator, X, y, *, outer_callback_ctx):
     for i in range(meta_estimator.n_inner):
         est = clone(inner_estimator)
 
-        inner_ctx = (
-            outer_callback_ctx.subcontext(task_name="inner", task_id=i)
-            .propagate_callback_context(sub_estimator=est)
-            .eval_on_fit_task_begin()
-        )
+        inner_ctx = outer_callback_ctx.subcontext(task_name="inner", task_id=i)
+        inner_ctx.propagate_callback_context(sub_estimator=est)
+        inner_ctx.eval_on_fit_task_begin()
 
         est.fit(X, y)
 

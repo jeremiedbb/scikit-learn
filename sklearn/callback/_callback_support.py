@@ -54,9 +54,11 @@ class CallbackSupportMixin:
         return self
 
     def _init_callback_context(self, task_name="fit", task_id=0, max_subtasks=0):
-        """Initialize the callback context for the estimator.
+        """Initialize the callback context for the estimator and setup its callbacks.
 
         This method should be called once, at the beginning of the fit method.
+
+        It will only setup callbacks that are not propagated from a meta-estimator.
 
         Parameters
         ----------
@@ -100,9 +102,9 @@ class CallbackSupportMixin:
 def callback_management_context(estimator):
     """Context manager to manage callback lifecycle around estimator fit.
 
-    The context manager is responsible for calling the callbacks `setup` and
-    `teardown` hooks in a `try finally` block, which guarantees callbacks teardown
-    will always be evaluated, whether the estimator's fit exits successfully or not.
+    The context manager is responsible for calling the callbacks `teardown` hook in a
+    `try finally` block, which guarantees that callbacks teardown will always be
+    evaluated, whether the estimator's fit exits successfully or not.
 
     Parameters
     ----------
@@ -136,13 +138,11 @@ def callback_management_context(estimator):
 def with_fit_callbacks(fit_method):
     """Decorator to run the fit methods within a callback context manager.
 
-    This decorator is responsible for calling the callbacks `setup` and
-    `teardown` hooks of callbacks in a `try finally` block, which guarantees
-    callbacks teardown will always be evaluated, whether the estimator's fit exits
-    successfully or not.
+    This decorator is responsible for calling the callbacks `teardown` hooks of
+    callbacks in a `try finally` block, which guarantees that callbacks teardown will
+    always be evaluated, whether the estimator's fit exits successfully or not.
 
-    It will only call the `setup` and `teardown` hooks of callbacks that are not
-    propagated from a meta-estimator.
+    It will only teardown callbacks that are not propagated from a meta-estimator.
 
     Parameters
     ----------

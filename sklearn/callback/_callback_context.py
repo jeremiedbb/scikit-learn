@@ -67,7 +67,7 @@ from sklearn.callback._base import AutoPropagatedCallback
 #     @with_fit_callbacks
 #     def fit(self, X, y):
 #         callback_ctx = self._init_callback_context(max_subtasks=self.max_iter)
-#         callback_ctx.eval_on_fit_task_begin(estimator=self)
+#         callback_ctx.eval_on_fit_task_begin()
 #
 #         for i in range(self.max_iter):
 #             subcontext = callback_ctx.subcontext(task_id=i)
@@ -75,15 +75,14 @@ from sklearn.callback._base import AutoPropagatedCallback
 #             # Do something
 #
 #             subcontext.eval_on_fit_task_end(
-#                 estimator=self,
 #                 data={"X_train": X, "y_train": y},
 #             )
 #
-#     return self
+#         callback_ctx.eval_on_fit_task_end(
+#             data={"X_train": X, "y_train": y},
+#         )
 #
-#
-# It's also an object that is passed to the callback hooks to give them information
-# about the task being executed and its position in the task tree.
+#         return self
 
 
 class CallbackContext:
