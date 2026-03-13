@@ -106,9 +106,8 @@ class MaxIterEstimator(CallbackSupportMixin, BaseEstimator):
 
     @_fit_context(prefer_skip_nested_validation=False)
     def fit(self, X=None, y=None):
-        callback_ctx = self._init_callback_context(
-            max_subtasks=self.max_iter
-        ).eval_on_fit_task_begin()
+        callback_ctx = self._init_callback_context(max_subtasks=self.max_iter)
+        callback_ctx.eval_on_fit_task_begin()
 
         for i in range(self.max_iter):
             subcontext = callback_ctx.subcontext(task_id=i).eval_on_fit_task_begin()
@@ -143,9 +142,8 @@ class WhileEstimator(CallbackSupportMixin, BaseEstimator):
 
     @_fit_context(prefer_skip_nested_validation=False)
     def fit(self, X=None, y=None):
-        callback_ctx = self._init_callback_context(
-            max_subtasks=None
-        ).eval_on_fit_task_begin()
+        callback_ctx = self._init_callback_context(max_subtasks=None)
+        callback_ctx.eval_on_fit_task_begin()
 
         i = 0
         while True:
@@ -181,9 +179,8 @@ class ThirdPartyEstimator(CallbackSupportMixin, BaseEstimator):
 
     @with_fit_callbacks
     def fit(self, X=None, y=None):
-        callback_ctx = self._init_callback_context(
-            max_subtasks=self.max_iter
-        ).eval_on_fit_task_begin()
+        callback_ctx = self._init_callback_context(max_subtasks=self.max_iter)
+        callback_ctx.eval_on_fit_task_begin()
 
         for i in range(self.max_iter):
             subcontext = callback_ctx.subcontext(task_id=i).eval_on_fit_task_begin()

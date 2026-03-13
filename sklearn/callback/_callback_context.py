@@ -83,6 +83,10 @@ from sklearn.callback._base import AutoPropagatedCallback
 #         )
 #
 #         return self
+#
+#
+# It's also an object that is passed to the callback hooks to give them information
+# about the task being executed and its position in the task tree.
 
 
 class CallbackContext:
