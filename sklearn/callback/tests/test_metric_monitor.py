@@ -12,18 +12,23 @@ from sklearn.callback import MetricMonitor
 from sklearn.callback.tests._utils import (
     MaxIterEstimator,
     MetaEstimator,
+    WhileEstimator,
 )
 from sklearn.metrics import check_scoring
+from sklearn.utils._param_validation import InvalidParameterError
 
 
 def make_expected_ouptput_MaxIterEstimator(
-    max_iter, scoring, on, X_train, y_train, X_val, y_val
+    max_iter, metric, on, X_train, y_train, X_val, y_val
 ):
     """Generate the expected dict output of a MetricMonitor on a MaxIterEstimator."""
-    scorer = check_scoring(None, scoring)
-    if isinstance(scoring, str):
-        metric_names = [scoring]
-        expected_log_dict = {scoring: []}
+    scorer = check_scoring(None, metric)
+    if isinstance(metric, str):
+        metric_names = [metric]
+        expected_log_dict = {metric: []}
+    elif callable(metric):
+        metric_names = ["metric"]
+        expected_log_dict = {"metric": []}
     else:
         metric_names = list(scorer._scorers.keys())
         expected_log_dict = {name: [] for name in metric_names}
@@ -47,7 +52,7 @@ def make_expected_ouptput_MaxIterEstimator(
                 for key, val in score.items():
                     expected_log_dict[key].append(val)
             else:
-                expected_log_dict[scoring].append(score)
+                expected_log_dict[metric_names[0]].append(score)
 
         if on in ("validation_set", "both"):
             expected_log_dict[f"0_{MaxIterEstimator.__name__}_fit"].append(0)
@@ -58,22 +63,25 @@ def make_expected_ouptput_MaxIterEstimator(
                 for key, val in score.items():
                     expected_log_dict[key].append(val)
             else:
-                expected_log_dict[scoring].append(score)
+                expected_log_dict[metric_names[0]].append(score)
 
     return expected_log_dict, metric_names
 
 
 def make_expected_ouptput_MetaEstimator(
-    n_outer, n_inner, max_iter, scoring, on, X_train, y_train, X_val, y_val
+    n_outer, n_inner, max_iter, metric, on, X_train, y_train, X_val, y_val
 ):
     """Generate the expected dict output of a MetricMonitor on a MetaEstimator.
 
     The sub-estimators are expected to be MaxIterEstimator.
     """
-    scorer = check_scoring(None, scoring)
-    if isinstance(scoring, str):
-        metric_names = [scoring]
-        expected_log_dict = {scoring: []}
+    scorer = check_scoring(None, metric)
+    if isinstance(metric, str):
+        metric_names = [metric]
+        expected_log_dict = {metric: []}
+    elif callable(metric):
+        metric_names = ["metric"]
+        expected_log_dict = {"metric": []}
     else:
         metric_names = list(scorer._scorers.keys())
         expected_log_dict = {name: [] for name in metric_names}
@@ -128,15 +136,20 @@ def make_expected_ouptput_MetaEstimator(
     return expected_log_dict, metric_names
 
 
+def custom_metric(estimator, X, y):
+    """Custom metric to test the MetricMonitor with a callable."""
+    return 0
+
+
 @pytest.mark.parametrize(
-    "scoring",
-    ["neg_mean_squared_error", ("neg_mean_squared_error", "r2")],
+    "metric",
+    ["neg_mean_squared_error", ("neg_mean_squared_error", "r2"), custom_metric],
 )
 @pytest.mark.parametrize(
     "on",
     ["train_set", "validation_set", "both"],
 )
-def test_metric_monitor_logged_values_dict(scoring, on):
+def test_metric_monitor_logged_values_dict(metric, on):
     """Test that the correct values are logged with a simple estimator.
 
     This test only looks at the dict outputs from `get_logs`.
@@ -145,7 +158,7 @@ def test_metric_monitor_logged_values_dict(scoring, on):
     n_dim = 5
     n_samples = 3
     estimator = MaxIterEstimator(max_iter=max_iter)
-    callback = MetricMonitor(scoring, on=on)
+    callback = MetricMonitor(on=on, metric=metric)
     estimator.set_callbacks(callback)
     rng = np.random.RandomState(0)
     X_train, y_train = rng.uniform(size=(n_dim, n_samples)), rng.uniform(size=n_dim)
@@ -155,7 +168,7 @@ def test_metric_monitor_logged_values_dict(scoring, on):
     logs = callback.get_logs(as_frame=False, select="most_recent")
 
     expected_log_dict, metric_names = make_expected_ouptput_MaxIterEstimator(
-        max_iter, scoring, on, X_train, y_train, X_val, y_val
+        max_iter, metric, on, X_train, y_train, X_val, y_val
     )
     assert set(logs.keys()) == set(expected_log_dict.keys())
     for key, val in logs.items():
@@ -163,14 +176,14 @@ def test_metric_monitor_logged_values_dict(scoring, on):
 
 
 @pytest.mark.parametrize(
-    "scoring",
-    ["neg_mean_squared_error", ("neg_mean_squared_error", "r2")],
+    "metric",
+    ["neg_mean_squared_error", ("neg_mean_squared_error", "r2"), custom_metric],
 )
 @pytest.mark.parametrize(
     "on",
     ["train_set", "validation_set", "both"],
 )
-def test_metric_monitor_logged_values_dataframe(scoring, on):
+def test_metric_monitor_logged_values_dataframe(metric, on):
     """Test that the correct values are logged with a simple estimator.
 
     This test only looks at the pandas dataframe outputs from `get_logs`.
@@ -181,7 +194,7 @@ def test_metric_monitor_logged_values_dataframe(scoring, on):
     n_dim = 5
     n_samples = 3
     estimator = MaxIterEstimator(max_iter=max_iter)
-    callback = MetricMonitor(scoring, on=on)
+    callback = MetricMonitor(on=on, metric=metric)
     estimator.set_callbacks(callback)
     rng = np.random.RandomState(0)
     X_train, y_train = rng.uniform(size=(n_dim, n_samples)), rng.uniform(size=n_dim)
@@ -191,7 +204,7 @@ def test_metric_monitor_logged_values_dataframe(scoring, on):
     log_df = callback.get_logs(as_frame=True, select="most_recent")
 
     expected_log_dict, metric_names = make_expected_ouptput_MaxIterEstimator(
-        max_iter, scoring, on, X_train, y_train, X_val, y_val
+        max_iter, metric, on, X_train, y_train, X_val, y_val
     )
     expected_log_df = pd.DataFrame(expected_log_dict)
     expected_log_df = expected_log_df.set_index(
@@ -207,14 +220,14 @@ def test_metric_monitor_logged_values_dataframe(scoring, on):
 
 @pytest.mark.parametrize("prefer", ["processes", "threads"])
 @pytest.mark.parametrize(
-    "scoring",
-    ["neg_mean_squared_error", ("neg_mean_squared_error", "r2")],
+    "metric",
+    ["neg_mean_squared_error", ("neg_mean_squared_error", "r2"), custom_metric],
 )
 @pytest.mark.parametrize(
     "on",
     ["train_set", "validation_set", "both"],
 )
-def test_metric_monitor_logged_values_dict_meta_estimator(prefer, scoring, on):
+def test_metric_monitor_logged_values_dict_meta_estimator(prefer, metric, on):
     """Test that the correct values are logged with a meta-estimator.
 
     This test only looks at the dict outputs from `get_logs`.
@@ -227,7 +240,7 @@ def test_metric_monitor_logged_values_dict_meta_estimator(prefer, scoring, on):
     rng = np.random.RandomState(0)
     X_train, y_train = rng.uniform(size=(n_dim, n_samples)), rng.uniform(size=n_dim)
     X_val, y_val = rng.uniform(size=(n_dim, n_samples)), rng.uniform(size=n_dim)
-    callback = MetricMonitor(scoring, on=on)
+    callback = MetricMonitor(on=on, metric=metric)
     est = MaxIterEstimator(max_iter=max_iter)
     est.set_callbacks(callback)
     meta_est = MetaEstimator(
@@ -238,7 +251,7 @@ def test_metric_monitor_logged_values_dict_meta_estimator(prefer, scoring, on):
     logs = callback.get_logs(as_frame=False, select="most_recent")
 
     expected_log_dict, metric_names = make_expected_ouptput_MetaEstimator(
-        n_outer, n_inner, max_iter, scoring, on, X_train, y_train, X_val, y_val
+        n_outer, n_inner, max_iter, metric, on, X_train, y_train, X_val, y_val
     )
     logs = callback.get_logs(as_frame=False, select="most_recent")
     assert set(logs.keys()) == set(expected_log_dict.keys())
@@ -250,14 +263,14 @@ def test_metric_monitor_logged_values_dict_meta_estimator(prefer, scoring, on):
 
 @pytest.mark.parametrize("prefer", ["processes", "threads"])
 @pytest.mark.parametrize(
-    "scoring",
-    ["neg_mean_squared_error", ("neg_mean_squared_error", "r2")],
+    "metric",
+    ["neg_mean_squared_error", ("neg_mean_squared_error", "r2"), custom_metric],
 )
 @pytest.mark.parametrize(
     "on",
     ["train_set", "validation_set", "both"],
 )
-def test_metric_monitor_logged_values_dataframe_meta_estimator(prefer, scoring, on):
+def test_metric_monitor_logged_values_dataframe_meta_estimator(prefer, metric, on):
     """Test that the correct values are logged with a meta-estimator.
 
     This test only looks at the pandas dataframe outputs from `get_logs`.
@@ -271,7 +284,7 @@ def test_metric_monitor_logged_values_dataframe_meta_estimator(prefer, scoring, 
     rng = np.random.RandomState(0)
     X_train, y_train = rng.uniform(size=(n_dim, n_samples)), rng.uniform(size=n_dim)
     X_val, y_val = rng.uniform(size=(n_dim, n_samples)), rng.uniform(size=n_dim)
-    callback = MetricMonitor(scoring, on=on)
+    callback = MetricMonitor(on=on, metric=metric)
     est = MaxIterEstimator(max_iter=max_iter)
     est.set_callbacks(callback)
     meta_est = MetaEstimator(
@@ -282,7 +295,7 @@ def test_metric_monitor_logged_values_dataframe_meta_estimator(prefer, scoring, 
     logs = callback.get_logs(as_frame=False, select="most_recent")
 
     expected_log_dict, metric_names = make_expected_ouptput_MetaEstimator(
-        n_outer, n_inner, max_iter, scoring, on, X_train, y_train, X_val, y_val
+        n_outer, n_inner, max_iter, metric, on, X_train, y_train, X_val, y_val
     )
     log_df = callback.get_logs(as_frame=True, select="most_recent")
 
@@ -306,7 +319,7 @@ def test_metric_monitor_logged_values_dataframe_meta_estimator(prefer, scoring, 
 def test_get_logs_output_type_no_pandas(as_frame):
     """Test the type of the get_logs when not explicitly asking for dataframes."""
     estimator = MaxIterEstimator()
-    callback = MetricMonitor("neg_mean_squared_error")
+    callback = MetricMonitor(metric="neg_mean_squared_error")
     estimator.set_callbacks(callback)
 
     empty_logs_all = callback.get_logs(select="all", as_frame=as_frame)
@@ -342,7 +355,7 @@ def test_get_logs_output_type_pandas():
     """Test the type of the get_logs when explicitly asking for dataframes."""
     pd = pytest.importorskip("pandas")
     estimator = MaxIterEstimator()
-    callback = MetricMonitor("neg_mean_squared_error")
+    callback = MetricMonitor(metric="neg_mean_squared_error")
     estimator.set_callbacks(callback)
 
     empty_logs_all = callback.get_logs(select="all", as_frame=True)
@@ -363,3 +376,25 @@ def test_get_logs_output_type_pandas():
 
     logs_most_recent = callback.get_logs(select="most_recent", as_frame=True)
     assert isinstance(logs_most_recent, pd.DataFrame)
+
+
+def test_signature_check_error():
+    def wrong_signature_metric(y, y_pred):
+        return None
+
+    with pytest.raises(
+        InvalidParameterError,
+        match=f"If the 'metric' parameter of {MetricMonitor.__name__} is a callable,",
+    ):
+        MetricMonitor(metric=wrong_signature_metric)
+
+
+def test_estimator_without_optional_kwargs():
+    """Smoke test when used on an estimator which does not provide optional kwargs.
+
+    The callback should not crash when used on an estimator where `data` and
+    `reconstruction_attributes` are not provided to `eval_on_fit_task_end`.
+    """
+    estimator = WhileEstimator()
+    estimator.set_callbacks(MetricMonitor(on="both", metric="r2"))
+    estimator.fit()

@@ -1,6 +1,8 @@
 # Authors: The scikit-learn developers
 # SPDX-License-Identifier: BSD-3-Clause
 
+import inspect
+from collections import defaultdict
 
 from sklearn.callback._callback_context import get_context_path
 from sklearn.callback._callback_support import get_callback_manager
@@ -22,52 +24,65 @@ class MetricMonitor:
 
     Parameters
     ----------
-    scoring : str, callable, list, tuple or dict, default=None
-        Strategy to evaluate the metric on the model.
-
-        If `scoring` represents a single score, one can use:
-
-        - a single string (see :ref:`scoring_string_names`);
-        - a callable (see :ref:`scoring_callable`) that returns a single value;
-        - `None`, the `estimator`'s
-          :ref:`default evaluation criterion <scoring_api_overview>` is used.
-
-        If `scoring` represents multiple scores, one can use:
-
-        - a list or tuple of unique strings;
-        - a callable returning a dictionary where the keys are the metric
-          names and the values are the metric scores;
-        - a dictionary with metric names as keys and callables as values.
-
     on : {"train_set", "validation_set", "both"}, default="train_set"
         Which data to compue the metric on. Possible values are "train_set",
         "validation_set" and "both". "train_set" corresponds to using the X and y
         arguments of the fit function, "validation_set" corresponds to using the X_val
         and y_val arguments, "both" corresponds to using both.
+
+    metric : str, callable, list, tuple or dict, default=None
+        Strategy to evaluate the metric on the model.
+
+        If `metric` is a callale, it must have the signature : `metric(estimator, X, y)`
+        and return a single value. Scikit-learn's metric functions (such as
+        sklearn.metrics.mean_squared_error) have a signature of the form
+        `metric(y_true, y_pred, **kwargs)` and cannot be used directly. A callable with
+        the right signature can be generated from such a metric using the
+        `sklearn.metrics.make_scorer` function.
+
+        If `metric` is a string, the scorer with the corresponding name is used, see
+        :ref:`scoring_string_names`.
+
+        If `metric` is a list or tuple of strings, or a dictionary with metric names as
+        keys and callables as values; then a multimetric scorer is used.
+
+        If `metric` is `None`, the `estimator`'s :ref:`default evaluation criterion
+          <scoring_api_overview>` is used.
     """
 
-    requires_fit_info = ["reconstruction_attributes"]
+    requested_fit_info = ["fitted_estimator"]
 
-    def __init__(self, *, on="train_set", scoring):
-        possible_on_values = ("train_set", "validation_set", "both")
-        if on not in possible_on_values:
-            raise InvalidParameterError(
-                f"The 'on' parameter of {self.__class__.__name__} must be a str among "
-                f"{possible_on_values}. Got {on} instead."
-            )
+    @validate_params(
+        {"on": [StrOptions({"train_set", "validation_set", "both"})]},
+        prefer_skip_nested_validation=True,
+    )
+    def __init__(self, *, on="train_set", metric):
         self.on = on
-        check_scoring(None, scoring, allow_none=True)  # validate the scoring param
-        self.scoring = scoring
+        if callable(metric):
+            signature = tuple(
+                p.name for p in inspect.signature(metric).parameters.values()
+            )
+            required_signature = ("estimator", "X", "y")
+            if signature != required_signature:
+                raise InvalidParameterError(
+                    f"If the 'metric' parameter of {self.__class__.__name__} is a "
+                    f"callable, its signature must be {required_signature}. Got "
+                    f"{signature} instead."
+                )
+        if metric is not None:
+            self.scorer = check_scoring(None, metric)
+        self.metric = metric
         self._shared_log = get_callback_manager().list()
 
     def on_fit_begin(self, estimator):
-        self.scorer = check_scoring(estimator, self.scoring)
+        if self.metric is None:
+            self.scorer = check_scoring(estimator, self.metric)
 
     def on_fit_task_end(
-        self, estimator, context, data, fitted_estimator=None, **kwargs
+        self, estimator, context, *, data=None, fitted_estimator=None, **kwargs
     ):
         # TODO: add a task_info dict in the logs
-        if fitted_estimator is None:
+        if fitted_estimator is None or data is None:
             return
         context_path = get_context_path(context)
         if self.on in ("train_set", "both"):
@@ -90,18 +105,20 @@ class MetricMonitor:
         if isinstance(metric_value, dict):
             log_item = metric_value
         else:
-            metric_name = self.scoring if isinstance(self.scoring, str) else "score"
+            metric_name = self.metric if isinstance(self.metric, str) else "metric"
             log_item = {metric_name: metric_value}
         log_item["on"] = on
         for depth, ctx in enumerate(context_path):
             if depth == 0:
-                timestamp = ctx.init_time.strftime("UTC%Y-%m-%d_%H:%M:%S.%f")
-                run_id = f"{ctx.estimator_name}_{timestamp}_{ctx.uuid}"
+                timestamp = ctx.init_time.strftime("UTC%Y-%m-%d-%H:%M:%S.%f")
+                run_id = f"{ctx.estimator_name}_{timestamp}_{ctx.root_uuid}"
             prev_task_str = (
                 f"{ctx.source_estimator_name}_{ctx.source_task_name}|"
                 if ctx.source_estimator_name is not None
                 else ""
             )
+            # The prefix __index__ is used to identify columns that will be used as
+            # index in the mulit_index dataframe returned by get_logs.
             log_item[
                 f"__index__{depth}_{prev_task_str}{ctx.estimator_name}_{ctx.task_name}"
             ] = ctx.task_id
@@ -132,58 +149,57 @@ class MetricMonitor:
         select : {"all", "most_recent"}, default="all"
             Which log run to return.
 
-            If set to "all", all runs are returned in a dictionary, and the dictionary
-            is empty if there are no logs.
+            If `select` is "all", all runs are returned in a dictionary, and the
+            dictionary is empty if there are no logs.
 
-            If set to "most_recent", only the log from the last run is directly
+            If `select` is "most_recent", only the log from the last run is directly
             returned, and if there are no logs, an empty dictionary or DataFrame is
             returned.
 
         as_frame : "auto" or bool, default="auto"
-            Whether to have the logs formatted as multi-index pandas DataFrames. If set
-            to False the logs are formatted as dictionaries instead. If set to "auto",
-            the avialbility of pandas is evaluated and the format is chosen accordingly.
+            Whether to have the logs (the items of the dict if `select` is "all",
+            otherwise the output) formatted as multi-index pandas DataFrames. If set to
+            False the logs are formatted as dictionaries instead. If set to "auto", the
+            avialbility of pandas is evaluated and the format is chosen accordingly.
 
         Returns
         -------
         logs : dict or pandas DataFrame
-            The logged values, either from all the runs or only the most recent one,
-            depending on the `select` parameter. Each run's log is formatted as a pandas
-            DataFrame or a dictionary depending on the `as_frame` parameter.
+            The logged values, formatted as :
+
+            - a dict of pandas dataframes if `select` is "all" and `as_frame` is True or
+              "auto" with pandas available.
+
+            - a pandas dataframe is `select` is "most_recent" and `as_frame` is True or
+              "auto" with pandas available.
+
+            - a dict of dict if `select` is "all" and `as_frame` is False or "auto" with
+              pandas unavailable.
+
+            - a dict is `select` is "most_recent" and `as_frame` is False or "auto" with
+              pandas unavailable.
         """
         log_item_list = list(self._shared_log)
 
         index_prefix = "__index__"
-        logs_dict = {}
+        logs_dict = defaultdict(lambda: defaultdict(list))
         index_names = set()
         for run_id, log_item in log_item_list:
-            if run_id not in logs_dict:
-                logs_dict[run_id] = {}
-                for key, val in log_item.items():
-                    if key.startswith(index_prefix):
-                        key = key[len(index_prefix) :]
-                        index_names.add(key)
-                    logs_dict[run_id][key] = [val]
+            for key, val in log_item.items():
+                if key.startswith(index_prefix):
+                    key = key[len(index_prefix) :]
+                    index_names.add(key)
+                logs_dict[run_id][key].append(val)
 
-            else:
-                for key, val in log_item.items():
-                    if key.startswith(index_prefix):
-                        key = key[len(index_prefix) :]
-                    logs_dict[run_id][key].append(val)
-
-        if select == "most_recent":
-            if not logs_dict:
-                # In case there is no log, here an empty dict is added so that when
-                # select is "most_recent" we can always assume hat logs_dict contains
-                # just one item and return it.
-                logs_dict = {"": {}}
-            else:
-                run_ids = list(logs_dict.keys())
-                sorted(run_ids)
-                for run_id in run_ids[:-1]:
-                    logs_dict.pop(run_id)
+        if select == "most_recent" and logs_dict:
+            run_ids = list(logs_dict.keys())
+            run_timetsamps = [r.split("_")[-2] for r in run_ids]
+            most_recent_id = run_ids[run_timetsamps.index(max(run_timetsamps))]
+            logs_dict = {most_recent_id: logs_dict[most_recent_id]}
         else:
             logs_dict = dict(sorted(logs_dict.items()))  # sort by run_id
+
+        default_if_no_logs = {}
 
         if as_frame:
             try:
@@ -197,6 +213,8 @@ class MetricMonitor:
                         ).sort_index()
                     logs_dict[run_id] = df
 
+                default_if_no_logs = pd.DataFrame({})
+
             except ImportError as exc:
                 if as_frame != "auto":
                     raise ImportError(
@@ -206,6 +224,6 @@ class MetricMonitor:
 
         if select == "most_recent":
             # We return the only value in logs_dict.
-            return next(iter(logs_dict.values()))
+            return next(iter(logs_dict.values()), default_if_no_logs)
 
         return logs_dict
