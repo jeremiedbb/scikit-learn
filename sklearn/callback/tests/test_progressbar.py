@@ -87,7 +87,7 @@ def test_clone_after_fit():
 def test_progressbar_no_callback_support():
     """Sanity check for ProgressBar within function not supporting callbacks.
 
-    It's hard to check the output from sbu-processes so this test only checks that it
+    It's hard to check the output from sub-processes so this test only checks that it
     doesn't crash.
     """
     pytest.importorskip("rich")
