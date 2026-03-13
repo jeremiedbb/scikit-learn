@@ -64,7 +64,14 @@ def test_callback_error(fail_at):
 @pytest.mark.parametrize("prefer", ["threads", "processes"])
 @pytest.mark.parametrize("Callback", [TestingCallback, TestingAutoPropagatedCallback])
 def test_function_no_callback_support(n_jobs, prefer, Callback):
-    """Check callbacks on estimators within function not supporting callbacks."""
+    """Check callbacks on estimators within function not supporting callbacks.
+
+    Since the outer function does not support callbacks, there's no shared root context
+    and the context trees of each sub-estimator are independent. As a result, the
+    callback acts as a regular non-propagated callback: its on_fit_begin and on_fit_end
+    are called once for each fit of the sub-estimator and the number of tasks is the sum
+    of the number of tasks from all the sub-estimators.
+    """
 
     def clone_and_fit(estimator):
         clone(estimator).fit()

@@ -9,7 +9,7 @@ class _BaseCallback(Protocol):
     """Protocol for the base callbacks."""
 
     def setup(self, context):
-        """Method called before running the fit method of the estimator.
+        """Method called at the beginning of the fit method of the estimator.
 
         For auto-propagated callbacks, this method is called only once, before running
         the fit method of the outermost estimator.
@@ -39,7 +39,7 @@ class _BaseCallback(Protocol):
 
 @runtime_checkable
 class FitCallback(_BaseCallback, Protocol):
-    """Protocol for the fit callbacks."""
+    """Protocol for the callbacks evaluated on tasks during the fit of an estimator."""
 
     def on_fit_task_begin(self, context, **kwargs):
         """Method called at the beginning of each fit task of the estimator.

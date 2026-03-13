@@ -123,6 +123,13 @@ class CallbackContext:
         The UUID of the root context. All contexts in the same task tree have the same
         root UUID that is used to identify the task tree itself.
 
+    parent : CallbackContext or None
+        The parent context of this context. None if this context is the root.
+
+    root_uuid : uuid.UUID instance
+        The UUID of the root context. All contexts in the same task tree have the same
+        root UUID that is used to identify the task tree itself.
+
     source_estimator_name : str or None
         The name of the estimator that holds the parent task this task was
         merged with. None if it was not merged with another context.

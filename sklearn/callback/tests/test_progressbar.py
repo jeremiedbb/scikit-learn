@@ -84,18 +84,45 @@ def test_clone_after_fit():
     clone(est)
 
 
-def test_progressbar_no_callback_support():
+@pytest.mark.skipif(
+    sys.version_info < (3, 12, 8),
+    reason="Race conditions can appear because of multiprocessing issues for python"
+    " < 3.12.8.",
+)
+@pytest.mark.parametrize("backend", ["threading", "loky"])
+def test_progressbar_no_callback_support(backend):
     """Sanity check for ProgressBar within function not supporting callbacks.
 
-    It's hard to check the output from sbu-processes so this test only checks that it
-    doesn't crash.
+    It's hard to check the output from sub-processes so this test only checks that it
+    doesn't crash and that there are no threads leftover running.
     """
     pytest.importorskip("rich")
 
     def clone_and_fit(estimator):
         clone(estimator).fit()
 
-    def func(estimator):
-        Parallel(n_jobs=2)(delayed(clone_and_fit)(estimator) for _ in range(4))
+    def func(estimator, n_fits):
+        Parallel(n_jobs=2, backend=backend)(
+            delayed(clone_and_fit)(estimator) for _ in range(n_fits)
+        )
 
-    func(MaxIterEstimator().set_callbacks(ProgressBar()))
+    progressbar = ProgressBar()
+    n_fits = 4
+    func(MaxIterEstimator().set_callbacks(progressbar), n_fits=n_fits)
+
+    if backend == "loky":
+        # Since ProgressBar is pickled in different subprocesses and managers are not
+        # picklable, a new manager is created for each subprocess and the queues are
+        # effectively process-local.
+        assert len(progressbar._run_queues) == 0
+        # The monitors are process-local by construction.
+        assert len(progressbar._run_monitors) == 0
+    else:  # "threading"
+        # The state is shared across threads so we expect one queue and monitor per fit.
+        # in the shared state.
+        assert len(progressbar._run_queues) == n_fits
+        assert len(progressbar._run_monitors) == n_fits
+        # All monitor threads are finished.
+        assert not any(mon.is_alive() for mon in progressbar._run_monitors.values())
+        # All queues are empty.
+        assert all(queue.empty() for queue in progressbar._run_queues.values())
