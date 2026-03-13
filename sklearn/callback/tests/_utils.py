@@ -232,7 +232,7 @@ class MetaEstimator(CallbackSupportMixin, BaseEstimator):
         callback_ctx.eval_on_fit_begin(estimator=self)
 
         Parallel(n_jobs=self.n_jobs, prefer=self.prefer)(
-            delayed(_func)(
+            delayed(_fit_subestimator)(
                 self,
                 self.estimator,
                 X,
@@ -247,7 +247,7 @@ class MetaEstimator(CallbackSupportMixin, BaseEstimator):
         return self
 
 
-def _func(meta_estimator, inner_estimator, X, y, *, outer_callback_ctx):
+def _fit_subestimator(meta_estimator, inner_estimator, X, y, *, outer_callback_ctx):
     for i in range(meta_estimator.n_inner):
         est = clone(inner_estimator)
 

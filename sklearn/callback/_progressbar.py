@@ -44,6 +44,15 @@ class ProgressBar:
 
     def on_fit_begin(self, estimator, context):
         if not hasattr(self, "_manager"):
+            # If the outer function call supports callback, it would typically have
+            # initialized the manager and monitor in the same process and we can
+            # directly reuse it. If the same callback is used to collect progress of
+            # sub-estimators in subprocess parallel workers the setup/teardown is not
+            # needed because it is performed only once, typically in the parent process.
+            # However, if the outer function call does not support callbacks explicitly,
+            # we need to reinitialize a working callback state in worker processes:
+            # the callback will work in slightly degraded mode with redundant managers
+            # and progress monitors but this should not crash.
             self._manager = get_callback_manager()
             self._run_queues = self._manager.dict()
             self._run_monitors = {}
@@ -68,6 +77,8 @@ class ProgressBar:
         state = self.__dict__.copy()
         state.pop("_manager", None)
         state.pop("_run_monitors", None)
+        # Note that run queues are pickleable and are expected to be shared between
+        # the parent and worker processes.
         return state
 
 

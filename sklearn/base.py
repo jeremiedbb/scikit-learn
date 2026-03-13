@@ -138,8 +138,10 @@ def _clone_parametrized(estimator, *, safe=True):
     params_set = new_object.get_params(deep=False)
 
     if hasattr(estimator, "_skl_callbacks"):
-        # callbacks are passed by reference because a same instance of a callback can
-        # be used by multiple clones of the same estimator.
+        # Callback classes are expected to be designed in a way that a single instance
+        # can be used by multiple clones of the same estimator as is typically the case
+        # in ensembles or during cross-validation. Therefore it is safe to pass the
+        # callback instances by reference.
         new_object._skl_callbacks = estimator._skl_callbacks
 
     # quick sanity check of the parameters of the clone
