@@ -199,10 +199,7 @@ class MetricMonitor:
 
             except ImportError as exc:
                 if as_frame != "auto":
-                    raise ImportError(
-                        "Returning pandas objects requires pandas to be installed. "
-                        "Alternatively, set 'as_frame' to False or 'auto'."
-                    ) from exc
+                    raise
 
         if select == "most_recent":
             # We return the only value in logs_dict.
