@@ -154,6 +154,7 @@ API_REFERENCE = {
                     "Callback",
                     "CallbackSupportMixin",
                     "ProgressBar",
+                    "with_callbacks",
                 ],
             },
         ],
