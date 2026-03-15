@@ -383,7 +383,11 @@ class CallbackContext:
     def eval_on_function_task_begin(self, **kwargs):
         """Evaluate the `on_function_task_begin` hook of the callbacks."""
         for callback in self._callbacks:
-            callback.on_function_task_begin(self, **kwargs)
+            # Only call the `on_function_task_begin` hook of callbacks that are not
+            # propagated. For propagated callbacks, the hook will be called by the
+            # sub-estimator's root context (both represent the same task).
+            if callback not in getattr(self, "_propagated_callbacks", []):
+                callback.on_function_task_begin(self, **kwargs)
 
         return self
 
@@ -405,6 +409,10 @@ class CallbackContext:
         return any(
             callback.on_function_task_end(self, **kwargs)
             for callback in self._callbacks
+            # Only call the `on_fit_task_end` hook of callbacks that are not
+            # propagated. For propagated callbacks, the hook will be called by the
+            # sub-estimator's root context (both represent the same task).
+            if callback not in getattr(self, "_propagated_callbacks", [])
         )
 
     def eval_setup(self):

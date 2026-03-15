@@ -36,6 +36,8 @@ def get_all_methods():
                 "teardown",
                 "on_fit_task_begin",
                 "on_fit_task_end",
+                "on_function_task_begin",
+                "on_function_task_end",
             ):
                 continue
             method_obj = getattr(Klass, name)

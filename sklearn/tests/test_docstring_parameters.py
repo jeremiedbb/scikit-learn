@@ -124,6 +124,8 @@ def test_docstring_parameters():
                     "teardown",
                     "on_fit_task_begin",
                     "on_fit_task_end",
+                    "on_function_task_begin",
+                    "on_function_task_end",
                 ):
                     continue
                 method = getattr(cls, method_name)

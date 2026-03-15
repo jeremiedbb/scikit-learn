@@ -80,7 +80,8 @@ def my_function(estimator, n_fits=4, n_jobs=2, callbacks=None):
 
     try:
         context.eval_on_function_task_begin()
-        Parallel(n_jobs=n_jobs, prefer="threads")(
+
+        Parallel(n_jobs=n_jobs)(
             delayed(_fit_one)(
                 estimator,
                 context=context.subcontext(task_name="fit estimator", task_id=i),
@@ -128,8 +129,8 @@ def test_autopropagated_callbacks_with_function(n_jobs):
     assert callback.count_hooks("setup") == 1
     assert callback.count_hooks("on_fit_task_begin") == n_fits * (1 + max_iter)
     assert callback.count_hooks("on_fit_task_end") == n_fits * (1 + max_iter)
-    assert callback.count_hooks("on_function_task_begin") == 1 + n_fits
-    assert callback.count_hooks("on_function_task_end") == 1 + n_fits
+    assert callback.count_hooks("on_function_task_begin") == 1
+    assert callback.count_hooks("on_function_task_end") == 1
     assert callback.count_hooks("teardown") == 1
 
 
