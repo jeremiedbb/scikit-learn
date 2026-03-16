@@ -8,7 +8,7 @@ callbacks for scikit-learn estimators.
 
 from sklearn.callback._base import AutoPropagatedCallback, FitCallback
 from sklearn.callback._callback_context import CallbackContext
-from sklearn.callback._callback_support import CallbackSupportMixin, with_fit_callbacks
+from sklearn.callback._callback_support import CallbackSupportMixin, with_callbacks
 from sklearn.callback._metric_monitor import MetricMonitor
 from sklearn.callback._progressbar import ProgressBar
 
@@ -19,5 +19,5 @@ __all__ = [
     "FitCallback",
     "MetricMonitor",
     "ProgressBar",
-    "with_fit_callbacks",
+    "with_callbacks",
 ]
