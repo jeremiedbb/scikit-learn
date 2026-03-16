@@ -106,12 +106,13 @@ class MetricMonitor:
         else:
             metric_value = None
 
+        log_data = {"on": on}
         if isinstance(metric_value, dict):
-            log_item = metric_value
+            log_data.update(metric_value)
         else:
             metric_name = self.metric if isinstance(self.metric, str) else "metric"
-            log_item = {metric_name: metric_value}
-        log_item["on"] = on
+            log_data[metric_name] = metric_value
+        log_index = {}
         for depth, ctx in enumerate(context_path):
             if depth == 0:
                 timestamp = ctx.init_time.strftime("UTC%Y-%m-%d-%H:%M:%S.%f")
@@ -123,11 +124,11 @@ class MetricMonitor:
             )
             # The prefix __index__ is used to identify columns that will be used as
             # index in the mulit_index dataframe returned by get_logs.
-            log_item[
-                f"__index__{depth}_{prev_task_str}{ctx.estimator_name}_{ctx.task_name}"
+            log_index[
+                f"{depth}_{prev_task_str}{ctx.estimator_name}_{ctx.task_name}"
             ] = ctx.task_id
 
-        self._shared_log.append((run_id, log_item))
+        self._shared_log.append((run_id, log_index, log_data))
 
     @validate_params(
         {
@@ -182,15 +183,12 @@ class MetricMonitor:
         """
         log_item_list = list(self._shared_log)
 
-        index_prefix = "__index__"
-        logs_dict = defaultdict(lambda: defaultdict(list))
+        logs_dict = defaultdict(list)
         index_names = set()
-        for run_id, log_item in log_item_list:
-            for key, val in log_item.items():
-                if key.startswith(index_prefix):
-                    key = key[len(index_prefix) :]
-                    index_names.add(key)
-                logs_dict[run_id][key].append(val)
+        for run_id, log_index, log_data in log_item_list:
+            index_names = index_names.union(list(log_index.keys()))
+            log_data.update(log_index)
+            logs_dict[run_id].append(log_data)
 
         if select == "most_recent" and logs_dict:
             run_ids = list(logs_dict.keys())
@@ -200,7 +198,7 @@ class MetricMonitor:
         else:
             logs_dict = dict(sorted(logs_dict.items()))  # sort by run_id
 
-        default_if_no_logs = {}
+        default_if_no_logs = []
 
         if as_frame:
             try:

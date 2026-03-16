@@ -1,7 +1,6 @@
 # Authors: The scikit-learn developers
 # SPDX-License-Identifier: BSD-3-Clause
 
-from collections import Counter
 from importlib.util import find_spec
 from itertools import product
 
@@ -25,47 +24,42 @@ def make_expected_ouptput_MaxIterEstimator(
     scorer = check_scoring(None, metric)
     if isinstance(metric, str):
         metric_names = [metric]
-        expected_log_dict = {metric: []}
     elif callable(metric):
         metric_names = ["metric"]
-        expected_log_dict = {"metric": []}
-    else:
+    else:  # multi-scorer
         metric_names = list(scorer._scorers.keys())
-        expected_log_dict = {name: [] for name in metric_names}
+    est_name = MaxIterEstimator.__name__
 
-    expected_log_dict.update(
-        {
-            "on": [],
-            f"0_{MaxIterEstimator.__name__}_fit": [],
-            f"1_{MaxIterEstimator.__name__}_iteration": [],
-        }
-    )
-
+    expected_log = []
     for i in range(max_iter):
         fitted_est = MaxIterEstimator(max_iter=i + 1).fit()
         if on in ("train_set", "both"):
-            expected_log_dict[f"0_{MaxIterEstimator.__name__}_fit"].append(0)
-            expected_log_dict[f"1_{MaxIterEstimator.__name__}_iteration"].append(i)
-            expected_log_dict["on"].append("train_set")
+            log_item = {
+                f"0_{est_name}_fit": 0,
+                f"1_{est_name}_iteration": i,
+                "on": "train_set",
+            }
             score = scorer(fitted_est, X_train, y_train)
             if isinstance(score, dict):
-                for key, val in score.items():
-                    expected_log_dict[key].append(val)
+                log_item.update(score)
             else:
-                expected_log_dict[metric_names[0]].append(score)
+                log_item[metric_names[0]] = score
+            expected_log.append(log_item)
 
         if on in ("validation_set", "both"):
-            expected_log_dict[f"0_{MaxIterEstimator.__name__}_fit"].append(0)
-            expected_log_dict[f"1_{MaxIterEstimator.__name__}_iteration"].append(i)
-            expected_log_dict["on"].append("validation_set")
+            log_item = {
+                f"0_{est_name}_fit": 0,
+                f"1_{est_name}_iteration": i,
+                "on": "validation_set",
+            }
             score = scorer(fitted_est, X_val, y_val)
             if isinstance(score, dict):
-                for key, val in score.items():
-                    expected_log_dict[key].append(val)
+                log_item.update(score)
             else:
-                expected_log_dict[metric_names[0]].append(score)
+                log_item[metric_names[0]] = score
+            expected_log.append(log_item)
 
-    return expected_log_dict, metric_names
+    return expected_log, metric_names
 
 
 def make_expected_ouptput_MetaEstimator(
@@ -78,78 +72,64 @@ def make_expected_ouptput_MetaEstimator(
     scorer = check_scoring(None, metric)
     if isinstance(metric, str):
         metric_names = [metric]
-        expected_log_dict = {metric: []}
     elif callable(metric):
         metric_names = ["metric"]
-        expected_log_dict = {"metric": []}
-    else:
+    else:  # multi-scorer
         metric_names = list(scorer._scorers.keys())
-        expected_log_dict = {name: [] for name in metric_names}
+    meta_est_name = MetaEstimator.__name__
+    sub_est_name = MaxIterEstimator.__name__
 
-    expected_log_dict.update(
-        {
-            "on": [],
-            f"0_{MetaEstimator.__name__}_fit": [],
-            f"1_{MetaEstimator.__name__}_outer": [],
-            f"2_{MetaEstimator.__name__}_inner|{MaxIterEstimator.__name__}_fit": [],
-            f"3_{MaxIterEstimator.__name__}_iteration": [],
-        }
-    )
-
+    expected_log = []
     for i_outer, i_inner in product(range(n_outer), range(n_inner)):
         for i_estimator_iteration in range(max_iter):
             fitted_est = MaxIterEstimator(max_iter=i_estimator_iteration + 1).fit()
             if on in ("train_set", "both"):
-                expected_log_dict["on"].append("train_set")
-                expected_log_dict[f"0_{MetaEstimator.__name__}_fit"].append(0)
-                expected_log_dict[f"1_{MetaEstimator.__name__}_outer"].append(i_outer)
-                expected_log_dict[
-                    f"2_{MetaEstimator.__name__}_inner|{MaxIterEstimator.__name__}_fit"
-                ].append(i_inner)
-                expected_log_dict[f"3_{MaxIterEstimator.__name__}_iteration"].append(
-                    i_estimator_iteration
-                )
+                log_item = {
+                    "on": "train_set",
+                    f"0_{meta_est_name}_fit": 0,
+                    f"1_{meta_est_name}_outer": i_outer,
+                    f"2_{meta_est_name}_inner|{sub_est_name}_fit": i_inner,
+                    f"3_{sub_est_name}_iteration": i_estimator_iteration,
+                }
                 score = scorer(fitted_est, X_train, y_train)
                 if isinstance(score, dict):
-                    for key, val in score.items():
-                        expected_log_dict[key].append(val)
+                    log_item.update(score)
                 else:
-                    expected_log_dict[metric_names[0]].append(score)
+                    log_item[metric_names[0]] = score
+                expected_log.append(log_item)
 
             if on in ("validation_set", "both"):
-                expected_log_dict["on"].append("validation_set")
-                expected_log_dict[f"0_{MetaEstimator.__name__}_fit"].append(0)
-                expected_log_dict[f"1_{MetaEstimator.__name__}_outer"].append(i_outer)
-                expected_log_dict[
-                    f"2_{MetaEstimator.__name__}_inner|{MaxIterEstimator.__name__}_fit"
-                ].append(i_inner)
-                expected_log_dict[f"3_{MaxIterEstimator.__name__}_iteration"].append(
-                    i_estimator_iteration
-                )
+                log_item = {
+                    "on": "validation_set",
+                    f"0_{meta_est_name}_fit": 0,
+                    f"1_{meta_est_name}_outer": i_outer,
+                    f"2_{meta_est_name}_inner|{sub_est_name}_fit": i_inner,
+                    f"3_{sub_est_name}_iteration": i_estimator_iteration,
+                }
                 score = scorer(fitted_est, X_val, y_val)
                 if isinstance(score, dict):
-                    for key, val in score.items():
-                        expected_log_dict[key].append(val)
+                    log_item.update(score)
                 else:
-                    expected_log_dict[metric_names[0]].append(score)
+                    log_item[metric_names[0]] = score
+                expected_log.append(log_item)
 
-    return expected_log_dict, metric_names
+    return expected_log, metric_names
 
 
-def custom_metric(estimator, X, y):
-    """Custom metric to test the MetricMonitor with a callable."""
+def custom_score(estimator, X, y):
+    """Custom score to test the MetricMonitor with a callable."""
     return 0
 
 
 @pytest.mark.parametrize(
     "metric",
-    ["neg_mean_squared_error", ("neg_mean_squared_error", "r2"), custom_metric],
+    ["neg_mean_squared_error", ("neg_mean_squared_error", "r2"), custom_score],
 )
 @pytest.mark.parametrize(
     "on",
     ["train_set", "validation_set", "both"],
 )
-def test_metric_monitor_logged_values_dict(metric, on):
+def test_metric_monitor_logged_values(metric, on):
     """Test that the correct values are logged with a simple estimator.
 
     This test only looks at the dict outputs from `get_logs`.
@@ -165,19 +145,21 @@ def test_metric_monitor_logged_values_dict(metric, on):
     X_val, y_val = rng.uniform(size=(n_dim, n_samples)), rng.uniform(size=n_dim)
 
     estimator.fit(X=X_train, y=y_train, X_val=X_val, y_val=y_val)
-    logs = callback.get_logs(as_frame=False, select="most_recent")
+    log = callback.get_logs(as_frame=False, select="most_recent")
 
-    expected_log_dict, metric_names = make_expected_ouptput_MaxIterEstimator(
+    expected_log, metric_names = make_expected_ouptput_MaxIterEstimator(
         max_iter, metric, on, X_train, y_train, X_val, y_val
     )
-    assert set(logs.keys()) == set(expected_log_dict.keys())
-    for key, val in logs.items():
-        assert val == expected_log_dict[key]
+    assert len(log) == len(expected_log)
+    for i in range(len(log)):
+        assert set(log[i].keys()) == set(expected_log[i].keys())
+        for key, val in log[i].items():
+            assert val == expected_log[i][key]
 
 
 @pytest.mark.parametrize(
     "metric",
-    ["neg_mean_squared_error", ("neg_mean_squared_error", "r2"), custom_metric],
+    ["neg_mean_squared_error", ("neg_mean_squared_error", "r2"), custom_score],
 )
 @pytest.mark.parametrize(
     "on",
@@ -203,10 +185,10 @@ def test_metric_monitor_logged_values_dataframe(metric, on):
     estimator.fit(X=X_train, y=y_train, X_val=X_val, y_val=y_val)
     log_df = callback.get_logs(as_frame=True, select="most_recent")
 
-    expected_log_dict, metric_names = make_expected_ouptput_MaxIterEstimator(
+    expected_log, metric_names = make_expected_ouptput_MaxIterEstimator(
         max_iter, metric, on, X_train, y_train, X_val, y_val
     )
-    expected_log_df = pd.DataFrame(expected_log_dict)
+    expected_log_df = pd.DataFrame(expected_log)
     expected_log_df = expected_log_df.set_index(
         [
             col
@@ -221,13 +203,13 @@ def test_metric_monitor_logged_values_dataframe(metric, on):
 @pytest.mark.parametrize("prefer", ["processes", "threads"])
 @pytest.mark.parametrize(
     "metric",
-    ["neg_mean_squared_error", ("neg_mean_squared_error", "r2"), custom_metric],
+    ["neg_mean_squared_error", ("neg_mean_squared_error", "r2"), custom_score],
 )
 @pytest.mark.parametrize(
     "on",
     ["train_set", "validation_set", "both"],
 )
-def test_metric_monitor_logged_values_dict_meta_estimator(prefer, metric, on):
+def test_metric_monitor_logged_values_meta_estimator(prefer, metric, on):
     """Test that the correct values are logged with a meta-estimator.
 
     This test only looks at the dict outputs from `get_logs`.
@@ -248,23 +230,25 @@ def test_metric_monitor_logged_values_dict_meta_estimator(prefer, metric, on):
     )
 
     meta_est.fit(X=X_train, y=y_train, X_val=X_val, y_val=y_val)
-    logs = callback.get_logs(as_frame=False, select="most_recent")
+    log = callback.get_logs(as_frame=False, select="most_recent")
 
-    expected_log_dict, metric_names = make_expected_ouptput_MetaEstimator(
+    expected_log, metric_names = make_expected_ouptput_MetaEstimator(
         n_outer, n_inner, max_iter, metric, on, X_train, y_train, X_val, y_val
     )
-    logs = callback.get_logs(as_frame=False, select="most_recent")
-    assert set(logs.keys()) == set(expected_log_dict.keys())
-    for key, val in logs.items():
-        # Verify list equality up to a permutation because the parallelization
-        # of the meta-est can change the logging order.
-        assert Counter(val) == Counter(expected_log_dict[key])
+
+    assert len(log) == len(expected_log)
+    for i in range(len(log)):
+        assert set(log[i].keys()) == set(expected_log[i].keys())
+        for key, val in log[i].items():
+            # The log items might not be in the same order as the expected log because
+            # of the parallelization.
+            assert val in [expected_log[k][key] for k in range(len(log))]
 
 
 @pytest.mark.parametrize("prefer", ["processes", "threads"])
 @pytest.mark.parametrize(
     "metric",
-    ["neg_mean_squared_error", ("neg_mean_squared_error", "r2"), custom_metric],
+    ["neg_mean_squared_error", ("neg_mean_squared_error", "r2"), custom_score],
 )
 @pytest.mark.parametrize(
     "on",
@@ -346,9 +330,9 @@ def test_get_logs_output_type_no_pandas(as_frame):
         assert isinstance(logs_most_recent, pd.DataFrame)
 
     else:
-        assert isinstance(empty_logs_most_recent, dict)
+        assert isinstance(empty_logs_most_recent, list)
         assert not empty_logs_most_recent
-        assert isinstance(logs_most_recent, dict)
+        assert isinstance(logs_most_recent, list)
 
 
 def test_get_logs_output_type_pandas():
