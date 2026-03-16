@@ -67,18 +67,18 @@ from sklearn.callback._base import AutoPropagatedCallback
 #     @with_callbacks
 #     def fit(self, X, y):
 #         callback_ctx = self._init_callback_context(max_subtasks=self.max_iter)
-#         callback_ctx.eval_on_fit_task_begin()
+#         callback_ctx.call_on_fit_task_begin()
 #
 #         for i in range(self.max_iter):
 #             subcontext = callback_ctx.subcontext(task_id=i)
 #
 #             # Do something
 #
-#             subcontext.eval_on_fit_task_end(
+#             subcontext.call_on_fit_task_end(
 #                 data={"X_train": X, "y_train": y},
 #             )
 #
-#         callback_ctx.eval_on_fit_task_end(
+#         callback_ctx.call_on_fit_task_end(
 #             data={"X_train": X, "y_train": y},
 #         )
 #
@@ -314,8 +314,8 @@ class CallbackContext:
             max_subtasks=max_subtasks,
         )
 
-    def eval_on_fit_task_begin(self, **kwargs):
-        """Evaluate the `on_fit_task_begin` hook of the callbacks.
+    def call_on_fit_task_begin(self, **kwargs):
+        """Call the `on_fit_task_begin` hook of the callbacks.
 
         Parameters
         ----------
@@ -332,8 +332,8 @@ class CallbackContext:
 
         return self
 
-    def eval_on_fit_task_end(self, **kwargs):
-        """Evaluate the `on_fit_task_end` hook of the callbacks.
+    def call_on_fit_task_end(self, **kwargs):
+        """Call the `on_fit_task_end` hook of the callbacks.
 
         Parameters
         ----------
