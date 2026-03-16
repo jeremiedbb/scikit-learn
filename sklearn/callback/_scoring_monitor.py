@@ -20,29 +20,23 @@ class ScoringMonitor:
     Parameters
     ----------
     on : {"train_set", "validation_set", "both"}, default="train_set"
-        Which data to compue the metric on. Possible values are "train_set",
+        Which data to compue the score on. Possible values are "train_set",
         "validation_set" and "both". "train_set" corresponds to using the X and y
         arguments of the fit function, "validation_set" corresponds to using the X_val
         and y_val arguments. "both" corresponds to using both.
 
     scoring : str, callable, list, tuple or dict, default=None
-        Strategy to evaluate the score on the model.
+        Strategy to evaluate the score on the model. Options:
 
-        If `scoring` is a callale, it must have the signature : `func(estimator, X, y)`
-        and return a single value. Scikit-learn's metric functions (such as
-        sklearn.metrics.mean_squared_error) have a signature of the form
-        `func(y_true, y_pred, **kwargs)` and cannot be used directly. A callable with
-        the right signature can be generated from such a metric using the
-        `sklearn.metrics.make_scorer` function.
-
-        If `scoring` is a string, the scorer with the corresponding name is used, see
-        :ref:`scoring_string_names`.
-
-        If `scoring` is a list or tuple of strings, or a dictionary with metric names as
-        keys and callables as values; then a multimetric scorer is used.
-
-        If `scoring` is `None`, the `estimator`'s :ref:`default evaluation criterion
-          <scoring_api_overview>` is used.
+        - str: see :ref:`scoring_string_names` for options.
+        - callable: a scorer callable object (e.g., function) with signature
+            ``scorer(estimator, X, y)``. See :ref:`scoring_callable` for details.
+        - list or tuple of str: a multi-scorer with each of the scoring string names is
+          used.
+        - dict of str and/or callables: a multi-scorer with each scoring string name or
+          callable in the dict is used.
+        - `None`: the `estimator`'s
+            :ref:`default evaluation criterion <scoring_api_overview>` is used.
     """
 
     requested_fit_info = ["fitted_estimator"]
@@ -86,16 +80,16 @@ class ScoringMonitor:
 
     def _add_log_entry(self, X, y, on, fitted_estimator, context_path):
         if X is not None and y is not None:
-            metric_value = self.scorer(fitted_estimator, X, y)
+            score_value = self.scorer(fitted_estimator, X, y)
         else:
-            metric_value = None
+            score_value = None
 
         log_data = {"on": on}
-        if isinstance(metric_value, dict):
-            log_data.update(metric_value)
+        if isinstance(score_value, dict):
+            log_data.update(score_value)
         else:
-            metric_name = self.scoring if isinstance(self.scoring, str) else "score"
-            log_data[metric_name] = metric_value
+            score_name = self.scoring if isinstance(self.scoring, str) else "score"
+            log_data[score_name] = score_value
         log_index = {}
         for depth, ctx in enumerate(context_path):
             if depth == 0:
