@@ -1,26 +1,21 @@
 # Authors: The scikit-learn developers
 # SPDX-License-Identifier: BSD-3-Clause
 
-import inspect
 from collections import defaultdict
 
 from sklearn.callback._callback_context import get_context_path
 from sklearn.callback._callback_support import get_callback_manager
 from sklearn.metrics import check_scoring
 from sklearn.utils._optional_dependencies import check_pandas_support
-from sklearn.utils._param_validation import (
-    InvalidParameterError,
-    StrOptions,
-    validate_params,
-)
+from sklearn.utils._param_validation import StrOptions, validate_params
 
 
-class MetricMonitor:
-    """Callback that monitors a metric for each iterative steps of an estimator.
+class ScoringMonitor:
+    """Callback that monitors a score for each iterative steps of an estimator.
 
-    The specified metric function is called on the target values `y` and the predicted
-    values on the samples `y_pred = estimator.predict(X)` at each iterative step of the
-    estimator.
+    The specified scorer is called on the training or validation data at each iterative
+    step of the estimator, and logged by the callbacks. The logs can be retrieved
+    through the `get_logs` method.
 
     Parameters
     ----------
@@ -28,25 +23,25 @@ class MetricMonitor:
         Which data to compue the metric on. Possible values are "train_set",
         "validation_set" and "both". "train_set" corresponds to using the X and y
         arguments of the fit function, "validation_set" corresponds to using the X_val
-        and y_val arguments, "both" corresponds to using both.
+        and y_val arguments. "both" corresponds to using both.
 
-    metric : str, callable, list, tuple or dict, default=None
-        Strategy to evaluate the metric on the model.
+    scoring : str, callable, list, tuple or dict, default=None
+        Strategy to evaluate the score on the model.
 
-        If `metric` is a callale, it must have the signature : `metric(estimator, X, y)`
+        If `scoring` is a callale, it must have the signature : `func(estimator, X, y)`
         and return a single value. Scikit-learn's metric functions (such as
         sklearn.metrics.mean_squared_error) have a signature of the form
-        `metric(y_true, y_pred, **kwargs)` and cannot be used directly. A callable with
+        `func(y_true, y_pred, **kwargs)` and cannot be used directly. A callable with
         the right signature can be generated from such a metric using the
         `sklearn.metrics.make_scorer` function.
 
-        If `metric` is a string, the scorer with the corresponding name is used, see
+        If `scoring` is a string, the scorer with the corresponding name is used, see
         :ref:`scoring_string_names`.
 
-        If `metric` is a list or tuple of strings, or a dictionary with metric names as
+        If `scoring` is a list or tuple of strings, or a dictionary with metric names as
         keys and callables as values; then a multimetric scorer is used.
 
-        If `metric` is `None`, the `estimator`'s :ref:`default evaluation criterion
+        If `scoring` is `None`, the `estimator`'s :ref:`default evaluation criterion
           <scoring_api_overview>` is used.
     """
 
@@ -56,27 +51,16 @@ class MetricMonitor:
         {"on": [StrOptions({"train_set", "validation_set", "both"})]},
         prefer_skip_nested_validation=True,
     )
-    def __init__(self, *, on="train_set", metric):
+    def __init__(self, *, on="train_set", scoring):
         self.on = on
-        if callable(metric):
-            signature = tuple(
-                p.name for p in inspect.signature(metric).parameters.values()
-            )
-            required_signature = ("estimator", "X", "y")
-            if signature != required_signature:
-                raise InvalidParameterError(
-                    f"If the 'metric' parameter of {self.__class__.__name__} is a "
-                    f"callable, its signature must be {required_signature}. Got "
-                    f"{signature} instead."
-                )
-        if metric is not None:
-            self.scorer = check_scoring(None, metric)
-        self.metric = metric
+        if scoring is not None:
+            self.scorer = check_scoring(None, scoring)
+        self.scoring = scoring
         self._shared_log = get_callback_manager().list()
 
     def setup(self, context):
-        if self.metric is None:
-            self.scorer = check_scoring(context.estimator, self.metric)
+        if self.scoring is None:
+            self.scorer = check_scoring(context.estimator, self.scoring)
 
     def teardown(self, context):
         pass
@@ -110,7 +94,7 @@ class MetricMonitor:
         if isinstance(metric_value, dict):
             log_data.update(metric_value)
         else:
-            metric_name = self.metric if isinstance(self.metric, str) else "metric"
+            metric_name = self.scoring if isinstance(self.scoring, str) else "score"
             log_data[metric_name] = metric_value
         log_index = {}
         for depth, ctx in enumerate(context_path):
