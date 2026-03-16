@@ -1,7 +1,6 @@
 # Authors: The scikit-learn developers
 # SPDX-License-Identifier: BSD-3-Clause
 
-from importlib.util import find_spec
 from itertools import product
 
 import numpy as np
@@ -295,43 +294,29 @@ def test_scoring_monitor_logged_values_dataframe_meta_estimator(prefer, scoring,
     assert log_df.equals(expected_log_df)
 
 
-@pytest.mark.parametrize(
-    "as_frame",
-    [False, "auto"],
-)
-def test_get_logs_output_type_no_pandas(as_frame):
+def test_get_logs_output_type_no_pandas():
     """Test the type of the get_logs when not explicitly asking for dataframes."""
     estimator = MaxIterEstimator()
     callback = ScoringMonitor(scoring="neg_mean_squared_error")
     estimator.set_callbacks(callback)
 
-    empty_logs_all = callback.get_logs(select="all", as_frame=as_frame)
+    empty_logs_all = callback.get_logs(select="all", as_frame=False)
     assert isinstance(empty_logs_all, dict)
     assert not empty_logs_all
 
-    empty_logs_most_recent = callback.get_logs(select="most_recent", as_frame=as_frame)
+    empty_logs_most_recent = callback.get_logs(select="most_recent", as_frame=False)
 
     estimator.fit()
     estimator.fit()
 
-    logs_all = callback.get_logs(select="all", as_frame=as_frame)
-    logs_most_recent = callback.get_logs(select="most_recent", as_frame=as_frame)
+    logs_all = callback.get_logs(select="all", as_frame=False)
+    logs_most_recent = callback.get_logs(select="most_recent", as_frame=False)
 
     assert isinstance(logs_all, dict)
     assert len(logs_all) == 2
-
-    if find_spec("pandas") and as_frame == "auto":
-        import pandas as pd
-
-        assert isinstance(next(iter(logs_all.values())), pd.DataFrame)
-        assert isinstance(empty_logs_most_recent, pd.DataFrame)
-        assert empty_logs_most_recent.empty
-        assert isinstance(logs_most_recent, pd.DataFrame)
-
-    else:
-        assert isinstance(empty_logs_most_recent, list)
-        assert not empty_logs_most_recent
-        assert isinstance(logs_most_recent, list)
+    assert isinstance(empty_logs_most_recent, list)
+    assert not empty_logs_most_recent
+    assert isinstance(logs_most_recent, list)
 
 
 def test_get_logs_output_type_pandas():

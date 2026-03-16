@@ -62,7 +62,9 @@ class ScoringMonitor:
     def on_fit_task_begin(self, context):
         pass
 
-    def on_fit_task_end(self, context, *, data=None, fitted_estimator=None, **kwargs):
+    def on_fit_task_end(
+        self, context, *, data=None, fitted_estimator=None, metadata=None, **kwargs
+    ):
         # TODO: add a task_info dict in the logs
         if fitted_estimator is None or data is None:
             return
@@ -71,16 +73,23 @@ class ScoringMonitor:
             X, y = None, None
             if "X_train" in data and "y_train" in data:
                 X, y = data["X_train"], data["y_train"]
-            self._add_log_entry(X, y, "train_set", fitted_estimator, context_path)
+            self._add_log_entry(
+                X, y, "train_set", fitted_estimator, metadata, context_path
+            )
         if self.on == "validation_set" or self.on == "both":
             X, y = None, None
             if "X_val" in data and "y_val" in data:
                 X, y = data["X_val"], data["y_val"]
-            self._add_log_entry(X, y, "validation_set", fitted_estimator, context_path)
+            self._add_log_entry(
+                X, y, "validation_set", fitted_estimator, metadata, context_path
+            )
 
-    def _add_log_entry(self, X, y, on, fitted_estimator, context_path):
+    def _add_log_entry(self, X, y, on, fitted_estimator, metadata, context_path):
+        score_params = {}
+        if metadata is not None and "sample_weights" in metadata:
+            score_params["sample_weights"] = metadata["sample_weights"]
         if X is not None and y is not None:
-            score_value = self.scorer(fitted_estimator, X, y)
+            score_value = self.scorer(fitted_estimator, X, y, **score_params)
         else:
             score_value = None
 
@@ -111,11 +120,11 @@ class ScoringMonitor:
     @validate_params(
         {
             "select": [StrOptions({"all", "most_recent"})],
-            "as_frame": [StrOptions({"auto"}), "boolean"],
+            "as_frame": ["boolean"],
         },
         prefer_skip_nested_validation=True,
     )
-    def get_logs(self, select="all", as_frame="auto"):
+    def get_logs(self, select="all", as_frame=True):
         """Get the logged values.
 
         Returns the logs. If select is "all", a dictionary is returned with run ids as
@@ -136,28 +145,24 @@ class ScoringMonitor:
             returned, and if there are no logs, an empty dictionary or DataFrame is
             returned.
 
-        as_frame : "auto" or bool, default="auto"
+        as_frame : bool, default=True
             Whether to have the logs (the items of the dict if `select` is "all",
-            otherwise the output) formatted as multi-index pandas DataFrames. If set to
-            False the logs are formatted as dictionaries instead. If set to "auto", the
-            avialbility of pandas is evaluated and the format is chosen accordingly.
+            otherwise the output) formatted as multi-index pandas DataFrames. Having it
+            set to True required pandas to be installed. If set to False the logs are
+            formatted as lists of dictionaries instead.
 
         Returns
         -------
         logs : dict or pandas DataFrame
             The logged values, formatted as :
 
-            - a dict of pandas dataframes if `select` is "all" and `as_frame` is True or
-              "auto" with pandas available.
+            - a dict of pandas dataframes if `select` is "all" and `as_frame` is True.
 
-            - a pandas dataframe is `select` is "most_recent" and `as_frame` is True or
-              "auto" with pandas available.
+            - a pandas dataframe is `select` is "most_recent" and `as_frame` is True.
 
-            - a dict of dict if `select` is "all" and `as_frame` is False or "auto" with
-              pandas unavailable.
+            - a dict of lists of dicts if `select` is "all" and `as_frame` is False.
 
-            - a dict is `select` is "most_recent" and `as_frame` is False or "auto" with
-              pandas unavailable.
+            - a list of dicts is `select` is "most_recent" and `as_frame` is False.
         """
         log_item_list = list(self._shared_log)
 
@@ -168,36 +173,25 @@ class ScoringMonitor:
             log_data.update(log_index)
             logs_dict[run_id].append(log_data)
 
-        if select == "most_recent" and logs_dict:
-            run_ids = list(logs_dict.keys())
-            run_timetsamps = [r.split("_")[-2] for r in run_ids]
-            most_recent_id = run_ids[run_timetsamps.index(max(run_timetsamps))]
-            logs_dict = {most_recent_id: logs_dict[most_recent_id]}
-        else:
-            logs_dict = dict(sorted(logs_dict.items()))  # sort by run_id
+        # Sort runs chronologically using the timestamp in the run_id keys
+        logs_dict = dict(sorted(logs_dict.items(), key=lambda x: x[0].split("_")[-2]))
 
         default_if_no_logs = []
 
         if as_frame:
-            try:
-                pd = check_pandas_support(f"`{self.__class__.__name__}.get_logs`")
+            pd = check_pandas_support(f"`{self.__class__.__name__}.get_logs`")
 
-                for run_id in logs_dict:
-                    df = pd.DataFrame(logs_dict[run_id])
-                    if not df.empty:
-                        df = df.set_index(
-                            [col for col in df.columns if col in index_names]
-                        ).sort_index()
-                    logs_dict[run_id] = df
+            for run_id in logs_dict:
+                df = pd.DataFrame(logs_dict[run_id])
+                if not df.empty:
+                    df = df.set_index(
+                        [col for col in df.columns if col in index_names]
+                    ).sort_index()
+                logs_dict[run_id] = df
 
-                default_if_no_logs = pd.DataFrame({})
-
-            except ImportError as exc:
-                if as_frame != "auto":
-                    raise
+            default_if_no_logs = pd.DataFrame({})
 
         if select == "most_recent":
-            # We return the only value in logs_dict.
-            return next(iter(logs_dict.values()), default_if_no_logs)
+            return list(logs_dict.values())[-1] if logs_dict else default_if_no_logs
 
         return logs_dict
