@@ -366,7 +366,7 @@ class CallbackContext:
             and reconstruction_attributes is not None
         ):
             kwargs["fitted_estimator"] = _from_reconstruction_attributes(
-                estimator, reconstruction_attributes()
+                self.estimator, reconstruction_attributes()
             )
         return any(
             callback.on_fit_task_end(self, **kwargs)

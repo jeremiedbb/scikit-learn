@@ -114,12 +114,13 @@ class MaxIterEstimator(CallbackSupportMixin, BaseEstimator):
         callback_ctx.eval_on_fit_task_begin()
 
         for i in range(self.max_iter):
-            subcontext = callback_ctx.subcontext(task_id=i, task_name="iteration").eval_on_fit_task_begin()
+            subcontext = callback_ctx.subcontext(
+                task_id=i, task_name="iteration"
+            ).eval_on_fit_task_begin()
 
             time.sleep(self.computation_intensity)  # Computation intensive task
 
             if subcontext.eval_on_fit_task_end(
-                estimator=self,
                 data={"X_train": X, "y_train": y, "X_val": X_val, "y_val": y_val},
                 reconstruction_attributes=lambda: {"n_iter_": i + 1},
             ):

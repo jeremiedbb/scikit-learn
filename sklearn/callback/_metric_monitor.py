@@ -74,13 +74,17 @@ class MetricMonitor:
         self.metric = metric
         self._shared_log = get_callback_manager().list()
 
-    def on_fit_begin(self, estimator):
+    def setup(self, context):
         if self.metric is None:
-            self.scorer = check_scoring(estimator, self.metric)
+            self.scorer = check_scoring(context.estimator, self.metric)
 
-    def on_fit_task_end(
-        self, estimator, context, *, data=None, fitted_estimator=None, **kwargs
-    ):
+    def teardown(self, context):
+        pass
+
+    def on_fit_task_begin(self, context):
+        pass
+
+    def on_fit_task_end(self, context, *, data=None, fitted_estimator=None, **kwargs):
         # TODO: add a task_info dict in the logs
         if fitted_estimator is None or data is None:
             return
@@ -124,9 +128,6 @@ class MetricMonitor:
             ] = ctx.task_id
 
         self._shared_log.append((run_id, log_item))
-
-    def on_fit_end(self, estimator, context):
-        pass
 
     @validate_params(
         {
