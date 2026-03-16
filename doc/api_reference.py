@@ -151,8 +151,8 @@ API_REFERENCE = {
                 "autosummary": [
                     "AutoPropagatedCallback",
                     "CallbackContext",
-                    "Callback",
                     "CallbackSupportMixin",
+                    "FitCallback",
                     "ProgressBar",
                     "with_callbacks",
                 ],
