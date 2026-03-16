@@ -98,8 +98,10 @@ class MaxIterEstimator(CallbackSupportMixin, BaseEstimator):
     """A class that mimics the behavior of an estimator.
 
     The iterative part uses a loop with a max number of iterations known in advance.
-    A predict method is implemented, avergaing on the feature dimension and multiplying
-    by a coefficient equal to the number of iterations done in fit.
+
+    This estimator computes arbitrary predictions by avergaing the feature
+    values and multiplying the result by the number of iterations done
+    in fit.
     """
 
     _parameter_constraints: dict = {}
