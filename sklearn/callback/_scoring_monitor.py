@@ -25,18 +25,22 @@ class ScoringMonitor:
         arguments of the fit function, "validation_set" corresponds to using the X_val
         and y_val arguments. "both" corresponds to using both.
 
-    scoring : str, callable, list, tuple or dict, default=None
-        Strategy to evaluate the score on the model. Options:
+    scoring : str, callable, list, tuple, dict or None
+        The scoring method to use to monitor the model.
 
-        - str: see :ref:`scoring_string_names` for options.
-        - callable: a scorer callable object (e.g., function) with signature
-            ``scorer(estimator, X, y)``. See :ref:`scoring_callable` for details.
-        - list or tuple of str: a multi-scorer with each of the scoring string names is
-          used.
-        - dict of str and/or callables: a multi-scorer with each scoring string name or
-          callable in the dict is used.
-        - `None`: the `estimator`'s
-            :ref:`default evaluation criterion <scoring_api_overview>` is used.
+        If `scoring` represents a single score, one can use:
+
+        - a single string (see :ref:`scoring_string_names`);
+        - a callable (see :ref:`scoring_callable`) that returns a single value;
+        - `None`, the `estimator`'s
+          :ref:`default evaluation criterion <scoring_api_overview>` is used.
+
+        If `scoring` represents multiple scores, one can use:
+
+        - a list or tuple of unique strings;
+        - a callable returning a dictionary where the keys are the metric
+          names and the values are the metric scores;
+        - a dictionary with metric names as keys and callables as values.
     """
 
     requested_fit_info = ["fitted_estimator"]
@@ -48,7 +52,7 @@ class ScoringMonitor:
         },
         prefer_skip_nested_validation=True,
     )
-    def __init__(self, *, on="train_set", scoring=None):
+    def __init__(self, *, on="train_set", scoring):
         self.on = on
         self.scoring = scoring
         self._shared_log = get_callback_manager().list()
@@ -68,20 +72,25 @@ class ScoringMonitor:
         pass
 
     def on_fit_task_end(
-        self, context, *, data=None, fitted_estimator=None, metadata=None, **kwargs
+        self,
+        context,
+        *,
+        X=None,
+        y=None,
+        metadata=None,
+        fitted_estimator=None,
     ):
-        if fitted_estimator is None or data is None:
+        if fitted_estimator is None:
             return
 
         context_path = get_context_path(context)
         if self.on in ("train_set", "both"):
-            X, y = data.get("X_train", None), data.get("y_train", None)
-            sample_weights = metadata.get("sample_weights_train", None)
+            sample_weights = metadata.get("sample_weights", None)
             self._add_log_entry(
                 X, y, "train_set", fitted_estimator, sample_weights, context_path
             )
         if self.on in ("validation_set", "both"):
-            X, y = data.get("X_val", None), data.get("y_val", None)
+            X, y = metadata.get("X_val", None), metadata.get("y_val", None)
             self._add_log_entry(
                 X, y, "validation_set", fitted_estimator, metadata, context_path
             )
@@ -153,10 +162,9 @@ class ScoringMonitor:
             returned.
 
         as_frame : bool, default=True
-            Whether to have the logs (the items of the dict if `select` is "all",
-            otherwise the output) formatted as multi-index pandas DataFrames. Having it
-            set to True required pandas to be installed. If set to False the logs are
-            formatted as lists of dictionaries instead.
+            Whether to have the individual run logs formatted as multi-index Pandas
+            DataFrames. If set to False the individual run logs are formatted as lists
+            of dictionaries instead.
 
         Returns
         -------
