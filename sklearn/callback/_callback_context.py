@@ -76,8 +76,7 @@ from sklearn.callback._base import AutoPropagatedCallback
 #
 #             # Do something
 #
-#             subcontext.call_on_fit_task_end(X=X, y=y),
-#             )
+#             subcontext.call_on_fit_task_end(X=X, y=y)
 #
 #         callback_ctx.call_on_fit_task_end(X=X, y=y)
 #
