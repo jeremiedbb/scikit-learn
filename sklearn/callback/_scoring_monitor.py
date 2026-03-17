@@ -20,7 +20,7 @@ class ScoringMonitor:
     Parameters
     ----------
     on : {"train_set", "validation_set", "both"}, default="train_set"
-        Which data to compue the score on. Possible values are "train_set",
+        Which data to compute the score on. Possible values are "train_set",
         "validation_set" and "both". "train_set" corresponds to using the X and y
         arguments of the fit function, "validation_set" corresponds to using the X_val
         and y_val arguments. "both" corresponds to using both.
