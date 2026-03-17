@@ -79,7 +79,6 @@ from sklearn.callback._base import AutoPropagatedCallback
 #             subcontext.call_on_fit_task_end(X=X, y=y)
 #
 #         callback_ctx.call_on_fit_task_end(X=X, y=y)
-#
 #         return self
 #
 # It's also an object that is passed to the callback hooks to give them information
