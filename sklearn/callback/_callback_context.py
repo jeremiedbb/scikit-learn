@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import copy
+import inspect
 import uuid
 import warnings
 from datetime import datetime, timezone
@@ -330,12 +331,33 @@ class CallbackContext:
             Additional optional arguments passed to the callback. The list of possible
             keys and corresponding values are described in detail at <TODO: add link>.
         """
+        propagated_callbacks = getattr(self, "_propagated_callbacks", [])
+        recon_attr = kwargs.pop("reconstruction_attributes", None)
         for callback in self._callbacks:
-            # Only call the `on_fit_task_begin` hook of callbacks that are not
-            # propagated. For propagated callbacks, the hook will be called by the
-            # sub-estimator's root context (both represent the same task).
-            if callback not in getattr(self, "_propagated_callbacks", []):
-                callback.on_fit_task_begin(self, **kwargs)
+            if callback in propagated_callbacks:
+                # Only call the `on_fit_task_end` hook of callbacks that are not
+                # propagated. For propagated callbacks, the hook will be called by the
+                # sub-estimator's root context (both represent the same task).
+                continue
+            signature = inspect.signature(callback.on_fit_task_end)
+            args_to_pass = {}
+            for param in signature.parameters.values():
+                if (
+                    param.name == "fitted_estimator"
+                    and param.name not in kwargs
+                    and recon_attr is not None
+                ):
+                    recon_attr = recon_attr() if callable(recon_attr) else recon_attr
+                    kwargs["fitted_estimator"] = _from_reconstruction_attributes(
+                        self.estimator, recon_attr
+                    )
+                if param.name not in kwargs:
+                    continue
+                if callable(kwargs[param.name]):
+                    kwargs[param.name] = kwargs[param.name]()
+                args_to_pass[param.name] = kwargs[param.name]
+
+            callback.on_fit_task_begin(self, **args_to_pass)
 
         return self
 
@@ -354,28 +376,37 @@ class CallbackContext:
             Whether or not to stop the current level of iterations at this end of this
             task.
         """
-        requested_info = set()
+        stop = False
+        propagated_callbacks = getattr(self, "_propagated_callbacks", [])
+        recon_attr = kwargs.pop("reconstruction_attributes", None)
         for callback in self._callbacks:
-            if hasattr(callback, "requested_fit_info"):
-                requested_info = requested_info.union(callback.requested_fit_info)
+            if callback in propagated_callbacks:
+                # Only call the `on_fit_task_end` hook of callbacks that are not
+                # propagated. For propagated callbacks, the hook will be called by the
+                # sub-estimator's root context (both represent the same task).
+                continue
+            signature = inspect.signature(callback.on_fit_task_end)
+            args_to_pass = {}
+            for param in signature.parameters.values():
+                if (
+                    param.name == "fitted_estimator"
+                    and param.name not in kwargs
+                    and recon_attr is not None
+                ):
+                    recon_attr = recon_attr() if callable(recon_attr) else recon_attr
+                    kwargs["fitted_estimator"] = _from_reconstruction_attributes(
+                        self.estimator, recon_attr
+                    )
+                if param.name not in kwargs:
+                    continue
+                if callable(kwargs[param.name]):
+                    kwargs[param.name] = kwargs[param.name]()
+                args_to_pass[param.name] = kwargs[param.name]
 
-        reconstruction_attributes = kwargs.pop("reconstruction_attributes", None)
+            if callback.on_fit_task_end(self, **args_to_pass):
+                stop = True
 
-        if (
-            "fitted_estimator" in requested_info
-            and reconstruction_attributes is not None
-        ):
-            kwargs["fitted_estimator"] = _from_reconstruction_attributes(
-                self.estimator, reconstruction_attributes()
-            )
-        return any(
-            callback.on_fit_task_end(self, **kwargs)
-            for callback in self._callbacks
-            # Only call the `on_fit_task_end` hook of callbacks that are not
-            # propagated. For propagated callbacks, the hook will be called by the
-            # sub-estimator's root context (both represent the same task).
-            if callback not in getattr(self, "_propagated_callbacks", [])
-        )
+        return stop
 
     def propagate_callback_context(self, sub_estimator):
         """Propagate the context and callbacks to a sub-estimator.

@@ -39,8 +39,6 @@ class ScoringMonitor:
             :ref:`default evaluation criterion <scoring_api_overview>` is used.
     """
 
-    requested_fit_info = ["fitted_estimator"]
-
     @validate_params(
         {"on": [StrOptions({"train_set", "validation_set", "both"})]},
         prefer_skip_nested_validation=True,
@@ -63,7 +61,7 @@ class ScoringMonitor:
         pass
 
     def on_fit_task_end(
-        self, context, *, data=None, fitted_estimator=None, metadata=None, **kwargs
+        self, context, *, data=None, fitted_estimator=None, metadata=None
     ):
         # TODO: add a task_info dict in the logs
         if fitted_estimator is None or data is None:
