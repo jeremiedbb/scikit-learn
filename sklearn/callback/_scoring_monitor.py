@@ -141,11 +141,15 @@ class ScoringMonitor:
     def get_logs(self, select="all", as_frame=True):
         """Get the logged values.
 
-        Returns the logs. If select is "all", a dictionary is returned with run ids as
-        keys and logs as values. The logs take the form of pandas DataFrames or
-        dictionaries depending on the `as_frame` parameter.
+        If select is "all", a dictionary is returned with run ids as keys and logs as
+        values. A run correspond to the call of the fit function of the outermost
+        meta-estimator that is a parent of the estimator the callback is attached to.
 
-        The run ids are strings of the form : "<estimator name>_<timestamp>_<id>".
+        The run ids are strings of the form : "<estimator name>_<timestamp>_<id>", where
+        the estimator name corresponds to the outermost parent meta-estimator.
+
+        The logs take the form of pandas DataFrames or dictionaries depending on the
+        `as_frame` parameter.
 
         Parameters
         ----------
