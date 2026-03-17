@@ -150,14 +150,8 @@ class ScoringMonitor:
         Parameters
         ----------
         select : {"all", "most_recent"}, default="all"
-            Which log run to return.
-
-            If `select` is "all", all runs are returned in a dictionary, and the
-            dictionary is empty if there are no logs.
-
-            If `select` is "most_recent", only the log from the last run is directly
-            returned, and if there are no logs, an empty dictionary or DataFrame is
-            returned.
+            Which log run to return; "all" returns all logs, "most_recent" only 
+            returns the last log.
 
         as_frame : bool, default=True
             Whether to have the individual run logs formatted as multi-index Pandas
