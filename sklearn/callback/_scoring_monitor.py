@@ -11,7 +11,7 @@ from sklearn.utils._param_validation import StrOptions, validate_params
 
 
 class ScoringMonitor:
-    """Callback that monitors a score for each iterative steps of an estimator.
+    """Callback that monitors a score for each iterative step of an estimator.
 
     The specified scorer is called on the training or validation data at each iterative
     step of the estimator, and logged by the callbacks. The logs can be retrieved
