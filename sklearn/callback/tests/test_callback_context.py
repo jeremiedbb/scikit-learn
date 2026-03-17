@@ -13,6 +13,7 @@ from sklearn.callback.tests._utils import (
     NoCallbackEstimator,
     NoSubtaskEstimator,
     ParentFitEstimator,
+    SpecificHookSignatureCallback,
     TestingAutoPropagatedCallback,
     TestingCallback,
     ThirdPartyEstimator,
@@ -333,3 +334,58 @@ def test_autopropagation_to_callback_agnostic_subestimator():
     assert callback.count_hooks("on_fit_task_begin") == expected_n_tasks
     assert callback.count_hooks("on_fit_task_end") == expected_n_tasks
     assert callback.count_hooks("teardown") == 1
+
+
+def test_hook_calling():
+    """Test the hook calling methods of the callback context."""
+    estimator = MaxIterEstimator()
+    callback = SpecificHookSignatureCallback()
+    estimator.set_callbacks(callback)
+    context = CallbackContext._from_estimator(
+        estimator, task_name="task_name", task_id="task_id", max_subtasks=0
+    )
+
+    # Providing all the kwargs
+    context.eval_on_fit_task_begin(
+        lazy_loaded_kwarg=lambda: 1, regular_kwarg=2, not_used_kwarg=3
+    )
+    assert callback.record[-1]["kwargs"] == {"lazy_loaded_kwarg": 1, "regular_kwarg": 2}
+
+    # Not providing any kwarg
+    context.eval_on_fit_task_begin()
+    assert callback.record[-1]["kwargs"] == {
+        "lazy_loaded_kwarg": None,
+        "regular_kwarg": None,
+    }
+
+    # Providing partial kwarg
+    context.eval_on_fit_task_begin(regular_kwarg=4, not_used_kwarg=5)
+    assert callback.record[-1]["kwargs"] == {
+        "lazy_loaded_kwarg": None,
+        "regular_kwarg": 4,
+    }
+
+    # Lazy loading reconstruction attributes + returning True
+    return_1 = context.eval_on_fit_task_end(
+        reconstruction_attributes=lambda: {"n_iter_": 1}, return_value=True
+    )
+    fitted_estimator = callback.record[-1]["kwargs"]["fitted_estimator"]
+    assert isinstance(fitted_estimator, MaxIterEstimator)
+    assert fitted_estimator.n_iter_ == 1
+    assert return_1
+
+    # Regular reconstruction attributes + not returning True
+    return_2 = context.eval_on_fit_task_end(reconstruction_attributes={"n_iter_": 2})
+    fitted_estimator = callback.record[-1]["kwargs"]["fitted_estimator"]
+    assert isinstance(fitted_estimator, MaxIterEstimator)
+    assert fitted_estimator.n_iter_ == 2
+    assert not return_2
+
+    # No reconstruction attribute + not returning True
+    return_3 = context.eval_on_fit_task_end(return_value=False)
+    assert callback.record[-1]["kwargs"] == {
+        "fitted_estimator": None,
+        "return_value": False,
+        "not_provided_kwarg": None,
+    }
+    assert not return_3

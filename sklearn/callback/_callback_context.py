@@ -322,6 +322,68 @@ class CallbackContext:
             max_subtasks=max_subtasks,
         )
 
+    def _call_hooks(self, hook_name, kwarg_dict, return_stop_criterion=False):
+        """Helper to call the hooks.
+
+        Provides the right arguments to each hook by inspecting their signatures.
+
+        Any item value in `kwarg_dict` that is a callable is replaced by what it returns
+        (if used by a callback hook) to allow lazy loading of the arguments.
+
+        The `fitted_estimator` arg is a special case, using the
+        `reconstruction_attributes` arg in `kwarg_dict` and the
+        `_from_reconstruction_attributes` method to create an estimator instance.
+
+        Parameters
+        ----------
+        hook_name : str
+            Name of the callback hook to call.
+        kwarg_dict: dict
+            Keyword arguments passed to the callback context.
+        return_stop_criterion : bool, default=False
+            Whether to return a boolean for stopping or not.
+
+        Returns
+        -------
+        stop_criterion (bool) if `return_stop_criterion` is True, otherwise self.
+        """
+        propagated_callbacks = getattr(self, "_propagated_callbacks", [])
+        recon_attr = kwarg_dict.pop("reconstruction_attributes", None)
+
+        if return_stop_criterion:
+            stop_criterion = False
+        for callback in self._callbacks:
+            if callback in propagated_callbacks:
+                # Only call the `on_fit_task_end` hook of callbacks that are not
+                # propagated. For propagated callbacks, the hook will be called by the
+                # sub-estimator's root context (both represent the same task).
+                continue
+            signature = inspect.signature(getattr(callback, hook_name))
+            args_to_pass = {}
+            for param in signature.parameters.values():
+                if (
+                    param.name == "fitted_estimator"
+                    and param.name not in kwarg_dict
+                    and recon_attr is not None
+                ):
+                    recon_attr = recon_attr() if callable(recon_attr) else recon_attr
+                    kwarg_dict["fitted_estimator"] = _from_reconstruction_attributes(
+                        self.estimator, recon_attr
+                    )
+                if param.name not in kwarg_dict:
+                    continue
+                if callable(kwarg_dict[param.name]):
+                    kwarg_dict[param.name] = kwarg_dict[param.name]()
+                args_to_pass[param.name] = kwarg_dict[param.name]
+
+            if return_stop_criterion:
+                if getattr(callback, hook_name)(self, **args_to_pass):
+                    stop_criterion = True
+            else:
+                getattr(callback, hook_name)(self, **args_to_pass)
+
+        return stop_criterion if return_stop_criterion else self
+
     def eval_on_fit_task_begin(self, **kwargs):
         """Evaluate the `on_fit_task_begin` hook of the callbacks.
 
@@ -331,35 +393,7 @@ class CallbackContext:
             Additional optional arguments passed to the callback. The list of possible
             keys and corresponding values are described in detail at <TODO: add link>.
         """
-        propagated_callbacks = getattr(self, "_propagated_callbacks", [])
-        recon_attr = kwargs.pop("reconstruction_attributes", None)
-        for callback in self._callbacks:
-            if callback in propagated_callbacks:
-                # Only call the `on_fit_task_end` hook of callbacks that are not
-                # propagated. For propagated callbacks, the hook will be called by the
-                # sub-estimator's root context (both represent the same task).
-                continue
-            signature = inspect.signature(callback.on_fit_task_end)
-            args_to_pass = {}
-            for param in signature.parameters.values():
-                if (
-                    param.name == "fitted_estimator"
-                    and param.name not in kwargs
-                    and recon_attr is not None
-                ):
-                    recon_attr = recon_attr() if callable(recon_attr) else recon_attr
-                    kwargs["fitted_estimator"] = _from_reconstruction_attributes(
-                        self.estimator, recon_attr
-                    )
-                if param.name not in kwargs:
-                    continue
-                if callable(kwargs[param.name]):
-                    kwargs[param.name] = kwargs[param.name]()
-                args_to_pass[param.name] = kwargs[param.name]
-
-            callback.on_fit_task_begin(self, **args_to_pass)
-
-        return self
+        return self._call_hooks(hook_name="on_fit_task_begin", kwarg_dict=kwargs)
 
     def eval_on_fit_task_end(self, **kwargs):
         """Evaluate the `on_fit_task_end` hook of the callbacks.
@@ -376,37 +410,9 @@ class CallbackContext:
             Whether or not to stop the current level of iterations at this end of this
             task.
         """
-        stop = False
-        propagated_callbacks = getattr(self, "_propagated_callbacks", [])
-        recon_attr = kwargs.pop("reconstruction_attributes", None)
-        for callback in self._callbacks:
-            if callback in propagated_callbacks:
-                # Only call the `on_fit_task_end` hook of callbacks that are not
-                # propagated. For propagated callbacks, the hook will be called by the
-                # sub-estimator's root context (both represent the same task).
-                continue
-            signature = inspect.signature(callback.on_fit_task_end)
-            args_to_pass = {}
-            for param in signature.parameters.values():
-                if (
-                    param.name == "fitted_estimator"
-                    and param.name not in kwargs
-                    and recon_attr is not None
-                ):
-                    recon_attr = recon_attr() if callable(recon_attr) else recon_attr
-                    kwargs["fitted_estimator"] = _from_reconstruction_attributes(
-                        self.estimator, recon_attr
-                    )
-                if param.name not in kwargs:
-                    continue
-                if callable(kwargs[param.name]):
-                    kwargs[param.name] = kwargs[param.name]()
-                args_to_pass[param.name] = kwargs[param.name]
-
-            if callback.on_fit_task_end(self, **args_to_pass):
-                stop = True
-
-        return stop
+        return self._call_hooks(
+            hook_name="on_fit_task_end", kwarg_dict=kwargs, return_stop_criterion=True
+        )
 
     def propagate_callback_context(self, sub_estimator):
         """Propagate the context and callbacks to a sub-estimator.

@@ -94,6 +94,33 @@ class FailingCallback(TestingCallback):
             raise ValueError("Failing callback failed at teardown")
 
 
+class SpecificHookSignatureCallback(TestingCallback):
+    """A callback with different arguments in its hook signatures."""
+
+    def on_fit_task_begin(self, context, *, lazy_loaded_kwarg=None, regular_kwarg=None):
+        return super().on_fit_task_begin(
+            context,
+            lazy_loaded_kwarg=lazy_loaded_kwarg,
+            regular_kwarg=regular_kwarg,
+        )
+
+    def on_fit_task_end(
+        self,
+        context,
+        *,
+        fitted_estimator=None,
+        not_provided_kwarg=None,
+        return_value=None,
+    ):
+        super().on_fit_task_end(
+            context,
+            fitted_estimator=fitted_estimator,
+            not_provided_kwarg=not_provided_kwarg,
+            return_value=return_value,
+        )
+        return return_value
+
+
 class MaxIterEstimator(CallbackSupportMixin, BaseEstimator):
     """A class that mimics the behavior of an estimator.
 
@@ -123,7 +150,8 @@ class MaxIterEstimator(CallbackSupportMixin, BaseEstimator):
             time.sleep(self.computation_intensity)  # Computation intensive task
 
             if subcontext.eval_on_fit_task_end(
-                data={"X_train": X, "y_train": y, "X_val": X_val, "y_val": y_val},
+                X=X,
+                y=y,
                 reconstruction_attributes=lambda: {"n_iter_": i + 1},
             ):
                 break
