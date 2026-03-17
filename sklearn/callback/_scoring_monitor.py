@@ -11,7 +11,7 @@ from sklearn.utils._param_validation import StrOptions, validate_params
 
 
 class ScoringMonitor:
-    """Callback that monitors a score for each iterative steps of an estimator.
+    """Callback that monitors a score for each iterative step of an estimator.
 
     The specified scorer is called on the training or validation data at each iterative
     step of the estimator, and logged by the callbacks. The logs can be retrieved
@@ -20,7 +20,7 @@ class ScoringMonitor:
     Parameters
     ----------
     on : {"train_set", "validation_set", "both"}, default="train_set"
-        Which data to compue the score on. Possible values are "train_set",
+        Which data to compute the score on. Possible values are "train_set",
         "validation_set" and "both". "train_set" corresponds to using the X and y
         arguments of the fit function, "validation_set" corresponds to using the X_val
         and y_val arguments. "both" corresponds to using both.
@@ -154,14 +154,8 @@ class ScoringMonitor:
         Parameters
         ----------
         select : {"all", "most_recent"}, default="all"
-            Which log run to return.
-
-            If `select` is "all", all runs are returned in a dictionary, and the
-            dictionary is empty if there are no logs.
-
-            If `select` is "most_recent", only the log from the last run is directly
-            returned, and if there are no logs, an empty dictionary or DataFrame is
-            returned.
+            Which log run to return; "all" returns all logs, "most_recent" only 
+            returns the last log.
 
         as_frame : bool, default=True
             Whether to have the individual run logs formatted as multi-index Pandas
