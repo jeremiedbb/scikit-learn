@@ -339,7 +339,7 @@ class CallbackContext:
                 # propagated. For propagated callbacks, the hook will be called by the
                 # sub-estimator's root context (both represent the same task).
                 continue
-            signature = inspect.signature(callback.on_fit_task_end)
+            signature = inspect.signature(callback.on_fit_task_begin)
             args_to_pass = {}
             for param in signature.parameters.values():
                 if (
