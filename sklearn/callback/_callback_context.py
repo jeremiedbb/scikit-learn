@@ -67,23 +67,21 @@ from sklearn.callback._base import AutoPropagatedCallback
 #     @with_callbacks
 #     def fit(self, X, y):
 #         callback_ctx = self._init_callback_context(max_subtasks=self.max_iter)
-#         callback_ctx.call_on_fit_task_begin()
+#         callback_ctx.call_on_fit_task_begin(X=X, y=y)
 #
 #         for i in range(self.max_iter):
-#             subcontext = callback_ctx.subcontext(task_id=i)
+#             subcontext = callback_ctx.subcontext(task_id=i).call_on_fit_task_begin(
+#                X=X, y=y,
+#             )
 #
 #             # Do something
 #
-#             subcontext.call_on_fit_task_end(
-#                 data={"X_train": X, "y_train": y},
+#             subcontext.call_on_fit_task_end(X=X, y=y),
 #             )
 #
-#         callback_ctx.call_on_fit_task_end(
-#             data={"X_train": X, "y_train": y},
-#         )
+#         callback_ctx.call_on_fit_task_end(X=X, y=y)
 #
 #         return self
-#
 #
 # It's also an object that is passed to the callback hooks to give them information
 # about the task being executed and its position in the task tree.
@@ -397,7 +395,7 @@ class CallbackContext:
             if isinstance(callback, AutoPropagatedCallback)
             and (
                 callback.max_propagation_depth is None
-                or self._propagation_depth < callback.max_propagation_depth - 1
+                or self._propagation_depth < callback.max_propagation_depth
             )
         ]
         if not callbacks_to_propagate:
