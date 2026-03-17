@@ -25,34 +25,43 @@ class ScoringMonitor:
         arguments of the fit function, "validation_set" corresponds to using the X_val
         and y_val arguments. "both" corresponds to using both.
 
-    scoring : str, callable, list, tuple or dict, default=None
-        Strategy to evaluate the score on the model. Options:
+    scoring : str, callable, list, tuple, dict or None
+        The scoring method to use to monitor the model.
 
-        - str: see :ref:`scoring_string_names` for options.
-        - callable: a scorer callable object (e.g., function) with signature
-            ``scorer(estimator, X, y)``. See :ref:`scoring_callable` for details.
-        - list or tuple of str: a multi-scorer with each of the scoring string names is
-          used.
-        - dict of str and/or callables: a multi-scorer with each scoring string name or
-          callable in the dict is used.
-        - `None`: the `estimator`'s
-            :ref:`default evaluation criterion <scoring_api_overview>` is used.
+        If `scoring` represents a single score, one can use:
+
+        - a single string (see :ref:`scoring_string_names`);
+        - a callable (see :ref:`scoring_callable`) that returns a single value;
+        - `None`, the `estimator`'s
+          :ref:`default evaluation criterion <scoring_api_overview>` is used.
+
+        If `scoring` represents multiple scores, one can use:
+
+        - a list or tuple of unique strings;
+        - a callable returning a dictionary where the keys are the metric
+          names and the values are the metric scores;
+        - a dictionary with metric names as keys and callables as values.
     """
 
     @validate_params(
-        {"on": [StrOptions({"train_set", "validation_set", "both"})]},
+        {
+            "on": [StrOptions({"train_set", "validation_set", "both"})],
+            "scoring": [str, callable, list, tuple, dict, None],
+        },
         prefer_skip_nested_validation=True,
     )
     def __init__(self, *, on="train_set", scoring):
         self.on = on
-        if scoring is not None:
-            self.scorer = check_scoring(None, scoring)
         self.scoring = scoring
         self._shared_log = get_callback_manager().list()
+        self._run_scorers = {}
 
     def setup(self, context):
-        if self.scoring is None:
-            self.scorer = check_scoring(context.estimator, self.scoring)
+        # A scorer per run is needed to avoid race conditions when the callback is set
+        # on different estimators and the scorer is the estimator's default scorer.
+        self._run_scorers[context.root_uuid] = check_scoring(
+            context.estimator, self.scoring
+        )
 
     def teardown(self, context):
         pass
@@ -61,56 +70,63 @@ class ScoringMonitor:
         pass
 
     def on_fit_task_end(
-        self, context, *, data=None, fitted_estimator=None, metadata=None
+        self,
+        context,
+        *,
+        X=None,
+        y=None,
+        metadata=None,
+        fitted_estimator=None,
     ):
-        # TODO: add a task_info dict in the logs
-        if fitted_estimator is None or data is None:
+        if fitted_estimator is None:
             return
+
         context_path = get_context_path(context)
         if self.on in ("train_set", "both"):
-            X, y = None, None
-            if "X_train" in data and "y_train" in data:
-                X, y = data["X_train"], data["y_train"]
+            sample_weights = metadata.get("sample_weights", None)
             self._add_log_entry(
-                X, y, "train_set", fitted_estimator, metadata, context_path
+                X, y, "train_set", fitted_estimator, sample_weights, context_path
             )
-        if self.on == "validation_set" or self.on == "both":
-            X, y = None, None
-            if "X_val" in data and "y_val" in data:
-                X, y = data["X_val"], data["y_val"]
+        if self.on in ("validation_set", "both"):
+            X, y = metadata.get("X_val", None), metadata.get("y_val", None)
             self._add_log_entry(
                 X, y, "validation_set", fitted_estimator, metadata, context_path
             )
 
-    def _add_log_entry(self, X, y, on, fitted_estimator, metadata, context_path):
-        score_params = {}
-        if metadata is not None and "sample_weights" in metadata:
-            score_params["sample_weights"] = metadata["sample_weights"]
-        if X is not None and y is not None:
-            score_value = self.scorer(fitted_estimator, X, y, **score_params)
-        else:
-            score_value = None
+    def _add_log_entry(self, X, y, on, fitted_estimator, sample_weights, context_path):
+        if X is None or y is None:
+            return
 
+        # run_id
+        root_ctx = context_path[0]
+        timestamp = root_ctx.init_time.strftime("UTC%Y-%m-%d-%H:%M:%S.%f")
+        run_id = f"{root_ctx.estimator_name}_{timestamp}_{root_ctx.root_uuid}"
+
+        # log_data
         log_data = {"on": on}
+        score_params = {}
+        scorer = self._run_scorers[root_ctx.root_uuid]
+        if sample_weights is not None and scorer._accept_sample_weight():
+            score_params["sample_weights"] = sample_weights
+        score_value = scorer(fitted_estimator, X, y, **score_params)
         if isinstance(score_value, dict):
             log_data.update(score_value)
         else:
             score_name = self.scoring if isinstance(self.scoring, str) else "score"
             log_data[score_name] = score_value
+
+        # log_index
         log_index = {}
         for depth, ctx in enumerate(context_path):
-            if depth == 0:
-                timestamp = ctx.init_time.strftime("UTC%Y-%m-%d-%H:%M:%S.%f")
-                run_id = f"{ctx.estimator_name}_{timestamp}_{ctx.root_uuid}"
-            prev_task_str = (
+            source_task_str = (
                 f"{ctx.source_estimator_name}_{ctx.source_task_name}|"
                 if ctx.source_estimator_name is not None
                 else ""
             )
-            # The prefix __index__ is used to identify columns that will be used as
-            # index in the mulit_index dataframe returned by get_logs.
+            # TODO(callbacks): add a task_info attribute in CallbackContext containing
+            # detailed info of task, and enhance the logs with it.
             log_index[
-                f"{depth}_{prev_task_str}{ctx.estimator_name}_{ctx.task_name}"
+                f"{depth}_{source_task_str}{ctx.estimator_name}_{ctx.task_name}"
             ] = ctx.task_id
 
         self._shared_log.append((run_id, log_index, log_data))
@@ -144,10 +160,9 @@ class ScoringMonitor:
             returned.
 
         as_frame : bool, default=True
-            Whether to have the logs (the items of the dict if `select` is "all",
-            otherwise the output) formatted as multi-index pandas DataFrames. Having it
-            set to True required pandas to be installed. If set to False the logs are
-            formatted as lists of dictionaries instead.
+            Whether to have the individual run logs formatted as multi-index Pandas
+            DataFrames. If set to False the individual run logs are formatted as lists
+            of dictionaries instead.
 
         Returns
         -------
