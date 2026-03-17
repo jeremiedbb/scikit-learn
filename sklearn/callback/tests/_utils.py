@@ -138,27 +138,48 @@ class MaxIterEstimator(CallbackSupportMixin, BaseEstimator):
         self.computation_intensity = computation_intensity
 
     @_fit_context(prefer_skip_nested_validation=False)
-    def fit(self, X=None, y=None, X_val=None, y_val=None):
+    def fit(
+        self,
+        X=None,
+        y=None,
+        sample_weight=None,
+        X_val=None,
+        y_val=None,
+        sample_weight_val=None,
+    ):
         callback_ctx = self._init_callback_context(max_subtasks=self.max_iter)
         callback_ctx.eval_on_fit_task_begin()
 
         for i in range(self.max_iter):
             subcontext = callback_ctx.subcontext(
                 task_id=i, task_name="iteration"
-            ).eval_on_fit_task_begin()
+            ).eval_on_fit_task_begin(
+                X=X,
+                y=y,
+                metadata={
+                    "sample_weight": sample_weight,
+                    "X_val": X_val,
+                    "y_val": y_val,
+                    "sample_weight_val": sample_weight_val,
+                },
+            )
 
             time.sleep(self.computation_intensity)  # Computation intensive task
 
             if subcontext.eval_on_fit_task_end(
                 X=X,
                 y=y,
+                metadata={
+                    "sample_weight": sample_weight,
+                    "X_val": X_val,
+                    "y_val": y_val,
+                    "sample_weight_val": sample_weight_val,
+                },
                 reconstruction_attributes=lambda: {"n_iter_": i + 1},
             ):
                 break
 
-        callback_ctx.eval_on_fit_task_end(
-            data={"X_train": X, "y_train": y},
-        )
+        callback_ctx.eval_on_fit_task_end()
 
         self.n_iter_ = i + 1
 

@@ -83,9 +83,9 @@ class ScoringMonitor:
 
         context_path = get_context_path(context)
         if self.on in ("train_set", "both"):
-            sample_weights = metadata.get("sample_weights", None)
+            sample_weight = metadata.get("sample_weight", None)
             self._add_log_entry(
-                X, y, "train_set", fitted_estimator, sample_weights, context_path
+                X, y, "train_set", fitted_estimator, sample_weight, context_path
             )
         if self.on in ("validation_set", "both"):
             X, y = metadata.get("X_val", None), metadata.get("y_val", None)
@@ -93,7 +93,7 @@ class ScoringMonitor:
                 X, y, "validation_set", fitted_estimator, metadata, context_path
             )
 
-    def _add_log_entry(self, X, y, on, fitted_estimator, sample_weights, context_path):
+    def _add_log_entry(self, X, y, on, fitted_estimator, sample_weight, context_path):
         if X is None or y is None:
             return
 
@@ -106,8 +106,8 @@ class ScoringMonitor:
         log_data = {"on": on}
         score_params = {}
         scorer = self._run_scorers[root_ctx.root_uuid]
-        if sample_weights is not None and scorer._accept_sample_weight():
-            score_params["sample_weights"] = sample_weights
+        if sample_weight is not None and scorer._accept_sample_weight():
+            score_params["sample_weight"] = sample_weight
         score_value = scorer(fitted_estimator, X, y, **score_params)
         if isinstance(score_value, dict):
             log_data.update(score_value)

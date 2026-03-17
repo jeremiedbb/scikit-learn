@@ -1,18 +1,21 @@
 # Authors: The scikit-learn developers
 # SPDX-License-Identifier: BSD-3-Clause
 
+import re
 from itertools import product
 
 import numpy as np
 import pytest
 
+from sklearn import config_context
 from sklearn.callback import ScoringMonitor
 from sklearn.callback.tests._utils import (
     MaxIterEstimator,
     MetaEstimator,
     WhileEstimator,
 )
-from sklearn.metrics import check_scoring
+from sklearn.datasets import make_regression
+from sklearn.metrics import check_scoring, make_scorer, r2_score
 
 
 def make_expected_ouptput_MaxIterEstimator(
@@ -355,3 +358,56 @@ def test_estimator_without_optional_kwargs():
     estimator = WhileEstimator()
     estimator.set_callbacks(ScoringMonitor(on="both", scoring="r2"))
     estimator.fit()
+
+
+def test_metadata():
+    """Check that the ScoringMonitor works with sample weights and metadata-routing.
+
+    - passing sample weights results in a different score than not passing them.
+    - passing sample weights without metadata-routing enabled gives the same scores as
+      passing them with metadata-routing enabled.
+    - Not requesting sample weights gives an error if metadata-routing is enabled.
+    """
+    n_samples = 100
+    X, y = make_regression(n_samples=n_samples, n_features=2, random_state=0)
+    sample_weight = np.random.randint(0, 5, size=n_samples)
+
+    # no sample weights
+    callback = ScoringMonitor(on="train_set", scoring="r2")
+    MaxIterEstimator().set_callbacks(callback).fit(X=X, y=y)
+    log_no_sw = callback.get_logs(as_frame=False, select="most_recent")
+
+    # sample weights, no metadata-routing
+    callback = ScoringMonitor(on="train_set", scoring="r2")
+    MaxIterEstimator().set_callbacks(callback).fit(
+        X=X, y=y, sample_weight=sample_weight
+    )
+    log_sw_no_mr = callback.get_logs(as_frame=False, select="most_recent")
+
+    # sample weights, metadata-routing
+    with config_context(enable_metadata_routing=True):
+        scorer = make_scorer(r2_score)
+        scorer.set_score_request(sample_weight=True)
+        callback = ScoringMonitor(on="train_set", scoring={"r2": scorer})
+        MaxIterEstimator().set_callbacks(callback).fit(
+            X=X, y=y, sample_weight=sample_weight
+        )
+        log_sw_mr = callback.get_logs(as_frame=False, select="most_recent")
+
+        # error if sample_weight not requested
+        scorer = make_scorer(r2_score)
+        callback = ScoringMonitor(on="train_set", scoring={"r2": scorer})
+        est = MaxIterEstimator().set_callbacks(callback)
+        with pytest.raises(
+            TypeError,
+            match=re.escape("score got unexpected argument(s) {'sample_weight'}"),
+        ):
+            est.fit(X=X, y=y, sample_weight=sample_weight)
+
+    assert any(
+        np.logical_not(np.isclose(l1["r2"], l2["r2"]))
+        for l1, l2 in zip(log_no_sw, log_sw_no_mr)
+    )
+    assert all(
+        np.isclose(l1["r2"], l2["r2"]) for l1, l2 in zip(log_sw_no_mr, log_sw_mr)
+    )
