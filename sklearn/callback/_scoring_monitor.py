@@ -154,8 +154,8 @@ class ScoringMonitor:
         Parameters
         ----------
         select : {"all", "most_recent"}, default="all"
-            Which log run to return; "all" returns all logs, "most_recent" only 
-            returns the last log.
+            Which log run to return; "all" returns all logs, "most_recent" only returns
+            the last log.
 
         as_frame : bool, default=True
             Whether to have the individual run logs formatted as multi-index Pandas
