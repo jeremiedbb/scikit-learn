@@ -428,7 +428,8 @@ def test_validation_set_metadata_routing():
 
     # Without metadata-routing enabled, passing X_val and y_val gives an error
     msg = re.escape(
-        "[X_val, y_val] are passed but are not explicitly set as requested or not requested for MaxIterEstimator.fit"
+        "[X_val, y_val] are passed but are not explicitly set as requested or not "
+        "requested for MaxIterEstimator.fit"
     )
     with pytest.raises(UnsetMetadataPassedError, match=msg):
         MetaEstimator(est).fit(X=X, y=y, X_val=X_val, y_val=y_val)
