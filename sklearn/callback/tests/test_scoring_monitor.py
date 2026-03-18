@@ -20,7 +20,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.utils._metadata_requests import UnsetMetadataPassedError
 
 
-def make_expected_ouptput_MaxIterEstimator(
+def make_expected_output_MaxIterEstimator(
     max_iter, scoring, on, X_train, y_train, X_val, y_val
 ):
     """Generate the expected dict output of a ScoringMonitor on a MaxIterEstimator."""
@@ -65,7 +65,7 @@ def make_expected_ouptput_MaxIterEstimator(
     return expected_log, scoring_names
 
 
-def make_expected_ouptput_MetaEstimator(
+def make_expected_output_MetaEstimator(
     n_outer, n_inner, max_iter, scoring, on, X_train, y_train, X_val, y_val
 ):
     """Generate the expected dict output of a ScoringMonitor on a MetaEstimator.
@@ -150,7 +150,7 @@ def test_scoring_monitor_logged_values(scoring, on):
     estimator.fit(X=X_train, y=y_train, X_val=X_val, y_val=y_val)
     log = callback.get_logs(as_frame=False, select="most_recent")
 
-    expected_log, scoring_names = make_expected_ouptput_MaxIterEstimator(
+    expected_log, scoring_names = make_expected_output_MaxIterEstimator(
         max_iter, scoring, on, X_train, y_train, X_val, y_val
     )
     assert len(log) == len(expected_log)
@@ -188,7 +188,7 @@ def test_scoring_monitor_logged_values_dataframe(scoring, on):
     estimator.fit(X=X_train, y=y_train, X_val=X_val, y_val=y_val)
     log_df = callback.get_logs(as_frame=True, select="most_recent")
 
-    expected_log, scoring_names = make_expected_ouptput_MaxIterEstimator(
+    expected_log, scoring_names = make_expected_output_MaxIterEstimator(
         max_iter, scoring, on, X_train, y_train, X_val, y_val
     )
     expected_log_df = pd.DataFrame(expected_log)
@@ -235,7 +235,7 @@ def test_scoring_monitor_logged_values_meta_estimator(prefer, scoring, on):
     meta_est.fit(X=X_train, y=y_train, X_val=X_val, y_val=y_val)
     log = callback.get_logs(as_frame=False, select="most_recent")
 
-    expected_log, scoring_names = make_expected_ouptput_MetaEstimator(
+    expected_log, scoring_names = make_expected_output_MetaEstimator(
         n_outer, n_inner, max_iter, scoring, on, X_train, y_train, X_val, y_val
     )
 
@@ -281,7 +281,7 @@ def test_scoring_monitor_logged_values_dataframe_meta_estimator(prefer, scoring,
     meta_est.fit(X=X_train, y=y_train, X_val=X_val, y_val=y_val)
     logs = callback.get_logs(as_frame=False, select="most_recent")
 
-    expected_log_dict, scoring_names = make_expected_ouptput_MetaEstimator(
+    expected_log_dict, scoring_names = make_expected_output_MetaEstimator(
         n_outer, n_inner, max_iter, scoring, on, X_train, y_train, X_val, y_val
     )
     log_df = callback.get_logs(as_frame=True, select="most_recent")
