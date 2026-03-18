@@ -21,7 +21,7 @@ from sklearn.utils._metadata_requests import UnsetMetadataPassedError
 
 
 def make_expected_output_MaxIterEstimator(
-    max_iter, scoring, on, X_train, y_train, X_val, y_val
+    max_iter, scoring, eval_on, X_train, y_train, X_val, y_val
 ):
     """Generate the expected dict output of a ScoringMonitor on a MaxIterEstimator."""
     scorer = check_scoring(None, scoring)
@@ -36,11 +36,11 @@ def make_expected_output_MaxIterEstimator(
     expected_log = []
     for i in range(max_iter):
         fitted_est = MaxIterEstimator(max_iter=i + 1).fit()
-        if on in ("train_set", "both"):
+        if eval_on in ("train_set", "both"):
             log_item = {
                 f"0_{est_name}_fit": 0,
                 f"1_{est_name}_iteration": i,
-                "on": "train_set",
+                "eval_on": "train_set",
             }
             score = scorer(fitted_est, X_train, y_train)
             if isinstance(score, dict):
@@ -49,11 +49,11 @@ def make_expected_output_MaxIterEstimator(
                 log_item[scoring_names[0]] = score
             expected_log.append(log_item)
 
-        if on in ("validation_set", "both"):
+        if eval_on in ("validation_set", "both"):
             log_item = {
                 f"0_{est_name}_fit": 0,
                 f"1_{est_name}_iteration": i,
-                "on": "validation_set",
+                "eval_on": "validation_set",
             }
             score = scorer(fitted_est, X_val, y_val)
             if isinstance(score, dict):
@@ -66,7 +66,7 @@ def make_expected_output_MaxIterEstimator(
 
 
 def make_expected_output_MetaEstimator(
-    n_outer, n_inner, max_iter, scoring, on, X_train, y_train, X_val, y_val
+    n_outer, n_inner, max_iter, scoring, eval_on, X_train, y_train, X_val, y_val
 ):
     """Generate the expected dict output of a ScoringMonitor on a MetaEstimator.
 
@@ -86,9 +86,9 @@ def make_expected_output_MetaEstimator(
     for i_outer, i_inner in product(range(n_outer), range(n_inner)):
         for i_estimator_iteration in range(max_iter):
             fitted_est = MaxIterEstimator(max_iter=i_estimator_iteration + 1).fit()
-            if on in ("train_set", "both"):
+            if eval_on in ("train_set", "both"):
                 log_item = {
-                    "on": "train_set",
+                    "eval_on": "train_set",
                     f"0_{meta_est_name}_fit": 0,
                     f"1_{meta_est_name}_outer": i_outer,
                     f"2_{meta_est_name}_inner|{sub_est_name}_fit": i_inner,
@@ -101,9 +101,9 @@ def make_expected_output_MetaEstimator(
                     log_item[scoring_names[0]] = score
                 expected_log.append(log_item)
 
-            if on in ("validation_set", "both"):
+            if eval_on in ("validation_set", "both"):
                 log_item = {
-                    "on": "validation_set",
+                    "eval_on": "validation_set",
                     f"0_{meta_est_name}_fit": 0,
                     f"1_{meta_est_name}_outer": i_outer,
                     f"2_{meta_est_name}_inner|{sub_est_name}_fit": i_inner,
@@ -129,10 +129,10 @@ def custom_score(estimator, X, y):
     ["neg_mean_squared_error", ("neg_mean_squared_error", "r2"), custom_score],
 )
 @pytest.mark.parametrize(
-    "on",
+    "eval_on",
     ["train_set", "validation_set", "both"],
 )
-def test_logged_values(scoring, on):
+def test_logged_values(scoring, eval_on):
     """Test that the correct values are logged with a simple estimator.
 
     This test only looks at the dict outputs from `get_logs`.
@@ -141,7 +141,7 @@ def test_logged_values(scoring, on):
     n_features = 5
     n_samples = 3
     estimator = MaxIterEstimator(max_iter=max_iter)
-    callback = ScoringMonitor(on=on, scoring=scoring)
+    callback = ScoringMonitor(eval_on=eval_on, scoring=scoring)
     estimator.set_callbacks(callback)
     X_train, y_train = make_regression(n_samples, n_features, random_state=0)
     X_val, y_val = make_regression(n_samples, n_features, random_state=1)
@@ -150,7 +150,7 @@ def test_logged_values(scoring, on):
     log = callback.get_logs(as_frame=False, select="most_recent")
 
     expected_log, scoring_names = make_expected_output_MaxIterEstimator(
-        max_iter, scoring, on, X_train, y_train, X_val, y_val
+        max_iter, scoring, eval_on, X_train, y_train, X_val, y_val
     )
     assert len(log) == len(expected_log)
     for i in range(len(log)):
@@ -164,10 +164,10 @@ def test_logged_values(scoring, on):
     ["neg_mean_squared_error", ("neg_mean_squared_error", "r2"), custom_score],
 )
 @pytest.mark.parametrize(
-    "on",
+    "eval_on",
     ["train_set", "validation_set", "both"],
 )
-def test_logged_values_dataframe(scoring, on):
+def test_logged_values_dataframe(scoring, eval_on):
     """Test that the correct values are logged with a simple estimator.
 
     This test only looks at the pandas dataframe outputs from `get_logs`.
@@ -178,7 +178,7 @@ def test_logged_values_dataframe(scoring, on):
     n_features = 5
     n_samples = 3
     estimator = MaxIterEstimator(max_iter=max_iter)
-    callback = ScoringMonitor(on=on, scoring=scoring)
+    callback = ScoringMonitor(eval_on=eval_on, scoring=scoring)
     estimator.set_callbacks(callback)
     X_train, y_train = make_regression(n_samples, n_features, random_state=0)
     X_val, y_val = make_regression(n_samples, n_features, random_state=1)
@@ -187,14 +187,14 @@ def test_logged_values_dataframe(scoring, on):
 
     log_df = callback.get_logs(as_frame=True, select="most_recent")
     expected_log, scoring_names = make_expected_output_MaxIterEstimator(
-        max_iter, scoring, on, X_train, y_train, X_val, y_val
+        max_iter, scoring, eval_on, X_train, y_train, X_val, y_val
     )
     expected_log_df = pd.DataFrame(expected_log)
     expected_log_df = expected_log_df.set_index(
         [
             col
             for col in expected_log_df.columns
-            if col not in scoring_names and col != "on"
+            if col not in scoring_names and col != "eval_on"
         ]
     )
     assert len(log_df) == len(expected_log_df)
@@ -208,10 +208,10 @@ def test_logged_values_dataframe(scoring, on):
     ["neg_mean_squared_error", ("neg_mean_squared_error", "r2"), custom_score],
 )
 @pytest.mark.parametrize(
-    "on",
+    "eval_on",
     ["train_set", "validation_set", "both"],
 )
-def test_logged_values_meta_estimator(prefer, scoring, on):
+def test_logged_values_meta_estimator(prefer, scoring, eval_on):
     """Test that the correct values are logged with a meta-estimator.
 
     This test only looks at the dict outputs from `get_logs`.
@@ -223,7 +223,7 @@ def test_logged_values_meta_estimator(prefer, scoring, on):
     n_samples = 3
     X_train, y_train = make_regression(n_samples, n_features, random_state=0)
     X_val, y_val = make_regression(n_samples, n_features, random_state=1)
-    callback = ScoringMonitor(on=on, scoring=scoring)
+    callback = ScoringMonitor(eval_on=eval_on, scoring=scoring)
     est = MaxIterEstimator(max_iter=max_iter)
     est.set_callbacks(callback)
     meta_est = MetaEstimator(
@@ -236,7 +236,7 @@ def test_logged_values_meta_estimator(prefer, scoring, on):
 
     log = callback.get_logs(as_frame=False, select="most_recent")
     expected_log, scoring_names = make_expected_output_MetaEstimator(
-        n_outer, n_inner, max_iter, scoring, on, X_train, y_train, X_val, y_val
+        n_outer, n_inner, max_iter, scoring, eval_on, X_train, y_train, X_val, y_val
     )
 
     assert len(log) == len(expected_log)
@@ -254,10 +254,10 @@ def test_logged_values_meta_estimator(prefer, scoring, on):
     ["neg_mean_squared_error", ("neg_mean_squared_error", "r2"), custom_score],
 )
 @pytest.mark.parametrize(
-    "on",
+    "eval_on",
     ["train_set", "validation_set", "both"],
 )
-def test_logged_values_dataframe_meta_estimator(prefer, scoring, on):
+def test_logged_values_dataframe_meta_estimator(prefer, scoring, eval_on):
     """Test that the correct values are logged with a meta-estimator.
 
     This test only looks at the pandas dataframe outputs from `get_logs`.
@@ -270,7 +270,7 @@ def test_logged_values_dataframe_meta_estimator(prefer, scoring, on):
     n_samples = 3
     X_train, y_train = make_regression(n_samples, n_features, random_state=0)
     X_val, y_val = make_regression(n_samples, n_features, random_state=1)
-    callback = ScoringMonitor(on=on, scoring=scoring)
+    callback = ScoringMonitor(eval_on=eval_on, scoring=scoring)
     est = MaxIterEstimator(max_iter=max_iter)
     est.set_callbacks(callback)
     meta_est = MetaEstimator(
@@ -283,7 +283,7 @@ def test_logged_values_dataframe_meta_estimator(prefer, scoring, on):
 
     log_df = callback.get_logs(as_frame=True, select="most_recent")
     expected_log_dict, scoring_names = make_expected_output_MetaEstimator(
-        n_outer, n_inner, max_iter, scoring, on, X_train, y_train, X_val, y_val
+        n_outer, n_inner, max_iter, scoring, eval_on, X_train, y_train, X_val, y_val
     )
 
     expected_log_df = pd.DataFrame(expected_log_dict)
@@ -291,7 +291,7 @@ def test_logged_values_dataframe_meta_estimator(prefer, scoring, on):
         [
             col
             for col in expected_log_df.columns
-            if col not in scoring_names and col != "on"
+            if col not in scoring_names and col != "eval_on"
         ]
     )
 
@@ -361,7 +361,7 @@ def test_estimator_without_optional_kwargs():
     `reconstruction_attributes` are not provided to `call_on_fit_task_end`.
     """
     estimator = WhileEstimator()
-    estimator.set_callbacks(ScoringMonitor(on="both", scoring="r2"))
+    estimator.set_callbacks(ScoringMonitor(eval_on="both", scoring="r2"))
     estimator.fit()
 
 
@@ -378,12 +378,12 @@ def test_sample_weights_and_metadata():
     sample_weight = np.random.randint(0, 5, size=n_samples)
 
     # no sample weights
-    callback = ScoringMonitor(on="train_set", scoring="r2")
+    callback = ScoringMonitor(eval_on="train_set", scoring="r2")
     MaxIterEstimator().set_callbacks(callback).fit(X=X, y=y)
     log_no_sw = callback.get_logs(as_frame=False, select="most_recent")
 
     # sample weights, no metadata-routing
-    callback = ScoringMonitor(on="train_set", scoring="r2")
+    callback = ScoringMonitor(eval_on="train_set", scoring="r2")
     MaxIterEstimator().set_callbacks(callback).fit(
         X=X, y=y, sample_weight=sample_weight
     )
@@ -393,7 +393,7 @@ def test_sample_weights_and_metadata():
     with config_context(enable_metadata_routing=True):
         scorer = make_scorer(r2_score)
         scorer.set_score_request(sample_weight=True)
-        callback = ScoringMonitor(on="train_set", scoring={"r2": scorer})
+        callback = ScoringMonitor(eval_on="train_set", scoring={"r2": scorer})
         MaxIterEstimator().set_callbacks(callback).fit(
             X=X, y=y, sample_weight=sample_weight
         )
@@ -401,7 +401,7 @@ def test_sample_weights_and_metadata():
 
         # error if sample_weight not requested
         scorer = make_scorer(r2_score)
-        callback = ScoringMonitor(on="train_set", scoring={"r2": scorer})
+        callback = ScoringMonitor(eval_on="train_set", scoring={"r2": scorer})
         est = MaxIterEstimator().set_callbacks(callback)
         with pytest.raises(
             TypeError,
@@ -426,7 +426,7 @@ def test_validation_set_metadata_routing():
     X, y = make_regression(n_samples=100, n_features=2, random_state=0)
     X, X_val, y, y_val = train_test_split(X, y, test_size=0.2, random_state=0)
 
-    callback = ScoringMonitor(on="both", scoring="r2")
+    callback = ScoringMonitor(eval_on="both", scoring="r2")
     est = MaxIterEstimator(max_iter=10).set_callbacks(callback)
 
     # Without metadata-routing enabled, passing X_val and y_val gives an error
@@ -447,8 +447,8 @@ def test_validation_set_metadata_routing():
         MetaEstimator(est, n_outer=2, n_inner=3).fit(X=X, y=y, X_val=X_val, y_val=y_val)
         log = callback.get_logs(as_frame=False, select="most_recent")
 
-        log_train = [entry for entry in log if entry["on"] == "train_set"]
-        log_val = [entry for entry in log if entry["on"] == "validation_set"]
+        log_train = [entry for entry in log if entry["eval_on"] == "train_set"]
+        log_val = [entry for entry in log if entry["eval_on"] == "validation_set"]
 
         # 2 * 3 MetaEstimator iterations, 10 MaxIterEstimator iterations
         assert len(log_train) == len(log_val) == 2 * 3 * 10
