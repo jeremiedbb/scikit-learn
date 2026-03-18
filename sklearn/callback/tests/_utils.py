@@ -8,6 +8,11 @@ import numpy as np
 from sklearn.base import BaseEstimator, _fit_context, clone
 from sklearn.callback import CallbackSupportMixin, with_callbacks
 from sklearn.callback._callback_support import get_callback_manager
+from sklearn.utils._metadata_requests import (
+    MetadataRouter,
+    MethodMapping,
+    process_routing,
+)
 from sklearn.utils.parallel import Parallel, delayed
 
 
@@ -142,6 +147,7 @@ class MaxIterEstimator(CallbackSupportMixin, BaseEstimator):
         self,
         X=None,
         y=None,
+        *,
         sample_weight=None,
         X_val=None,
         y_val=None,
@@ -308,20 +314,30 @@ class MetaEstimator(CallbackSupportMixin, BaseEstimator):
         self.n_jobs = n_jobs
         self.prefer = prefer
 
-    @_fit_context(prefer_skip_nested_validation=False)
-    def fit(self, X=None, y=None, X_val=None, y_val=None):
-        callback_ctx = self._init_callback_context(max_subtasks=self.n_outer)
-        callback_ctx.eval_on_fit_task_begin()
+    def get_metadata_routing(self):
+        router = MetadataRouter(owner=self).add(
+            estimator=self.estimator,
+            method_mapping=MethodMapping()
+            .add(caller="fit", callee="fit")
+            .add(caller="predict", callee="predict")
+            .add(caller="score", callee="score"),
+        )
+        return router
 
-        data = {"X": X, "y": y}
-        if X_val is not None:
-            data.update(X_val=X_val, y_val=y_val)
+    @_fit_context(prefer_skip_nested_validation=False)
+    def fit(self, X=None, y=None, **fit_params):
+        routed_params = process_routing(self, "fit", **fit_params)
+
+        callback_ctx = self._init_callback_context(max_subtasks=self.n_outer)
+        callback_ctx.eval_on_fit_task_begin(X=X, y=y)
 
         Parallel(n_jobs=self.n_jobs, prefer=self.prefer)(
             delayed(_fit_subestimator)(
                 self,
                 self.estimator,
-                data,
+                X=X,
+                y=y,
+                routed_params=routed_params,
                 outer_callback_ctx=callback_ctx.subcontext(
                     task_name="outer", task_id=i, max_subtasks=self.n_inner
                 ),
@@ -329,31 +345,28 @@ class MetaEstimator(CallbackSupportMixin, BaseEstimator):
             for i in range(self.n_outer)
         )
 
-        callback_ctx.eval_on_fit_task_end(
-            data={"X_train": X, "y_train": y},
-        )
+        callback_ctx.eval_on_fit_task_end(X=X, y=y)
 
         return self
 
 
-def _fit_subestimator(meta_estimator, inner_estimator, data, *, outer_callback_ctx):
-    outer_callback_ctx.eval_on_fit_task_begin()
+def _fit_subestimator(
+    meta_estimator, inner_estimator, *, X, y, routed_params, outer_callback_ctx
+):
+    outer_callback_ctx.eval_on_fit_task_begin(X=X, y=y)
+
     for i in range(meta_estimator.n_inner):
         est = clone(inner_estimator)
 
         inner_ctx = outer_callback_ctx.subcontext(task_name="inner", task_id=i)
         inner_ctx.propagate_callback_context(sub_estimator=est)
-        inner_ctx.eval_on_fit_task_begin()
+        inner_ctx.eval_on_fit_task_begin(X=X, y=y)
 
-        est.fit(**data)
+        est.fit(X=X, y=y, **routed_params.estimator.fit)
 
-        inner_ctx.eval_on_fit_task_end(
-            data=data,
-        )
+        inner_ctx.eval_on_fit_task_end(X=X, y=y)
 
-    outer_callback_ctx.eval_on_fit_task_end(
-        data=data,
-    )
+    outer_callback_ctx.eval_on_fit_task_end(X=X, y=y)
 
 
 class NoSubtaskEstimator(CallbackSupportMixin, BaseEstimator):

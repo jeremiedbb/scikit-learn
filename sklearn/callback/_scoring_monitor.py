@@ -89,8 +89,9 @@ class ScoringMonitor:
             )
         if self.on in ("validation_set", "both"):
             X, y = metadata.get("X_val", None), metadata.get("y_val", None)
+            sample_weight = metadata.get("sample_weight_val", None)
             self._add_log_entry(
-                X, y, "validation_set", fitted_estimator, metadata, context_path
+                X, y, "validation_set", fitted_estimator, sample_weight, context_path
             )
 
     def _add_log_entry(self, X, y, on, fitted_estimator, sample_weight, context_path):

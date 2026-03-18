@@ -16,6 +16,8 @@ from sklearn.callback.tests._utils import (
 )
 from sklearn.datasets import make_regression
 from sklearn.metrics import check_scoring, make_scorer, r2_score
+from sklearn.model_selection import train_test_split
+from sklearn.utils._metadata_requests import UnsetMetadataPassedError
 
 
 def make_expected_ouptput_MaxIterEstimator(
@@ -360,7 +362,7 @@ def test_estimator_without_optional_kwargs():
     estimator.fit()
 
 
-def test_metadata():
+def test_sample_weights_and_metadata():
     """Check that the ScoringMonitor works with sample weights and metadata-routing.
 
     - passing sample weights results in a different score than not passing them.
@@ -411,3 +413,44 @@ def test_metadata():
     assert all(
         np.isclose(l1["r2"], l2["r2"]) for l1, l2 in zip(log_sw_no_mr, log_sw_mr)
     )
+
+
+def test_validation_set_metadata_routing():
+    """Integration test for metadata-routing on the validation set.
+
+    X_val and y_val must be requested for the MaxIterEstimator to be able to use them.
+    """
+    X, y = make_regression(n_samples=100, n_features=2, random_state=0)
+    X, X_val, y, y_val = train_test_split(X, y, test_size=0.2, random_state=0)
+
+    callback = ScoringMonitor(on="both", scoring="r2")
+    est = MaxIterEstimator(max_iter=10).set_callbacks(callback)
+
+    # Without metadata-routing enabled, passing X_val and y_val gives an error
+    msg = re.escape(
+        "[X_val, y_val] are passed but are not explicitly set as requested or not requested for MaxIterEstimator.fit"
+    )
+    with pytest.raises(UnsetMetadataPassedError, match=msg):
+        MetaEstimator(est).fit(X=X, y=y, X_val=X_val, y_val=y_val)
+
+    with config_context(enable_metadata_routing=True):
+        # passing X_val and y_val without requesting them gives the same error
+        with pytest.raises(UnsetMetadataPassedError, match=msg):
+            MetaEstimator(est).fit(X=X, y=y, X_val=X_val, y_val=y_val)
+
+        # with metadata-routing enabled and requested
+        est.set_fit_request(X_val=True, y_val=True)
+        MetaEstimator(est, n_outer=2, n_inner=3).fit(X=X, y=y, X_val=X_val, y_val=y_val)
+        log = callback.get_logs(as_frame=False, select="most_recent")
+
+        log_train = [entry for entry in log if entry["on"] == "train_set"]
+        log_val = [entry for entry in log if entry["on"] == "validation_set"]
+
+        # 2 * 3 MetaEstimator iterations, 10 MaxIterEstimator iterations
+        assert len(log_train) == len(log_val) == 2 * 3 * 10
+
+        # The scores on the train and validation sets should be different
+        assert any(
+            train_entry["r2"] != val_entry["r2"]
+            for train_entry, val_entry in zip(log_train, log_val)
+        )
