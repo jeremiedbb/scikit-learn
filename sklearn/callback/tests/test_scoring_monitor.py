@@ -355,7 +355,7 @@ def test_estimator_without_optional_kwargs():
     """Smoke test when used on an estimator which does not provide optional kwargs.
 
     The callback should not crash when used on an estimator where `data` and
-    `reconstruction_attributes` are not provided to `eval_on_fit_task_end`.
+    `reconstruction_attributes` are not provided to `call_on_fit_task_end`.
     """
     estimator = WhileEstimator()
     estimator.set_callbacks(ScoringMonitor(on="both", scoring="r2"))

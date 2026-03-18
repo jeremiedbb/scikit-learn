@@ -70,23 +70,19 @@ from sklearn.callback._base import AutoPropagatedCallback
 #     @with_callbacks
 #     def fit(self, X, y):
 #         callback_ctx = self._init_callback_context(max_subtasks=self.max_iter)
-#         callback_ctx.eval_on_fit_task_begin()
+#         callback_ctx.call_on_fit_task_begin(X=X, y=y)
 #
 #         for i in range(self.max_iter):
-#             subcontext = callback_ctx.subcontext(task_id=i)
+#             subcontext = callback_ctx.subcontext(task_id=i).call_on_fit_task_begin(
+#                X=X, y=y,
+#             )
 #
 #             # Do something
 #
-#             subcontext.eval_on_fit_task_end(
-#                 data={"X_train": X, "y_train": y},
-#             )
+#             subcontext.call_on_fit_task_end(X=X, y=y)
 #
-#         callback_ctx.eval_on_fit_task_end(
-#             data={"X_train": X, "y_train": y},
-#         )
-#
+#         callback_ctx.call_on_fit_task_end(X=X, y=y)
 #         return self
-#
 #
 # It's also an object that is passed to the callback hooks to give them information
 # about the task being executed and its position in the task tree.
@@ -384,8 +380,8 @@ class CallbackContext:
 
         return stop_criterion if return_stop_criterion else self
 
-    def eval_on_fit_task_begin(self, **kwargs):
-        """Evaluate the `on_fit_task_begin` hook of the callbacks.
+    def call_on_fit_task_begin(self, **kwargs):
+        """Call the `on_fit_task_begin` hook of the callbacks.
 
         Parameters
         ----------
@@ -395,8 +391,8 @@ class CallbackContext:
         """
         return self._call_hooks(hook_name="on_fit_task_begin", kwarg_dict=kwargs)
 
-    def eval_on_fit_task_end(self, **kwargs):
-        """Evaluate the `on_fit_task_end` hook of the callbacks.
+    def call_on_fit_task_end(self, **kwargs):
+        """Call the `on_fit_task_end` hook of the callbacks.
 
         Parameters
         ----------
@@ -455,7 +451,7 @@ class CallbackContext:
             if isinstance(callback, AutoPropagatedCallback)
             and (
                 callback.max_propagation_depth is None
-                or self._propagation_depth < callback.max_propagation_depth - 1
+                or self._propagation_depth < callback.max_propagation_depth
             )
         ]
         if not callbacks_to_propagate:

@@ -230,7 +230,7 @@ def test_estimator_without_subtask():
     """Check that callback support works for an estimator without subtasks.
 
     This test is about verifying that an estimator that does not call its callback
-    context's `eval_on_fit_task_end` does not cause a problem.
+    context's `call_on_fit_task_end` does not cause a problem.
     """
     estimator = NoSubtaskEstimator()
     estimator.set_callbacks([TestingCallback()])
@@ -346,27 +346,27 @@ def test_hook_calling():
     )
 
     # Providing all the kwargs
-    context.eval_on_fit_task_begin(
+    context.call_on_fit_task_begin(
         lazy_loaded_kwarg=lambda: 1, regular_kwarg=2, not_used_kwarg=3
     )
     assert callback.record[-1]["kwargs"] == {"lazy_loaded_kwarg": 1, "regular_kwarg": 2}
 
     # Not providing any kwarg
-    context.eval_on_fit_task_begin()
+    context.call_on_fit_task_begin()
     assert callback.record[-1]["kwargs"] == {
         "lazy_loaded_kwarg": None,
         "regular_kwarg": None,
     }
 
     # Providing partial kwarg
-    context.eval_on_fit_task_begin(regular_kwarg=4, not_used_kwarg=5)
+    context.call_on_fit_task_begin(regular_kwarg=4, not_used_kwarg=5)
     assert callback.record[-1]["kwargs"] == {
         "lazy_loaded_kwarg": None,
         "regular_kwarg": 4,
     }
 
     # Lazy loading reconstruction attributes + returning True
-    return_1 = context.eval_on_fit_task_end(
+    return_1 = context.call_on_fit_task_end(
         reconstruction_attributes=lambda: {"n_iter_": 1}, return_value=True
     )
     fitted_estimator = callback.record[-1]["kwargs"]["fitted_estimator"]
@@ -375,14 +375,14 @@ def test_hook_calling():
     assert return_1
 
     # Regular reconstruction attributes + not returning True
-    return_2 = context.eval_on_fit_task_end(reconstruction_attributes={"n_iter_": 2})
+    return_2 = context.call_on_fit_task_end(reconstruction_attributes={"n_iter_": 2})
     fitted_estimator = callback.record[-1]["kwargs"]["fitted_estimator"]
     assert isinstance(fitted_estimator, MaxIterEstimator)
     assert fitted_estimator.n_iter_ == 2
     assert not return_2
 
     # No reconstruction attribute + not returning True
-    return_3 = context.eval_on_fit_task_end(return_value=False)
+    return_3 = context.call_on_fit_task_end(return_value=False)
     assert callback.record[-1]["kwargs"] == {
         "fitted_estimator": None,
         "return_value": False,
