@@ -20,10 +20,13 @@ class ScoringMonitor:
     Parameters
     ----------
     eval_on : {"train", "val", "both"}, default="train"
-        Which data to compute the score on. Possible values are "train",
-        "val" and "both". "train" corresponds to using the X and y
-        arguments of the fit function, "val" corresponds to using the X_val
-        and y_val arguments. "both" corresponds to using both.
+        Which data to compute the score on:
+
+        - `"train"`: only the scores on the training data (the `X` and `y` arguments of
+          the fit function) are logged;
+        - `"val"`: only the scores on the validation data (the `X_val` and `y_val`
+          arguments of the fit function) are logged;
+        - `"both"`: the scores of both the training and validation data are logged.
 
     scoring : str, callable, list, tuple, dict or None
         The scoring method to use to monitor the model.
@@ -144,21 +147,27 @@ class ScoringMonitor:
     def get_logs(self, select="all", as_frame=False):
         """Get the logged values.
 
-        If select is "all", a dictionary is returned with run ids as keys and logs as
-        values. A run correspond to the call of the fit function of the outermost
-        meta-estimator that is a parent of the estimator the callback is attached to.
+        If `select == "all"`, a dictionary is returned with run ids as keys and logs as
+        values. A run corresponds to a fit execution of the outermost meta-estimator
+        that is a parent of the estimator the callback is registered on. If the
+        estimator is not wrapped in a meta-estimator, a run corresponds to a single
+        fit execution of the estimator.
 
-        The run ids are strings of the form : "<estimator name>_<timestamp>_<id>", where
-        the estimator name corresponds to the outermost parent meta-estimator.
+        The run ids are strings of the form "<estimator name>_<timestamp>_<id>" where:
 
-        The logs take the form of pandas DataFrames or dictionaries depending on the
-        `as_frame` parameter.
+        - the estimator name is the name of the outermost parent meta-estimator;
+        - the timestamp is the UTC time of the beginning of fit of the outermost parent
+          meta-estimator, formatted as "UTC%Y-%m-%d-%H:%M:%S.%f";
+        - the id is a unique identifier for the run;
 
         Parameters
         ----------
         select : {"all", "most_recent"}, default="all"
-            Which log run to return; "all" returns all logs, "most_recent" only returns
-            the last log.
+            Which log run to return:
+
+            - `"all"`: returns the whole log as a dictionary indexed by run ids;
+            - `"most_recent"`: only returns the log of the most recent run based on
+              the timestamp in the run id.
 
         as_frame : bool, default=False
             Whether to have the individual run logs formatted as multi-index Pandas
