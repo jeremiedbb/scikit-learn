@@ -300,58 +300,49 @@ def test_logged_values_dataframe_meta_estimator(prefer, scoring, eval_on):
     assert log_df.equals(expected_log_df)
 
 
-def test_get_logs_output_type_no_pandas():
-    """Test the type of the get_logs when not explicitly asking for dataframes."""
-    estimator = MaxIterEstimator()
+@pytest.mark.parametrize("as_frame", [True, False])
+def test_get_logs_output_type_no_fit(as_frame):
+    """Check that get_logs return empty containers of the right type before fit."""
+    if as_frame:
+        pd = pytest.importorskip("pandas")
+
     callback = ScoringMonitor(scoring="neg_mean_squared_error")
-    estimator.set_callbacks(callback)
+
+    # "all" logs is always a dict indexed by run ids.
+    logs_all = callback.get_logs(select="all", as_frame=as_frame)
+    assert isinstance(logs_all, dict)
+    assert len(logs_all) == 0
+
+    log_most_recent = callback.get_logs(select="most_recent", as_frame=as_frame)
+    if as_frame:
+        assert isinstance(log_most_recent, pd.DataFrame)
+        assert log_most_recent.empty
+    else:
+        assert isinstance(log_most_recent, list)
+        assert len(log_most_recent) == 0
+
+
+@pytest.mark.parametrize("as_frame", [True, False])
+def test_get_logs_output_type(as_frame):
+    """Test the type of the get_logs output."""
+    if as_frame:
+        pd = pytest.importorskip("pandas")
+
+    callback = ScoringMonitor(scoring="neg_mean_squared_error")
+    estimator = MaxIterEstimator().set_callbacks(callback)
     X, y = make_regression(n_samples=100, n_features=2, random_state=0)
 
-    empty_logs_all = callback.get_logs(select="all", as_frame=False)
-    assert isinstance(empty_logs_all, dict)
-    assert not empty_logs_all
-
-    empty_logs_most_recent = callback.get_logs(select="most_recent", as_frame=False)
-
     estimator.fit(X, y)
     estimator.fit(X, y)
 
-    logs_all = callback.get_logs(select="all", as_frame=False)
-    logs_most_recent = callback.get_logs(select="most_recent", as_frame=False)
-
+    logs_all = callback.get_logs(select="all", as_frame=as_frame)
     assert isinstance(logs_all, dict)
     assert len(logs_all) == 2
-    assert isinstance(empty_logs_most_recent, list)
-    assert not empty_logs_most_recent
-    assert isinstance(logs_most_recent, list)
+    expected_type = list if not as_frame else pd.DataFrame
+    assert all(isinstance(log, expected_type) for log in logs_all.values())
 
-
-def test_get_logs_output_type_pandas():
-    """Test the type of the get_logs when explicitly asking for dataframes."""
-    pd = pytest.importorskip("pandas")
-    estimator = MaxIterEstimator()
-    callback = ScoringMonitor(scoring="neg_mean_squared_error")
-    estimator.set_callbacks(callback)
-    X, y = make_regression(n_samples=100, n_features=2, random_state=0)
-
-    empty_logs_all = callback.get_logs(select="all", as_frame=True)
-    assert isinstance(empty_logs_all, dict)
-    assert not empty_logs_all
-
-    empty_logs_most_recent = callback.get_logs(select="most_recent", as_frame=True)
-    assert isinstance(empty_logs_most_recent, pd.DataFrame)
-    assert empty_logs_most_recent.empty
-
-    estimator.fit(X, y)
-    estimator.fit(X, y)
-
-    logs_all = callback.get_logs(select="all", as_frame=True)
-    assert isinstance(logs_all, dict)
-    assert len(logs_all) == 2
-    assert isinstance(next(iter(logs_all.values())), pd.DataFrame)
-
-    logs_most_recent = callback.get_logs(select="most_recent", as_frame=True)
-    assert isinstance(logs_most_recent, pd.DataFrame)
+    log_most_recent = callback.get_logs(select="most_recent", as_frame=as_frame)
+    assert isinstance(log_most_recent, expected_type)
 
 
 def test_estimator_without_optional_kwargs():
