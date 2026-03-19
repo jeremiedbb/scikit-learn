@@ -357,9 +357,9 @@ def test_get_logs_output_type_pandas():
 def test_estimator_without_reconstruction_attributes():
     """Smoke test on an estimator which does not provide reconstruction_attributes."""
     """
-    estimator = WhileEstimator()
-    estimator.set_callbacks(ScoringMonitor(eval_on="both", scoring="r2"))
-    estimator.fit()
+    callback = ScoringMonitor(eval_on="both", scoring="r2")
+    WhileEstimator().set_callbacks(callback).fit()
+    assert len(callback.get_logs()) == 0
 
 
 def test_sample_weights_and_metadata():
