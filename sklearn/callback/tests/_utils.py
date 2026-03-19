@@ -173,38 +173,31 @@ class MaxIterEstimator(CallbackSupportMixin, BaseEstimator):
         callback_ctx = self._init_callback_context(max_subtasks=self.max_iter)
         callback_ctx.call_on_fit_task_begin(X=X, y=y)
 
+        metadata = {
+            "sample_weight": sample_weight,
+            "X_val": X_val,
+            "y_val": y_val,
+            "sample_weight_val": sample_weight_val,
+        }
+
         for i in range(self.max_iter):
             subcontext = callback_ctx.subcontext(
                 task_id=i, task_name="iteration"
-            ).call_on_fit_task_begin(
-                X=X,
-                y=y,
-                metadata={
-                    "sample_weight": sample_weight,
-                    "X_val": X_val,
-                    "y_val": y_val,
-                    "sample_weight_val": sample_weight_val,
-                },
-            )
+            ).call_on_fit_task_begin(X=X, y=y, metadata=metadata)
 
             time.sleep(self.computation_intensity)  # Computation intensive task
 
             if subcontext.call_on_fit_task_end(
                 X=X,
                 y=y,
-                metadata={
-                    "sample_weight": sample_weight,
-                    "X_val": X_val,
-                    "y_val": y_val,
-                    "sample_weight_val": sample_weight_val,
-                },
+                metadata=metadata,
                 reconstruction_attributes=lambda: {"n_iter_": i + 1},
             ):
                 break
 
-        callback_ctx.call_on_fit_task_end()
-
         self.n_iter_ = i + 1
+
+        callback_ctx.call_on_fit_task_end()
 
         return self
 
