@@ -141,7 +141,7 @@ class ScoringMonitor:
         },
         prefer_skip_nested_validation=True,
     )
-    def get_logs(self, select="all", as_frame=True):
+    def get_logs(self, select="all", as_frame=False):
         """Get the logged values.
 
         If select is "all", a dictionary is returned with run ids as keys and logs as
@@ -160,7 +160,7 @@ class ScoringMonitor:
             Which log run to return; "all" returns all logs, "most_recent" only returns
             the last log.
 
-        as_frame : bool, default=True
+        as_frame : bool, default=False
             Whether to have the individual run logs formatted as multi-index Pandas
             DataFrames. If set to False the individual run logs are formatted as lists
             of dictionaries instead.
