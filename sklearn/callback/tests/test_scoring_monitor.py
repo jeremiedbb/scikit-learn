@@ -345,15 +345,11 @@ def test_get_logs_output_type(as_frame):
     assert isinstance(log_most_recent, expected_type)
 
 
-def test_estimator_without_optional_kwargs():
-    """Smoke test when used on an estimator which does not provide optional kwargs.
-
-    The callback should not crash when used on an estimator where `data` and
-    `reconstruction_attributes` are not provided to `call_on_fit_task_end`.
-    """
-    estimator = WhileEstimator()
-    estimator.set_callbacks(ScoringMonitor(eval_on="both", scoring="r2"))
-    estimator.fit()
+def test_estimator_without_reconstruction_attributes():
+    """Smoke test on an estimator which does not provide reconstruction_attributes."""
+    callback = ScoringMonitor(eval_on="both", scoring="r2")
+    WhileEstimator().set_callbacks(callback).fit()
+    assert len(callback.get_logs()) == 0
 
 
 def test_sample_weights_and_metadata():
