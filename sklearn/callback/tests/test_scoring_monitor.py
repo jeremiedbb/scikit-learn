@@ -354,11 +354,8 @@ def test_get_logs_output_type_pandas():
     assert isinstance(logs_most_recent, pd.DataFrame)
 
 
-def test_estimator_without_optional_kwargs():
-    """Smoke test when used on an estimator which does not provide optional kwargs.
-
-    The callback should not crash when used on an estimator where `data` and
-    `reconstruction_attributes` are not provided to `call_on_fit_task_end`.
+def test_estimator_without_reconstruction_attributes():
+    """Smoke test on an estimator which does not provide reconstruction_attributes."""
     """
     estimator = WhileEstimator()
     estimator.set_callbacks(ScoringMonitor(eval_on="both", scoring="r2"))
