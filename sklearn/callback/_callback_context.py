@@ -132,6 +132,9 @@ class CallbackContext:
         The UUID of the root context. All contexts in the same task tree have the same
         root UUID that is used to identify the task tree itself.
 
+    init_time : datetime.datetime
+        The time when the context was initialised, in the UTC timezone.
+
     source_estimator_name : str or None
         The name of the estimator that holds the parent task this task was
         merged with. None if it was not merged with another context.
@@ -139,8 +142,6 @@ class CallbackContext:
     source_task_name : str or None
         The task name of the parent task this task was merged with. None if it
         was not merged with another context.
-    init_time : datetime
-        The time when the context was initialised, in the UTC timezone.
     """
 
     @classmethod
@@ -167,16 +168,15 @@ class CallbackContext:
 
         # We don't store the estimator in the context to avoid circular references
         # because the estimator already holds a reference to the context.
-        new_ctx.init_time = datetime.now(timezone.utc)
         new_ctx._callbacks = getattr(estimator, "_skl_callbacks", [])
         new_ctx.estimator = estimator
         new_ctx.estimator_name = estimator.__class__.__name__
-        new_ctx.root_uuid = uuid.uuid4()
         new_ctx.task_name = task_name
         new_ctx.task_id = task_id
         new_ctx.max_subtasks = max_subtasks
         new_ctx.parent = None
         new_ctx.root_uuid = uuid.uuid4()
+        new_ctx.init_time = datetime.now(timezone.utc)
         new_ctx._children_map = {}
         new_ctx.source_estimator_name = None
         new_ctx.source_task_name = None
@@ -217,7 +217,6 @@ class CallbackContext:
         """
         new_ctx = cls.__new__(cls)
 
-        new_ctx.init_time = datetime.now(timezone.utc)
         new_ctx._callbacks = parent_context._callbacks
         new_ctx.estimator = parent_context.estimator
         new_ctx.estimator_name = parent_context.estimator_name
@@ -226,6 +225,7 @@ class CallbackContext:
         new_ctx.task_id = task_id
         new_ctx.max_subtasks = max_subtasks
         new_ctx.root_uuid = parent_context.root_uuid
+        new_ctx.init_time = datetime.now(timezone.utc)
         new_ctx.parent = None
         new_ctx._children_map = {}
         new_ctx.source_estimator_name = None
