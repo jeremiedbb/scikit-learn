@@ -31,14 +31,36 @@ class TestingCallback:
     def setup(self, context):
         self.record.append({"name": "setup", "context": context})
 
-    def on_fit_task_begin(self, context, **kwargs):
+    def on_fit_task_begin(
+        self, context, *, X=None, y=None, metadata=None, fitted_estimator=None
+    ):
         self.record.append(
-            {"name": "on_fit_task_begin", "context": context, "kwargs": kwargs}
+            {
+                "name": "on_fit_task_begin",
+                "context": context,
+                "kwargs": {
+                    "X": X,
+                    "y": y,
+                    "metadata": metadata,
+                    "fitted_estimator": fitted_estimator,
+                },
+            }
         )
 
-    def on_fit_task_end(self, context, **kwargs):
+    def on_fit_task_end(
+        self, context, *, X=None, y=None, metadata=None, fitted_estimator=None
+    ):
         self.record.append(
-            {"name": "on_fit_task_end", "context": context, "kwargs": kwargs}
+            {
+                "name": "on_fit_task_end",
+                "context": context,
+                "kwargs": {
+                    "X": X,
+                    "y": y,
+                    "metadata": metadata,
+                    "fitted_estimator": fitted_estimator,
+                },
+            }
         )
 
     def teardown(self, context):
@@ -67,7 +89,14 @@ class NotValidCallback:
     def setup(self, estimator):
         pass  # pragma: no cover
 
-    def on_fit_task_end(self, context, **kwargs):
+    def on_fit_task_end(self, context):
+        pass  # pragma: no cover
+
+
+class NotValidHookCallback(TestingCallback):
+    """Invalid callback since it has invalid parameters in the hooks signatures."""
+
+    def on_fit_task_begin(self, context, *, not_valid_kwarg=None):
         pass  # pragma: no cover
 
 
@@ -83,13 +112,13 @@ class FailingCallback(TestingCallback):
         if self.fail_at == "setup":
             raise ValueError("Failing callback failed at setup")
 
-    def on_fit_task_begin(self, context, **kwargs):
-        super().on_fit_task_begin(context, **kwargs)
+    def on_fit_task_begin(self, context):
+        super().on_fit_task_begin(context)
         if self.fail_at == "on_fit_task_begin":
             raise ValueError("Failing callback failed at on_fit_task_begin")
 
-    def on_fit_task_end(self, context, **kwargs):
-        super().on_fit_task_end(context, **kwargs)
+    def on_fit_task_end(self, context):
+        super().on_fit_task_end(context)
         if self.fail_at == "on_fit_task_end":
             raise ValueError("Failing callback failed at on_fit_task_end")
 
@@ -99,31 +128,19 @@ class FailingCallback(TestingCallback):
             raise ValueError("Failing callback failed at teardown")
 
 
-class SpecificHookSignatureCallback(TestingCallback):
-    """A callback with different arguments in its hook signatures."""
+class StopFitCallback(TestingCallback):
+    """A callback with a `on_fit_task_end` hook returning True."""
 
-    def on_fit_task_begin(self, context, *, lazy_loaded_kwarg=None, regular_kwarg=None):
-        return super().on_fit_task_begin(
-            context,
-            lazy_loaded_kwarg=lazy_loaded_kwarg,
-            regular_kwarg=regular_kwarg,
-        )
+    def on_fit_task_end(self, context):
+        super().on_fit_task_end(context)
+        return True
 
-    def on_fit_task_end(
-        self,
-        context,
-        *,
-        fitted_estimator=None,
-        not_provided_kwarg=None,
-        return_value=None,
-    ):
-        super().on_fit_task_end(
-            context,
-            fitted_estimator=fitted_estimator,
-            not_provided_kwarg=not_provided_kwarg,
-            return_value=return_value,
-        )
-        return return_value
+
+class NotRequiredKwargsCallback(TestingCallback):
+    """A callback with a `on_fit_task_end` not requiring all possible kwargs."""
+
+    def on_fit_task_end(self, context, *, X=None, y=None):
+        super().on_fit_task_end(context, X=X, y=y)
 
 
 class MaxIterEstimator(CallbackSupportMixin, BaseEstimator):
