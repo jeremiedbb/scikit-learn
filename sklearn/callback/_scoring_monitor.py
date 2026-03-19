@@ -19,10 +19,10 @@ class ScoringMonitor:
 
     Parameters
     ----------
-    eval_on : {"train_set", "validation_set", "both"}, default="train_set"
-        Which data to compute the score on. Possible values are "train_set",
-        "validation_set" and "both". "train_set" corresponds to using the X and y
-        arguments of the fit function, "validation_set" corresponds to using the X_val
+    eval_on : {"train", "val", "both"}, default="train"
+        Which data to compute the score on. Possible values are "train",
+        "val" and "both". "train" corresponds to using the X and y
+        arguments of the fit function, "val" corresponds to using the X_val
         and y_val arguments. "both" corresponds to using both.
 
     scoring : str, callable, list, tuple, dict or None
@@ -45,12 +45,12 @@ class ScoringMonitor:
 
     @validate_params(
         {
-            "eval_on": [StrOptions({"train_set", "validation_set", "both"})],
+            "eval_on": [StrOptions({"train", "val", "both"})],
             "scoring": [str, callable, list, tuple, dict, None],
         },
         prefer_skip_nested_validation=True,
     )
-    def __init__(self, *, eval_on="train_set", scoring):
+    def __init__(self, *, eval_on="train", scoring):
         self.eval_on = eval_on
         self.scoring = scoring
         self._shared_log = get_callback_manager().list()
@@ -82,16 +82,16 @@ class ScoringMonitor:
             return
 
         context_path = get_context_path(context)
-        if self.eval_on in ("train_set", "both"):
+        if self.eval_on in ("train", "both"):
             sample_weight = metadata.get("sample_weight", None)
             self._add_log_entry(
-                X, y, "train_set", fitted_estimator, sample_weight, context_path
+                X, y, "train", fitted_estimator, sample_weight, context_path
             )
-        if self.eval_on in ("validation_set", "both"):
+        if self.eval_on in ("val", "both"):
             X, y = metadata.get("X_val", None), metadata.get("y_val", None)
             sample_weight = metadata.get("sample_weight_val", None)
             self._add_log_entry(
-                X, y, "validation_set", fitted_estimator, sample_weight, context_path
+                X, y, "val", fitted_estimator, sample_weight, context_path
             )
 
     def _add_log_entry(

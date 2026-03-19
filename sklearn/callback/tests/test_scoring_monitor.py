@@ -51,14 +51,14 @@ def _make_expected_output_MaxIterEstimator(
     for i in range(max_iter):
         fitted_est = MaxIterEstimator(max_iter=i + 1).fit()
 
-        for eval_on in ("train_set", "validation_set"):
+        for eval_on in ("train", "val"):
             log_item = {
                 f"0_{est_name}_fit": 0,
                 f"1_{est_name}_iteration": i,
                 "eval_on": eval_on,
             }
 
-            X, y = (X_train, y_train) if eval_on == "train_set" else (X_val, y_val)
+            X, y = (X_train, y_train) if eval_on == "train" else (X_val, y_val)
             scores = scorer(fitted_est, X, y)
             if isinstance(scores, dict):
                 log_item.update(scores)
@@ -88,7 +88,7 @@ def _make_expected_output_MetaEstimator(
         for i_estimator_iteration in range(max_iter):
             fitted_est = MaxIterEstimator(max_iter=i_estimator_iteration + 1).fit()
 
-            for eval_on in ("train_set", "validation_set"):
+            for eval_on in ("train", "val"):
                 log_item = {
                     "eval_on": eval_on,
                     f"0_{meta_est_name}_fit": 0,
@@ -97,7 +97,7 @@ def _make_expected_output_MetaEstimator(
                     f"3_{sub_est_name}_iteration": i_estimator_iteration,
                 }
 
-                X, y = (X_train, y_train) if eval_on == "train_set" else (X_val, y_val)
+                X, y = (X_train, y_train) if eval_on == "train" else (X_val, y_val)
                 scores = scorer(fitted_est, X, y)
                 if isinstance(scores, dict):
                     log_item.update(scores)
@@ -116,7 +116,7 @@ def custom_score(estimator, X, y):
     return 0
 
 
-@pytest.mark.parametrize("eval_on", ["train_set", "validation_set", "both"])
+@pytest.mark.parametrize("eval_on", ["train", "val", "both"])
 def test_eval_on(eval_on):
     max_iter = 3
     callback = ScoringMonitor(eval_on=eval_on, scoring="r2")
@@ -127,12 +127,12 @@ def test_eval_on(eval_on):
     estimator.fit(X=X, y=y, X_val=X_val, y_val=y_val)
     log = callback.get_logs(as_frame=False, select="most_recent")
 
-    if eval_on in ("train_set", "validation_set"):
+    if eval_on in ("train", "val"):
         assert len(log) == max_iter
         assert all(entry["eval_on"] == eval_on for entry in log)
     else:  # eval_on == "both"
-        train_log = [entry for entry in log if entry["eval_on"] == "train_set"]
-        val_log = [entry for entry in log if entry["eval_on"] == "validation_set"]
+        train_log = [entry for entry in log if entry["eval_on"] == "train"]
+        val_log = [entry for entry in log if entry["eval_on"] == "val"]
         assert len(train_log) == len(val_log) == max_iter
 
 
@@ -277,12 +277,12 @@ def test_sample_weights_and_metadata_routing():
     sample_weight = np.random.randint(0, 5, size=n_samples)
 
     # no sample weights
-    callback = ScoringMonitor(eval_on="train_set", scoring="r2")
+    callback = ScoringMonitor(eval_on="train", scoring="r2")
     MaxIterEstimator().set_callbacks(callback).fit(X=X, y=y)
     log_no_sw = callback.get_logs(as_frame=False, select="most_recent")
 
     # sample weights, no metadata-routing
-    callback = ScoringMonitor(eval_on="train_set", scoring="r2")
+    callback = ScoringMonitor(eval_on="train", scoring="r2")
     MaxIterEstimator().set_callbacks(callback).fit(
         X=X, y=y, sample_weight=sample_weight
     )
@@ -292,7 +292,7 @@ def test_sample_weights_and_metadata_routing():
     with config_context(enable_metadata_routing=True):
         scorer = make_scorer(r2_score)
         scorer.set_score_request(sample_weight=True)
-        callback = ScoringMonitor(eval_on="train_set", scoring={"r2": scorer})
+        callback = ScoringMonitor(eval_on="train", scoring={"r2": scorer})
         MaxIterEstimator().set_callbacks(callback).fit(
             X=X, y=y, sample_weight=sample_weight
         )
@@ -300,7 +300,7 @@ def test_sample_weights_and_metadata_routing():
 
         # error if sample_weight not requested
         scorer = make_scorer(r2_score)
-        callback = ScoringMonitor(eval_on="train_set", scoring={"r2": scorer})
+        callback = ScoringMonitor(eval_on="train", scoring={"r2": scorer})
         est = MaxIterEstimator().set_callbacks(callback)
         with pytest.raises(
             TypeError,
@@ -346,8 +346,8 @@ def test_validation_set_metadata_routing():
         MetaEstimator(est, n_outer=2, n_inner=3).fit(X=X, y=y, X_val=X_val, y_val=y_val)
         log = callback.get_logs(as_frame=False, select="most_recent")
 
-        log_train = [entry for entry in log if entry["eval_on"] == "train_set"]
-        log_val = [entry for entry in log if entry["eval_on"] == "validation_set"]
+        log_train = [entry for entry in log if entry["eval_on"] == "train"]
+        log_val = [entry for entry in log if entry["eval_on"] == "val"]
 
         # 2 * 3 MetaEstimator iterations, 10 MaxIterEstimator iterations
         assert len(log_train) == len(log_val) == 2 * 3 * 10
