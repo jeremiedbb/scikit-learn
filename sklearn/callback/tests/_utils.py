@@ -196,7 +196,9 @@ class MaxIterEstimator(CallbackSupportMixin, BaseEstimator):
 
         self.n_iter_ = i + 1
 
-        callback_ctx.call_on_fit_task_end()
+        callback_ctx.call_on_fit_task_end(
+            X=X, y=y, reconstruction_attributes={}, metadata=metadata
+        )
 
         return self
 

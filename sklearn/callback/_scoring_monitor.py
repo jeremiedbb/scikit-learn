@@ -103,13 +103,34 @@ class ScoringMonitor:
         if X is None or y is None:
             return
 
-        # run_id
+        # run_info
         root_ctx = context_path[0]
-        timestamp = root_ctx.init_time.strftime("UTC%Y-%m-%d-%H:%M:%S.%f")
-        run_id = f"{root_ctx.estimator_name}_{timestamp}_{root_ctx.root_uuid}"
+        run_id = root_ctx.root_uuid
+        run_info = {
+            "timestamp": root_ctx.init_time.strftime("UTC%Y-%m-%d-%H:%M:%S.%f"),
+            "root_estimator_name": root_ctx.estimator_name,
+        }
+
+        # task_id and parent_tasks_info
+        task_id = tuple(ctx.task_id for ctx in context_path[:-1])
+        parent_tasks_info = tuple(
+            {
+                "task_name": ctx.task_name,
+                "estimator_name": ctx.estimator_name,
+                "source_task_name": ctx.source_task_name,
+                "source_estimator_name": ctx.source_estimator_name,
+            }
+            for ctx in context_path[:-1]
+        )
 
         # log_data
-        log_data = {"eval_on": eval_on}
+        current_ctx = context_path[-1]
+        log_data = {
+            "task_name": current_ctx.task_name,
+            "task_id": current_ctx.task_id,
+            "estimator_name": current_ctx.estimator_name,
+            "eval_on": eval_on,
+        }
         score_params = {}
         scorer = self._run_scorers[root_ctx.root_uuid]
         if sample_weight is not None and scorer._accept_sample_weight():
@@ -121,21 +142,9 @@ class ScoringMonitor:
             score_name = self.scoring if isinstance(self.scoring, str) else "score"
             log_data[score_name] = score_value
 
-        # log_index
-        log_index = {}
-        for depth, ctx in enumerate(context_path):
-            source_task_str = (
-                f"{ctx.source_estimator_name}_{ctx.source_task_name}|"
-                if ctx.source_estimator_name is not None
-                else ""
-            )
-            # TODO(callbacks): add a task_info attribute in CallbackContext containing
-            # detailed info of task, and enhance the logs with it.
-            log_index[
-                f"{depth}_{source_task_str}{ctx.estimator_name}_{ctx.task_name}"
-            ] = ctx.task_id
-
-        self._shared_log.append((run_id, log_index, log_data))
+        self._shared_log.append(
+            (run_id, run_info, task_id, log_data, parent_tasks_info)
+        )
 
     @validate_params(
         {
@@ -144,7 +153,7 @@ class ScoringMonitor:
         },
         prefer_skip_nested_validation=True,
     )
-    def get_logs(self, select="all", as_frame=False):
+    def get_logs(self, select="most_recent", as_frame=False):
         """Get the logged values.
 
         If `select == "all"`, a dictionary is returned with run ids as keys and logs as
@@ -153,16 +162,24 @@ class ScoringMonitor:
         estimator is not wrapped in a meta-estimator, a run corresponds to a single
         fit execution of the estimator.
 
-        The run ids are strings of the form "<estimator name>_<timestamp>_<id>" where:
+        For each run key in the dictionary, the value is a dictionary containing:
+            - "info": a dictionary containing the timestamp for the start of fit and the
+              estimator name for the outermost parent meta-estimator.
 
-        - the estimator name is the name of the outermost parent meta-estimator;
-        - the timestamp is the UTC time of the beginning of fit of the outermost parent
-          meta-estimator, formatted as "UTC%Y-%m-%d-%H:%M:%S.%f";
-        - the id is a unique identifier for the run;
+            - "task_tree": nested dictionaries describing the tree structure of the
+              tasks.
+
+            - "logs": a dictionary with tuples of task id as key and for values
+              dictionaries containing:
+                  - "values": pandas Dataframe or list of dict containing the score
+                    values, the type being controlled by the `as_frame` argument.
+
+                  - "task_path": a tuple of strings with the estimator names and task
+                    names corresponding to the task ids in the key of this dict.
 
         Parameters
         ----------
-        select : {"all", "most_recent"}, default="all"
+        select : {"all", "most_recent"}, default="most_recent"
             Which log run to return:
 
             - `"all"`: returns the whole log as a dictionary indexed by run ids;
@@ -170,51 +187,65 @@ class ScoringMonitor:
               the timestamp in the run id.
 
         as_frame : bool, default=False
-            Whether to have the individual run logs formatted as multi-index Pandas
-            DataFrames. If set to False the individual run logs are formatted as lists
-            of dictionaries instead.
+            Whether to have the individual task logs formatted as Pandas DataFrames. If
+            set to False the individual run logs are formatted as lists of dictionaries
+            instead.
 
         Returns
         -------
-        logs : dict or pandas DataFrame
-            The logged values, formatted as :
-
-            - a dict of pandas dataframes if `select` is "all" and `as_frame` is True.
-
-            - a pandas dataframe is `select` is "most_recent" and `as_frame` is True.
-
-            - a dict of lists of dicts if `select` is "all" and `as_frame` is False.
-
-            - a list of dicts is `select` is "most_recent" and `as_frame` is False.
+        logs : dict
+            The logged values.
         """
         log_item_list = list(self._shared_log)
 
-        logs_dict = defaultdict(list)
-        index_names = set()
-        for run_id, log_index, log_data in log_item_list:
-            index_names = index_names.union(list(log_index.keys()))
-            log_data.update(log_index)
-            logs_dict[run_id].append(log_data)
+        logs_dict = defaultdict(
+            lambda: {
+                "logs": defaultdict(lambda: {"values": []}),
+                "task_tree": {},
+                "info": {},
+            }
+        )
 
-        # Sort runs chronologically using the timestamp in the run_id keys
-        logs_dict = dict(sorted(logs_dict.items(), key=lambda x: x[0].split("_")[-2]))
+        for run_id, run_info, task_id, log_data, parent_tasks_info in log_item_list:
+            logs_dict[run_id]["logs"][task_id]["values"].append(log_data)
+            logs_dict[run_id]["logs"][task_id]["task_path"] = tuple(
+                f"{info['source_estimator_name']} {info['source_task_name']} | "
+                f"{info['estimator_name']} {info['task_name']}"
+                if info["source_task_name"] is not None
+                else f"{info['estimator_name']} {info['task_name']}"
+                for info in parent_tasks_info
+            )
+            logs_dict[run_id]["info"].update(run_info)
+            task_dict = logs_dict[run_id]["task_tree"]
+            for i, id in enumerate(task_id):
+                if id not in task_dict:
+                    task_dict[id] = {
+                        "subtasks": {},
+                        "task_info": {**parent_tasks_info[i]},
+                    }
+                task_dict = task_dict[id]["subtasks"]
 
-        default_if_no_logs = []
+        # Sort runs chronologically.
+        logs_dict = dict(
+            sorted(
+                logs_dict.items(),
+                key=lambda x: x[1]["info"]["timestamp"],
+            )
+        )
+        # Convert the defaultdicts to dicts.
+        for run_id in logs_dict:
+            logs_dict[run_id]["logs"] = dict(logs_dict[run_id]["logs"])
 
         if as_frame:
             pd = check_pandas_support(f"`{self.__class__.__name__}.get_logs`")
 
             for run_id in logs_dict:
-                df = pd.DataFrame(logs_dict[run_id])
-                if not df.empty:
-                    df = df.set_index(
-                        [col for col in df.columns if col in index_names]
-                    ).sort_index()
-                logs_dict[run_id] = df
-
-            default_if_no_logs = pd.DataFrame({})
+                for task_id in logs_dict[run_id]["logs"]:
+                    logs_dict[run_id]["logs"][task_id]["values"] = pd.DataFrame(
+                        logs_dict[run_id]["logs"][task_id]["values"]
+                    )
 
         if select == "most_recent":
-            return list(logs_dict.values())[-1] if logs_dict else default_if_no_logs
+            return list(logs_dict.values())[-1] if logs_dict else {}
 
         return logs_dict
