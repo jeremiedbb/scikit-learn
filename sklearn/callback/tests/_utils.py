@@ -136,7 +136,7 @@ class NotRequiredKwargsCallback(TestingCallback):
         super().on_fit_task_end(context, X=X, y=y)
 
 
-class SaveTree():
+class SaveTree:
     """A callback that saves the tree."""
 
     max_propagation_depth = None

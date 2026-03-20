@@ -286,7 +286,10 @@ class CallbackContext:
             ".sk-callback-tree-prefix{white-space:pre;}"
             "</style>"
         )
-        parts = [styles, '<div class="sk-callback-tree"><ul class="sk-callback-tree-root">']
+        parts = [
+            styles,
+            '<div class="sk-callback-tree"><ul class="sk-callback-tree-root">',
+        ]
 
         def _walk(node, prefix, is_last, depth, is_root=False):
             children = list(node._children_map.values())
@@ -311,7 +314,9 @@ class CallbackContext:
                 f"</summary><ul>"
             )
 
-            child_prefix = prefix if is_root else prefix + ("    " if is_last else "│   ")
+            child_prefix = (
+                prefix if is_root else prefix + ("    " if is_last else "│   ")
+            )
 
             for i, child in enumerate(children):
                 _walk(
@@ -588,6 +593,7 @@ class CallbackContext:
         )
 
         return self
+
 
 def _from_reconstruction_attributes(estimator, reconstruction_attributes):
     """Return a copy of the estimator as if it was fitted.
