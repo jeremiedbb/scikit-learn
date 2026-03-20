@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import copy
+import html
 import inspect
 import uuid
 import warnings
@@ -235,6 +236,113 @@ class CallbackContext:
         yield self
         for context in self._children_map.values():
             yield from context
+
+    def __repr__(self):
+        """Return a tree representation rooted at this context."""
+        lines = [self._task_label]
+
+        def _walk(node, prefix):
+            children = list(node._children_map.values())
+            displayed_children = (
+                [children[0], None, children[-1]] if len(children) > 4 else children
+            )
+
+            for i, child in enumerate(displayed_children):
+                is_last = i == len(displayed_children) - 1
+                connector = "└── " if is_last else "├── "
+                if child is None:
+                    lines.append(f"{prefix}┊")
+                    continue
+
+                lines.append(f"{prefix}{connector}{child._task_label}")
+                extension = "    " if is_last else "│   "
+                _walk(child, prefix + extension)
+
+        _walk(self, prefix="")
+        return "\n".join(lines)
+
+    def _repr_html_(self):
+        """Return an HTML representation rooted at this context."""
+        styles = (
+            "<style>"
+            ".sk-callback-tree ul{list-style:none !important;margin:0 !important;"
+            "padding:0 !important;padding-left:0 !important;"
+            "padding-inline-start:0 !important;}"
+            ".sk-callback-tree .sk-callback-tree-root{padding:0 !important;"
+            "padding-left:0 !important;padding-inline-start:0 !important;}"
+            ".sk-callback-tree li{list-style:none;margin:0;}"
+            ".sk-callback-tree li::marker{content:'';}"
+            ".sk-callback-tree details{margin:0;padding:0;}"
+            ".sk-callback-tree details>ul{list-style:none !important;"
+            "margin:0 !important;padding:0 !important;padding-left:0 !important;"
+            "padding-inline-start:0 !important;}"
+            ".sk-callback-tree summary{cursor:pointer;list-style:none;display:block;"
+            "margin:0;padding:0;padding-inline-start:0;}"
+            ".sk-callback-tree summary::marker{content:'';}"
+            ".sk-callback-tree summary::-webkit-details-marker{display:none;}"
+            '.sk-callback-tree summary::after{content:" [+]";font-family:monospace;}'
+            '.sk-callback-tree details[open]>summary::after{content:" [-]";}'
+            ".sk-callback-tree-row{font-family:monospace;white-space:pre;}"
+            ".sk-callback-tree-prefix{white-space:pre;}"
+            "</style>"
+        )
+        parts = [styles, '<div class="sk-callback-tree"><ul class="sk-callback-tree-root">']
+
+        def _walk(node, prefix, is_last, depth, is_root=False):
+            children = list(node._children_map.values())
+            label = html.escape(node._task_label)
+            connector = "" if is_root else ("└── " if is_last else "├── ")
+            row_prefix = html.escape(prefix + connector)
+
+            if not children:
+                parts.append(
+                    '<li><span class="sk-callback-tree-row">'
+                    f'<span class="sk-callback-tree-prefix">{row_prefix}</span>{label}'
+                    "</span></li>"
+                )
+                return
+
+            open_attr = " open" if depth == 0 else ""
+            parts.append(
+                f"<li><details{open_attr}><summary>"
+                f'<span class="sk-callback-tree-row">'
+                f'<span class="sk-callback-tree-prefix">{row_prefix}</span>{label}'
+                f"</span>"
+                f"</summary><ul>"
+            )
+
+            child_prefix = prefix if is_root else prefix + ("    " if is_last else "│   ")
+
+            for i, child in enumerate(children):
+                _walk(
+                    child,
+                    prefix=child_prefix,
+                    is_last=i == len(children) - 1,
+                    depth=depth + 1,
+                    is_root=False,
+                )
+
+            parts.append("</ul></details></li>")
+
+        _walk(self, prefix="", is_last=True, depth=0, is_root=True)
+        parts.append("</ul></div>")
+        return "".join(parts)
+
+    @property
+    def _task_label(self):
+        """Display label for this context in the task tree."""
+        if self.source_estimator_name is not None and self.source_task_name is not None:
+            source = (
+                f'{self.source_estimator_name} "{self.source_task_name}" '
+                f"({self.task_id}) | "
+            )
+            return f'{source}{self.estimator_name} "{self.task_name}"'
+
+        return (
+            f'{self.estimator_name} "{self.task_name}"'
+            if self.parent is None
+            else f'{self.estimator_name} "{self.task_name}" ({self.task_id})'
+        )
 
     def _add_child(self, child_context):
         """Add `child_context` as a child of this context."""
@@ -480,7 +588,6 @@ class CallbackContext:
         )
 
         return self
-
 
 def _from_reconstruction_attributes(estimator, reconstruction_attributes):
     """Return a copy of the estimator as if it was fitted.

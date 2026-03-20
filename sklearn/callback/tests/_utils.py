@@ -136,6 +136,24 @@ class NotRequiredKwargsCallback(TestingCallback):
         super().on_fit_task_end(context, X=X, y=y)
 
 
+class SaveTree():
+    """A callback that saves the tree."""
+
+    max_propagation_depth = None
+
+    def setup(self, context):
+        pass
+
+    def on_fit_task_begin(self, context):
+        pass
+
+    def on_fit_task_end(self, context):
+        pass
+
+    def teardown(self, context):
+        self.context_tree = context
+
+
 class MaxIterEstimator(CallbackSupportMixin, BaseEstimator):
     """A class that mimics the behavior of an estimator.
 
@@ -154,9 +172,8 @@ class MaxIterEstimator(CallbackSupportMixin, BaseEstimator):
         callback_ctx.call_on_fit_task_begin(X=X, y=y)
 
         for i in range(self.max_iter):
-            subcontext = callback_ctx.subcontext(task_id=i).call_on_fit_task_begin(
-                X=X, y=y
-            )
+            subcontext = callback_ctx.subcontext(task_id=i, task_name=f"iteration {i}")
+            subcontext.call_on_fit_task_begin(X=X, y=y)
 
             time.sleep(self.computation_intensity)  # Computation intensive task
 
