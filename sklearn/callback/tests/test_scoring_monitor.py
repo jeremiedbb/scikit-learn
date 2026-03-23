@@ -408,4 +408,145 @@ def test_validation_set_metadata_routing():
         MetaEstimator(est, n_outer=2, n_inner=3).fit(X=X, y=y, X_val=X_val, y_val=y_val)
 
 
+def test_plot_depth_based_subplots_and_plot_types():
+    pytest.importorskip("matplotlib")
+    import matplotlib.pyplot as plt
+
+    n_outer, n_inner, max_iter = 2, 2, 3
+    callback = ScoringMonitor(eval_on="train", scoring="r2")
+    est = MaxIterEstimator(max_iter=max_iter).set_callbacks(callback)
+    meta_est = MetaEstimator(
+        est, n_outer=n_outer, n_inner=n_inner, n_jobs=1, prefer="threads"
+    )
+    X, y = make_regression(n_samples=100, n_features=2, random_state=0)
+    meta_est.fit(X=X, y=y)
+
+    logs = callback.get_logs(select="all", as_frame=False)
+    run_id = next(iter(logs))
+    fig = callback.plot(run_id=run_id)
+
+    # Depths in this setup are 1, 2 and 3. Depth 0 is intentionally not plotted.
+    assert len(fig.axes) == 3
+    assert all(len(ax.patches) > 0 for ax in fig.axes[:-1])
+    assert len(fig.axes[-1].lines) == n_outer * n_inner
+    assert all(ax.get_xlabel() == "" for ax in fig.axes[:-1])
+    assert fig.axes[-1].get_xlabel() == "iteration"
+
+    plt.close(fig)
+
+
+def test_plot_line_colors_grouped_by_parent_path():
+    pytest.importorskip("matplotlib")
+    import matplotlib.pyplot as plt
+
+    n_outer, n_inner, max_iter = 3, 2, 3
+    callback = ScoringMonitor(eval_on="train", scoring="r2")
+    est = MaxIterEstimator(max_iter=max_iter).set_callbacks(callback)
+    meta_est = MetaEstimator(
+        est, n_outer=n_outer, n_inner=n_inner, n_jobs=1, prefer="threads"
+    )
+    X, y = make_regression(n_samples=100, n_features=2, random_state=0)
+    meta_est.fit(X=X, y=y)
+
+    fig = callback.plot()
+    line_axes = [ax for ax in fig.axes if len(ax.lines) > 0]
+    assert len(line_axes) == 1
+
+    colors = [line.get_color() for line in line_axes[0].lines]
+    assert len(colors) == n_outer * n_inner
+    # One color per parent-group, reused for all children in that group.
+    assert len(set(colors)) == n_outer
+    assert min(min(line.get_xdata()) for line in line_axes[0].lines) == 1
+
+    plt.close(fig)
+
+
+def test_plot_multi_score_adds_subplots_per_score():
+    pytest.importorskip("matplotlib")
+    import matplotlib.pyplot as plt
+
+    callback = ScoringMonitor(eval_on="train", scoring=("r2", "neg_mean_squared_error"))
+    est = MaxIterEstimator(max_iter=3).set_callbacks(callback)
+    meta_est = MetaEstimator(est, n_outer=2, n_inner=2, n_jobs=1, prefer="threads")
+    X, y = make_regression(n_samples=100, n_features=2, random_state=0)
+    meta_est.fit(X=X, y=y)
+
+    logs = callback.get_logs(select="all", as_frame=False)
+    run_id = next(iter(logs))
+    fig = callback.plot(run_id=run_id)
+
+    # 3 depths (1, 2, 3) x 2 scores.
+    assert len(fig.axes) == 6
+    y_labels = [ax.get_ylabel() for ax in fig.axes]
+    assert y_labels.count("r2") == 3
+    assert y_labels.count("neg_mean_squared_error") == 3
+    for ax in fig.axes:
+        if ax.lines:
+            assert ax.get_xlabel() == "iteration"
+        else:
+            assert ax.get_xlabel() == ""
+
+    plt.close(fig)
+
+
+def test_plot_eval_on_both_shares_axes_for_train_and_val():
+    pytest.importorskip("matplotlib")
+    import matplotlib.pyplot as plt
+
+    n_outer, n_inner, max_iter = 2, 2, 3
+    callback = ScoringMonitor(eval_on="both", scoring="r2")
+    est = MaxIterEstimator(max_iter=max_iter).set_callbacks(callback)
+    meta_est = MetaEstimator(
+        est, n_outer=n_outer, n_inner=n_inner, n_jobs=1, prefer="threads"
+    )
+    X, y = make_regression(n_samples=100, n_features=2, random_state=0)
+    X, X_val, y, y_val = train_test_split(X, y, test_size=0.2, random_state=0)
+    with config_context(enable_metadata_routing=True):
+        est.set_fit_request(X_val=True, y_val=True)
+        meta_est.fit(X=X, y=y, X_val=X_val, y_val=y_val)
+
+    logs = callback.get_logs(select="all", as_frame=False)
+    run_id = next(iter(logs))
+    fig = callback.plot(run_id=run_id)
+
+    # One score ("r2"), depths 1/2/3 -> 3 axes total.
+    assert len(fig.axes) == 3
+    # Depth 1 has 1 task key -> 2 bars (train + val). Depth 2 has 2 task keys -> 4 bars.
+    assert len(fig.axes[0].patches) == 2
+    assert len(fig.axes[1].patches) == 4
+    # Leaf depth has one line per (parent-group, eval_on) pair.
+    assert len(fig.axes[2].lines) == n_outer * n_inner * 2
+    legend_texts = [text.get_text() for text in fig.axes[2].get_legend().get_texts()]
+    assert legend_texts == ["train", "val"]
+
+    plt.close(fig)
+
+
+def test_plot_unknown_run_id():
+    pytest.importorskip("matplotlib")
+
+    callback = ScoringMonitor(eval_on="train", scoring="r2")
+    X, y = make_regression(n_samples=20, n_features=2, random_state=0)
+    MaxIterEstimator(max_iter=2).set_callbacks(callback).fit(X=X, y=y)
+
+    with pytest.raises(ValueError, match="Unknown run_id"):
+        callback.plot(run_id="does-not-exist")
+
+
+def test_plot_none_uses_most_recent_run():
+    pytest.importorskip("matplotlib")
+    import matplotlib.pyplot as plt
+
+    callback = ScoringMonitor(eval_on="train", scoring="r2")
+    X, y = make_regression(n_samples=30, n_features=2, random_state=0)
+    est = MaxIterEstimator(max_iter=2).set_callbacks(callback)
+    est.fit(X=X, y=y)
+    est.fit(X=X, y=y)
+
+    fig = callback.plot()
+
+    assert fig is not None
+    plt.close(fig)
+
+
 # TODO: add test for task_tree and info in logs

@@ -181,7 +181,7 @@ class MaxIterEstimator(CallbackSupportMixin, BaseEstimator):
         }
 
         for i in range(self.max_iter):
-            subcontext = callback_ctx.subcontext(task_id=i, task_name="iteration")
+            subcontext = callback_ctx.subcontext(task_name=f"iteration {i}")
             subcontext.call_on_fit_task_begin(X=X, y=y, metadata=metadata)
 
             time.sleep(self.computation_intensity)  # Computation intensive task
@@ -203,7 +203,7 @@ class MaxIterEstimator(CallbackSupportMixin, BaseEstimator):
         return self
 
     def predict(self, X):
-        return np.mean(X, axis=1) * self.n_iter_
+        return np.mean(X, axis=1) * self.n_iter_ * (1 + np.random.normal(0, 0.1))
 
 
 class WhileEstimator(CallbackSupportMixin, BaseEstimator):
@@ -225,9 +225,8 @@ class WhileEstimator(CallbackSupportMixin, BaseEstimator):
 
         i = 0
         while True:
-            subcontext = callback_ctx.subcontext(task_id=i).call_on_fit_task_begin(
-                X=X, y=y
-            )
+            subcontext = callback_ctx.subcontext(task_name=f"iteration {i}")
+            subcontext.call_on_fit_task_begin(X=X, y=y)
 
             time.sleep(self.computation_intensity)  # Computation intensive task
 
@@ -259,9 +258,8 @@ class ThirdPartyEstimator(CallbackSupportMixin, BaseEstimator):
         callback_ctx.call_on_fit_task_begin(X=X, y=y)
 
         for i in range(self.max_iter):
-            subcontext = callback_ctx.subcontext(task_id=i).call_on_fit_task_begin(
-                X=X, y=y
-            )
+            subcontext = callback_ctx.subcontext(task_name=f"iteration {i}")
+            subcontext.call_on_fit_task_begin(X=X, y=y)
 
             time.sleep(self.computation_intensity)  # Computation intensive task
 
@@ -335,7 +333,9 @@ class MetaEstimator(CallbackSupportMixin, BaseEstimator):
     def fit(self, X=None, y=None, **fit_params):
         routed_params = process_routing(self, "fit", **fit_params)
 
-        callback_ctx = self._init_callback_context(max_subtasks=self.n_outer)
+        callback_ctx = self._init_callback_context(
+            max_subtasks=self.n_outer, subtasks_ordered=False
+        )
         callback_ctx.call_on_fit_task_begin(X=X, y=y)
 
         Parallel(n_jobs=self.n_jobs, prefer=self.prefer)(
@@ -346,7 +346,10 @@ class MetaEstimator(CallbackSupportMixin, BaseEstimator):
                 y=y,
                 routed_params=routed_params,
                 outer_callback_ctx=callback_ctx.subcontext(
-                    task_name="outer", task_id=i, max_subtasks=self.n_inner
+                    task_name=f"outer ({i})",
+                    task_id=i,
+                    max_subtasks=self.n_inner,
+                    subtasks_ordered=False,
                 ),
             )
             for i in range(self.n_outer)
@@ -365,7 +368,7 @@ def _fit_subestimator(
     for i in range(meta_estimator.n_inner):
         est = clone(inner_estimator)
 
-        inner_ctx = outer_callback_ctx.subcontext(task_name="inner", task_id=i)
+        inner_ctx = outer_callback_ctx.subcontext(task_name=f"inner ({i})", task_id=i)
         inner_ctx.propagate_callback_context(sub_estimator=est)
         inner_ctx.call_on_fit_task_begin(X=X, y=y)
 

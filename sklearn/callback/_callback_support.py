@@ -61,7 +61,9 @@ class CallbackSupportMixin:
 
         return self
 
-    def _init_callback_context(self, task_name="fit", task_id=0, max_subtasks=0):
+    def _init_callback_context(
+        self, task_name="fit", task_id=0, max_subtasks=0, subtasks_ordered=True
+    ):
         """Initialize the callback context for the estimator and setup its callbacks.
 
         This method should be called once, at the beginning of the fit method.
@@ -81,6 +83,10 @@ class CallbackSupportMixin:
             means the maximum number of subtasks is not known in advance. 0 means it's a
             leaf.
 
+        subtasks_ordered : bool, default=True
+            Whether the root context has ordered subtasks. If True, its subtasks will
+            receive automatic contiguous integer task IDs.
+
         Returns
         -------
         callback_fit_ctx : CallbackContext
@@ -91,6 +97,7 @@ class CallbackSupportMixin:
             task_name=task_name,
             task_id=task_id,
             max_subtasks=max_subtasks,
+            subtasks_ordered=subtasks_ordered,
         )
 
         # setup callbacks

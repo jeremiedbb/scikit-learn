@@ -112,12 +112,17 @@ class CallbackContext:
     task_name : str
         The name of the task this context is responsible for.
 
-    task_id : int
+    task_id : int or str
         The identifier of the task this context is responsible for.
 
     max_subtasks : int or None
         The maximum number of children tasks for this task. 0 means it's a leaf.
         None means the maximum number of subtasks is not known in advance.
+
+    subtasks_ordered : bool
+        Whether this context's subtasks are ordered. If True, children created via
+        `subcontext` will have task IDs auto-assigned from 0 to the number of existing
+        siblings.
 
     estimator : estimator instance
         The estimator that holds this context.
@@ -145,7 +150,9 @@ class CallbackContext:
     """
 
     @classmethod
-    def _from_estimator(cls, estimator, task_name, task_id, max_subtasks):
+    def _from_estimator(
+        cls, estimator, task_name, task_id, max_subtasks, subtasks_ordered
+    ):
         """Private constructor to create a root context.
 
         Parameters
@@ -163,6 +170,11 @@ class CallbackContext:
             The maximum number of subtasks that can be children of the root task. None
             means the maximum number of subtasks is not known in advance. 0 means it's a
             leaf.
+
+        subtasks_ordered : bool
+            Whether the root context has ordered subtasks. If True, children created via
+            `subcontext` will have task IDs auto-assigned from 0 to the number of
+            existing siblings.
         """
         new_ctx = cls.__new__(cls)
 
@@ -174,6 +186,7 @@ class CallbackContext:
         new_ctx.task_name = task_name
         new_ctx.task_id = task_id
         new_ctx.max_subtasks = max_subtasks
+        new_ctx.subtasks_ordered = subtasks_ordered
         new_ctx.parent = None
         new_ctx.root_uuid = uuid.uuid4()
         new_ctx.init_time = datetime.now(timezone.utc)
@@ -196,7 +209,9 @@ class CallbackContext:
         return new_ctx
 
     @classmethod
-    def _from_parent(cls, parent_context, *, task_name, task_id, max_subtasks):
+    def _from_parent(
+        cls, parent_context, *, task_name, task_id, max_subtasks, subtasks_ordered
+    ):
         """Private constructor to create a sub-context.
 
         Parameters
@@ -207,13 +222,18 @@ class CallbackContext:
         task_name : str
             The name of the task this context is responsible for.
 
-        task_id : int
+        task_id : int, str or None
             The identifier of the task this context is responsible for.
 
         max_subtasks : int or None
             The maximum number of tasks that can be children of the task this context is
             responsible for. 0 means it's a leaf. None means the maximum number of
             subtasks is not known in advance.
+
+        subtasks_ordered : bool
+            Whether this context's subtasks are ordered. If True, children created via
+            `subcontext` will have task IDs auto-assigned from 0 to the number of
+            existing siblings.
         """
         new_ctx = cls.__new__(cls)
 
@@ -224,6 +244,7 @@ class CallbackContext:
         new_ctx.task_name = task_name
         new_ctx.task_id = task_id
         new_ctx.max_subtasks = max_subtasks
+        new_ctx.subtasks_ordered = subtasks_ordered
         new_ctx.root_uuid = parent_context.root_uuid
         new_ctx.init_time = datetime.now(timezone.utc)
         new_ctx.parent = None
@@ -292,7 +313,13 @@ class CallbackContext:
         self.source_task_name = other_context.task_name
         self.source_estimator_name = other_context.estimator_name
 
-    def subcontext(self, task_name="", task_id=0, max_subtasks=0):
+    def subcontext(
+        self,
+        task_name="",
+        task_id=None,
+        max_subtasks=0,
+        subtasks_ordered=True,
+    ):
         """Create a context for a subtask of the current task.
 
         Parameters
@@ -300,21 +327,30 @@ class CallbackContext:
         task_name : str, default=""
             The name of the subtask.
 
-        task_id : int, default=0
+        task_id : int, str or None, default=None
             An identifier of the subtask. Usually a number between 0 and the maximum
             number of sibling contexts, but can be any identifier as long as it's unique
-            among the siblings.
+            among the siblings. If None, a contiguous integer task ID is assigned from
+            0 to the number of already-created siblings.
 
         max_subtasks : int or None, default=0
             The maximum number of tasks that can be children of the subtask. 0 means
             it's a leaf. None means the maximum number of subtasks is not known in
             advance.
+
+        subtasks_ordered : bool, default=True
+            Whether the task has ordered subtasks. If True, its subtasks will receive
+            automatic contiguous integer task IDs.
         """
+        if task_id is None:
+            task_id = len(self._children_map)
+
         return CallbackContext._from_parent(
             parent_context=self,
             task_name=task_name,
             task_id=task_id,
             max_subtasks=max_subtasks,
+            subtasks_ordered=subtasks_ordered,
         )
 
     def _call_hooks(self, hook_name, **kwargs):
