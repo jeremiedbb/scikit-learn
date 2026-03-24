@@ -237,35 +237,39 @@ class CallbackContext:
         for context in self._children_map.values():
             yield from context
 
-    def _walk_context_tree(self, enter_node, *, leave_node=None):
+    def _walk_context_tree(
+        self,
+        enter_node,
+        *,
+        leave_node=None,
+        path_is_last=(),
+    ):
         """Walk the subtree rooted at this context."""
+        is_last = True if len(path_is_last) == 0 else path_is_last[-1]
+        enter_node(node=self, is_last=is_last, path_is_last=path_is_last)
 
-        def _walk(node, prefix, is_last, depth):
-            enter_node(node=node, prefix=prefix, is_last=is_last, depth=depth)
-
-            children = list(node._children_map.values())
-            child_prefix = (
-                prefix if depth == 0 else prefix + ("    " if is_last else "│   ")
+        n_children = len(self._children_map)
+        for i, child in enumerate(self._children_map.values()):
+            child_is_last = i == n_children - 1
+            child._walk_context_tree(
+                enter_node,
+                leave_node=leave_node,
+                path_is_last=path_is_last + (child_is_last,),
             )
 
-            for i, child in enumerate(children):
-                child_is_last = i == len(children) - 1
-                _walk(child, child_prefix, child_is_last, depth + 1)
-
-            if leave_node is not None:
-                leave_node(node=node, prefix=prefix, is_last=is_last, depth=depth)
-
-        _walk(self, prefix="", is_last=True, depth=0)
+        if leave_node is not None:
+            leave_node(node=self, is_last=is_last, path_is_last=path_is_last)
 
     def __repr__(self):
         """Return a tree representation rooted at this context."""
         lines = []
 
-        def _enter_node(node, prefix, is_last, depth):
-            connector = "" if depth == 0 else ("└── " if is_last else "├── ")
+        def _enter_node(node, is_last, path_is_last):
+            prefix = "".join("    " if flag else "│   " for flag in path_is_last[:-1])
+            connector = ("└── " if is_last else "├── ") if len(path_is_last) > 0 else ""
             lines.append(f"{prefix}{connector}{node._task_label}")
 
-        self._walk_task_tree(_enter_node)
+        self._walk_context_tree(_enter_node)
         return "\n".join(lines)
 
     def _repr_html_(self):
@@ -298,9 +302,10 @@ class CallbackContext:
             '<div class="sk-context-tree"><ul class="sk-context-tree-root">',
         ]
 
-        def _enter_node(node, prefix, is_last, depth):
+        def _enter_node(node, is_last, path_is_last):
+            prefix = "".join("    " if flag else "│   " for flag in path_is_last[:-1])
+            connector = ("└── " if is_last else "├── ") if len(path_is_last) > 0 else ""
             label = html.escape(node._task_label)
-            connector = "" if depth == 0 else ("└── " if is_last else "├── ")
             row_prefix = html.escape(prefix + connector)
             row = (
                 '<span class="sk-context-tree-row">'
@@ -308,18 +313,18 @@ class CallbackContext:
                 "</span>"
             )
             has_children = len(node._children_map) > 0
-            open_attr = " open" if depth == 0 else ""
+            open_attr = " open" if len(path_is_last) == 0 else ""
             prefix_html = (
                 f"<li><details{open_attr}><summary>" if has_children else "<li>"
             )
             suffix_html = "</summary><ul>" if has_children else "</li>"
             parts.append(f"{prefix_html}{row}{suffix_html}")
 
-        def _leave_node(node, **kwargs):
+        def _leave_node(node, is_last, path_is_last):
             if len(node._children_map) > 0:
                 parts.append("</ul></details></li>")
 
-        self._walk_task_tree(_enter_node, leave_node=_leave_node)
+        self._walk_context_tree(_enter_node, leave_node=_leave_node)
         parts.append("</ul></div>")
         return "".join(parts)
 
