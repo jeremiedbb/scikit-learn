@@ -237,99 +237,89 @@ class CallbackContext:
         for context in self._children_map.values():
             yield from context
 
-    def __repr__(self):
-        """Return a tree representation rooted at this context."""
-        lines = [self._task_label]
+    def _walk_context_tree(self, enter_node, *, leave_node=None):
+        """Walk the subtree rooted at this context."""
 
-        def _walk(node, prefix):
+        def _walk(node, prefix, is_last, depth):
+            enter_node(node=node, prefix=prefix, is_last=is_last, depth=depth)
+
             children = list(node._children_map.values())
-            displayed_children = (
-                [children[0], None, children[-1]] if len(children) > 4 else children
+            child_prefix = (
+                prefix if depth == 0 else prefix + ("    " if is_last else "│   ")
             )
 
-            for i, child in enumerate(displayed_children):
-                is_last = i == len(displayed_children) - 1
-                connector = "└── " if is_last else "├── "
-                if child is None:
-                    lines.append(f"{prefix}┊")
-                    continue
+            for i, child in enumerate(children):
+                child_is_last = i == len(children) - 1
+                _walk(child, child_prefix, child_is_last, depth + 1)
 
-                lines.append(f"{prefix}{connector}{child._task_label}")
-                extension = "    " if is_last else "│   "
-                _walk(child, prefix + extension)
+            if leave_node is not None:
+                leave_node(node=node, prefix=prefix, is_last=is_last, depth=depth)
 
-        _walk(self, prefix="")
+        _walk(self, prefix="", is_last=True, depth=0)
+
+    def __repr__(self):
+        """Return a tree representation rooted at this context."""
+        lines = []
+
+        def _enter_node(node, prefix, is_last, depth):
+            connector = "" if depth == 0 else ("└── " if is_last else "├── ")
+            lines.append(f"{prefix}{connector}{node._task_label}")
+
+        self._walk_task_tree(_enter_node)
         return "\n".join(lines)
 
     def _repr_html_(self):
         """Return an HTML representation rooted at this context."""
         styles = (
             "<style>"
-            ".sk-callback-tree ul{list-style:none !important;margin:0 !important;"
+            ".sk-context-tree ul{list-style:none !important;margin:0 !important;"
             "padding:0 !important;padding-left:0 !important;"
             "padding-inline-start:0 !important;}"
-            ".sk-callback-tree .sk-callback-tree-root{padding:0 !important;"
+            ".sk-context-tree .sk-context-tree-root{padding:0 !important;"
             "padding-left:0 !important;padding-inline-start:0 !important;}"
-            ".sk-callback-tree li{list-style:none;margin:0;}"
-            ".sk-callback-tree li::marker{content:'';}"
-            ".sk-callback-tree details{margin:0;padding:0;}"
-            ".sk-callback-tree details>ul{list-style:none !important;"
+            ".sk-context-tree li{list-style:none;margin:0;}"
+            ".sk-context-tree li::marker{content:'';}"
+            ".sk-context-tree details{margin:0;padding:0;}"
+            ".sk-context-tree details>ul{list-style:none !important;"
             "margin:0 !important;padding:0 !important;padding-left:0 !important;"
             "padding-inline-start:0 !important;}"
-            ".sk-callback-tree summary{cursor:pointer;list-style:none;display:block;"
+            ".sk-context-tree summary{cursor:pointer;list-style:none;display:block;"
             "margin:0;padding:0;padding-inline-start:0;}"
-            ".sk-callback-tree summary::marker{content:'';}"
-            ".sk-callback-tree summary::-webkit-details-marker{display:none;}"
-            '.sk-callback-tree summary::after{content:" [+]";font-family:monospace;}'
-            '.sk-callback-tree details[open]>summary::after{content:" [-]";}'
-            ".sk-callback-tree-row{font-family:monospace;white-space:pre;}"
-            ".sk-callback-tree-prefix{white-space:pre;}"
+            ".sk-context-tree summary::marker{content:'';}"
+            ".sk-context-tree summary::-webkit-details-marker{display:none;}"
+            '.sk-context-tree summary::after{content:" [+]";font-family:monospace;}'
+            '.sk-context-tree details[open]>summary::after{content:" [-]";}'
+            ".sk-context-tree-row{font-family:monospace;white-space:pre;}"
+            ".sk-context-tree-prefix{white-space:pre;}"
             "</style>"
         )
         parts = [
             styles,
-            '<div class="sk-callback-tree"><ul class="sk-callback-tree-root">',
+            '<div class="sk-context-tree"><ul class="sk-context-tree-root">',
         ]
 
-        def _walk(node, prefix, is_last, depth, is_root=False):
-            children = list(node._children_map.values())
+        def _enter_node(node, prefix, is_last, depth):
             label = html.escape(node._task_label)
-            connector = "" if is_root else ("└── " if is_last else "├── ")
+            connector = "" if depth == 0 else ("└── " if is_last else "├── ")
             row_prefix = html.escape(prefix + connector)
-
-            if not children:
-                parts.append(
-                    '<li><span class="sk-callback-tree-row">'
-                    f'<span class="sk-callback-tree-prefix">{row_prefix}</span>{label}'
-                    "</span></li>"
-                )
-                return
-
+            row = (
+                '<span class="sk-context-tree-row">'
+                f'<span class="sk-context-tree-prefix">{row_prefix}</span>{label}'
+                "</span>"
+            )
+            has_children = len(node._children_map) > 0
             open_attr = " open" if depth == 0 else ""
-            parts.append(
-                f"<li><details{open_attr}><summary>"
-                f'<span class="sk-callback-tree-row">'
-                f'<span class="sk-callback-tree-prefix">{row_prefix}</span>{label}'
-                f"</span>"
-                f"</summary><ul>"
+            prefix_html = (
+                f"<li><details{open_attr}><summary>" if has_children else "<li>"
             )
+            suffix_html = "</summary><ul>" if has_children else "</li>"
+            parts.append(f"{prefix_html}{row}{suffix_html}")
 
-            child_prefix = (
-                prefix if is_root else prefix + ("    " if is_last else "│   ")
-            )
+        def _leave_node(node, **kwargs):
+            if len(node._children_map) > 0:
+                parts.append("</ul></details></li>")
 
-            for i, child in enumerate(children):
-                _walk(
-                    child,
-                    prefix=child_prefix,
-                    is_last=i == len(children) - 1,
-                    depth=depth + 1,
-                    is_root=False,
-                )
-
-            parts.append("</ul></details></li>")
-
-        _walk(self, prefix="", is_last=True, depth=0, is_root=True)
+        self._walk_task_tree(_enter_node, leave_node=_leave_node)
         parts.append("</ul></div>")
         return "".join(parts)
 
