@@ -334,12 +334,12 @@ class CallbackContext:
         """
         if self.subtasks_ordered and task_id is not None:
             raise ValueError(
-                f"task_id for {self.estimator_name} {self.task_name} must be None if "
+                f"task_id for {self.estimator_name} {task_name} must be None if "
                 f"subtasks_ordered is True for {self.task_name}."
             )
-        if not subtasks_ordered and task_id is None:
+        if not self.subtasks_ordered and task_id is None:
             raise ValueError(
-                f"task_id for {self.estimator_name} {self.task_name} must be provided "
+                f"task_id for {self.estimator_name} {task_name} must be provided "
                 f"if subtasks_ordered is False for {self.task_name}."
             )
         if task_id is None:

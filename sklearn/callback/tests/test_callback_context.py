@@ -445,3 +445,41 @@ def test_from_reconstruction_attributes():
     assert reconstructed_est is not estimator
     assert reconstructed_est.get_params() == estimator.get_params()
     assert reconstructed_est.n_iter_ == 2
+
+
+def test_subcontext_task_id_ordering():
+    """Check that the task_id is automatically assigned in the correct order."""
+    estimator = MaxIterEstimator()
+    context = estimator._init_callback_context(max_subtasks=5, subtasks_ordered=True)
+
+    for i in range(5):
+        subcontext = context.subcontext()
+        assert subcontext.task_id == i
+
+
+def test_subcontext_task_id_ordering_error():
+    """Check that errors are raised when task_id and subtasks_ordered are inconsistent.
+
+    - if subtasks_ordered is True, children task_ids must be left to None
+    - if subtasks_ordered is False, children task_ids must be provided
+    """
+    estimator = MaxIterEstimator()
+    context = estimator._init_callback_context(max_subtasks=1, subtasks_ordered=True)
+    with pytest.raises(
+        ValueError,
+        match=(
+            "task_id for MaxIterEstimator child_task must be None if subtasks_ordered "
+            "is True for fit."
+        ),
+    ):
+        context.subcontext(task_name="child_task", task_id=0)
+
+    context = estimator._init_callback_context(max_subtasks=1, subtasks_ordered=False)
+    with pytest.raises(
+        ValueError,
+        match=(
+            "task_id for MaxIterEstimator child_task must be provided if "
+            "subtasks_ordered is False for fit."
+        ),
+    ):
+        context.subcontext(task_name="child_task")
