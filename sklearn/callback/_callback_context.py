@@ -111,8 +111,9 @@ class CallbackContext:
     task_name : str
         The name of the task this context is responsible for.
 
-    task_id : int or str
-        The identifier of the task this context is responsible for.
+    task_id : int
+        The identifier of the task this context is responsible for. It uniquely
+        identifies the task among its siblings.
 
     max_subtasks : int or None
         The maximum number of children tasks for this task. 0 means it's a leaf.
@@ -158,7 +159,7 @@ class CallbackContext:
         task_name : str
             The name of the root task.
 
-        task_id : int or str
+        task_id : int
             Identifier for the root task.
 
         max_subtasks : int or None
@@ -316,11 +317,10 @@ class CallbackContext:
         task_name : str, default=""
             The name of the subtask.
 
-        task_id : int, str or None, default=None
-            An identifier of the subtask. Usually a number between 0 and the maximum
-            number of sibling contexts, but can be any identifier as long as it's unique
-            among the siblings. If None, task_id is automatically set to the next
-            available integer task_id.
+        task_id : int or None, default=None
+            An identifier of the subtask. It must be distinct from the task_ids of its
+            siblings. If None, task_id is automatically set to the next available
+            integer task_id.
 
         max_subtasks : int or None, default=0
             The maximum number of tasks that can be children of the subtask. 0 means
