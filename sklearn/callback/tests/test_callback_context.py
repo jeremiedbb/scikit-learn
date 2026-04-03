@@ -7,6 +7,7 @@ from functools import partial
 import numpy as np
 import pytest
 
+from sklearn.callback import CallbackSupportMixin, with_callbacks
 from sklearn.callback._callback_context import (
     CallbackContext,
     _from_reconstruction_attributes,
@@ -347,7 +348,7 @@ def test_hook_calling_invalid_kwargs_in():
     context = estimator.set_callbacks(TestingCallback())._init_callback_context()
     msg = r"call_on_fit_task_begin .* has received parameters that are not valid"
     with pytest.raises(TypeError, match=msg):
-        context.call_on_fit_task_begin(X=1, y=2, not_valid_kwarg=3)
+        context.call_on_fit_task_begin(estimator=estimator, X=1, y=2, not_valid_kwarg=3)
 
 
 # TODO(callbacks): should be a common test in a dev test suite instead of a check
@@ -358,7 +359,7 @@ def test_hook_calling_invalid_kwargs_out():
     context = estimator.set_callbacks(NotValidHookCallback())._init_callback_context()
     msg = r"on_fit_task_begin .* has parameters that are not valid"
     with pytest.raises(TypeError, match=msg):
-        context.call_on_fit_task_begin(X=1, y=2)
+        context.call_on_fit_task_begin(estimator=estimator, X=1, y=2)
 
 
 def test_hook_calling_unused_kwargs():
@@ -367,7 +368,7 @@ def test_hook_calling_unused_kwargs():
     estimator = MaxIterEstimator()
     context = estimator.set_callbacks(callback)._init_callback_context()
     # only provide "X" and "y"
-    context.call_on_fit_task_begin(X=1, y=2)
+    context.call_on_fit_task_begin(estimator=estimator, X=1, y=2)
     assert callback.record[-1]["kwargs"]["metadata"] is None
     assert callback.record[-1]["kwargs"]["fitted_estimator"] is None
 
@@ -376,12 +377,14 @@ def test_hook_calling_return_value():
     """Check the return value of the hook calls."""
     estimator = MaxIterEstimator()
     context = estimator.set_callbacks(TestingCallback())._init_callback_context()
-    result = context.call_on_fit_task_end()
+    result = context.call_on_fit_task_end(estimator=estimator)
     # TestingCallback.on_fit_task_end does not return a value (interpreted as False)
     assert result is False
 
     estimator.set_callbacks([TestingCallback(), StopFitCallback()])
-    result = estimator._init_callback_context().call_on_fit_task_end()
+    result = estimator._init_callback_context().call_on_fit_task_end(
+        estimator=estimator
+    )
     # StopFitCallback.on_fit_task_end returns True
     assert result is True
 
@@ -403,7 +406,9 @@ def test_hook_calling_lazy_evaluation():
     callback = NotRequiredKwargsCallback()
     context = estimator.set_callbacks(callback)._init_callback_context()
     context.call_on_fit_task_end(
-        X=partial(eval_kwarg, "X"), metadata=partial(eval_kwarg, "metadata")
+        estimator=estimator,
+        X=partial(eval_kwarg, "X"),
+        metadata=partial(eval_kwarg, "metadata"),
     )
     assert eval_counts["X"] == 1
     assert eval_counts["metadata"] == 0
@@ -412,7 +417,7 @@ def test_hook_calling_lazy_evaluation():
     eval_counts = {"X": 0}
     estimator.set_callbacks([TestingCallback(), TestingCallback()])
     context = estimator._init_callback_context()
-    context.call_on_fit_task_begin(X=partial(eval_kwarg, "X"))
+    context.call_on_fit_task_begin(estimator=estimator, X=partial(eval_kwarg, "X"))
     assert eval_counts["X"] == 1
 
 
@@ -425,7 +430,9 @@ def test_hook_calling_lazy_evaluation_reconstruction_attributes():
     estimator = MaxIterEstimator()
     callback = TestingCallback()
     context = estimator.set_callbacks(callback)._init_callback_context()
-    context.call_on_fit_task_end(reconstruction_attributes=lambda: {"n_iter_": 1})
+    context.call_on_fit_task_end(
+        estimator=estimator, reconstruction_attributes=lambda: {"n_iter_": 1}
+    )
     assert "reconstruction_attributes" not in callback.record[-1]["kwargs"]
     assert "fitted_estimator" in callback.record[-1]["kwargs"]
 
@@ -483,3 +490,30 @@ def test_subcontext_task_id_ordering_error():
         ),
     ):
         context.subcontext(task_name="child_task")
+
+
+def test_locally_defined_estimator():
+    """Test a callback with a locally defined estimator class.
+
+    A locally defined estimator is not picklable, putting it in a container managed by
+    the callback manager would break. As a future improvement, the loky manager used as
+    the callback manager could use the loky pickler.
+    """
+
+    class LocallyDefinedEstimator(CallbackSupportMixin):
+        @with_callbacks
+        def fit(self, X=None, y=None):
+            callback_ctx = self._init_callback_context()
+            callback_ctx.call_on_fit_task_begin(estimator=self)
+
+            callback_ctx.call_on_fit_task_end(estimator=self)
+            return self
+
+    estimator = LocallyDefinedEstimator()
+    callback = TestingCallback()
+    estimator.set_callbacks(callback)
+    estimator.fit()
+    assert callback.count_hooks("setup") == 1
+    assert callback.count_hooks("on_fit_task_begin") == 1
+    assert callback.count_hooks("on_fit_task_end") == 1
+    assert callback.count_hooks("teardown") == 1
