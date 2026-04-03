@@ -299,7 +299,7 @@ class MetaEstimator(CallbackSupportMixin, BaseEstimator):
     @_fit_context(prefer_skip_nested_validation=False)
     def fit(self, X=None, y=None):
         callback_ctx = self._init_callback_context(
-            max_subtasks=self.n_outer, subtasks_ordered=False
+            max_subtasks=self.n_outer, sequential_subtasks=False
         )
         callback_ctx.call_on_fit_task_begin(estimator=self, X=X, y=y)
 

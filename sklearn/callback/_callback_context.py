@@ -119,9 +119,9 @@ class CallbackContext:
         The maximum number of children tasks for this task. 0 means it's a leaf.
         None means the maximum number of subtasks is not known in advance.
 
-    subtasks_ordered : bool
-        Whether this context's subtasks are ordered. If True, children contexts' have
-        consecutive integer task_ids starting from 0.
+    sequential_subtasks : bool
+        Whether this context's subtasks are sequential. When True, children contexts'
+        have consecutive integer task_ids starting from 0.
 
     estimator_name : str
         The name of the estimator that holds this context.
@@ -144,7 +144,7 @@ class CallbackContext:
 
     @classmethod
     def _from_estimator(
-        cls, estimator, task_name, task_id, max_subtasks, subtasks_ordered
+        cls, estimator, task_name, task_id, max_subtasks, sequential_subtasks
     ):
         """Private constructor to create a root context.
 
@@ -164,10 +164,10 @@ class CallbackContext:
             means the maximum number of subtasks is not known in advance. 0 means it's a
             leaf.
 
-        subtasks_ordered : bool
-            Whether the root context has ordered subtasks. If True, children contexts
+        sequential_subtasks : bool
+            Whether the root context has sequential subtasks. If True, children contexts
             created via `subcontext` will have automatically assigned consecutive
-            task_ids values starting from 0.
+            integer task_ids starting from 0.
         """
         new_ctx = cls.__new__(cls)
 
@@ -178,7 +178,7 @@ class CallbackContext:
         new_ctx.task_name = task_name
         new_ctx.task_id = task_id
         new_ctx.max_subtasks = max_subtasks
-        new_ctx.subtasks_ordered = subtasks_ordered
+        new_ctx.sequential_subtasks = sequential_subtasks
         new_ctx.parent = None
         new_ctx.root_uuid = uuid.uuid4()
         new_ctx._children_map = {}
@@ -201,7 +201,7 @@ class CallbackContext:
 
     @classmethod
     def _from_parent(
-        cls, parent_context, *, task_name, task_id, max_subtasks, subtasks_ordered
+        cls, parent_context, *, task_name, task_id, max_subtasks, sequential_subtasks
     ):
         """Private constructor to create a sub-context.
 
@@ -221,8 +221,8 @@ class CallbackContext:
             responsible for. 0 means it's a leaf. None means the maximum number of
             subtasks is not known in advance.
 
-        subtasks_ordered : bool
-            Whether this context's subtasks are ordered. If True, children contexts
+        sequential_subtasks : bool
+            Whether this context's subtasks are sequential. If True, children contexts
             created via `subcontext` will have automatically assigned consecutive
             integer task_ids starting from 0.
         """
@@ -234,7 +234,7 @@ class CallbackContext:
         new_ctx.task_name = task_name
         new_ctx.task_id = task_id
         new_ctx.max_subtasks = max_subtasks
-        new_ctx.subtasks_ordered = subtasks_ordered
+        new_ctx.sequential_subtasks = sequential_subtasks
         new_ctx.root_uuid = parent_context.root_uuid
         new_ctx.parent = None
         new_ctx._children_map = {}
@@ -303,7 +303,7 @@ class CallbackContext:
         self.source_estimator_name = other_context.estimator_name
 
     def subcontext(
-        self, task_name="", task_id=None, max_subtasks=0, subtasks_ordered=True
+        self, task_name="", task_id=None, max_subtasks=0, sequential_subtasks=True
     ):
         """Create a context for a subtask of the current task.
 
@@ -322,20 +322,20 @@ class CallbackContext:
             it's a leaf. None means the maximum number of subtasks is not known in
             advance.
 
-        subtasks_ordered : bool, default=True
-            Whether the new context's subtasks are ordered. If True, children contexts
-            of the new context, created via `subcontext`, will have automatically
-            assigned consecutive integer task_ids starting from 0.
+        sequential_subtasks : bool, default=True
+            Whether the new context's subtasks are sequential. If True, children
+            contexts of the new context, created via `subcontext`, will have
+            automatically assigned consecutive integer task_ids starting from 0.
         """
-        if self.subtasks_ordered and task_id is not None:
+        if self.sequential_subtasks and task_id is not None:
             raise ValueError(
                 f"task_id for {self.estimator_name} {task_name} must be None if "
-                f"subtasks_ordered is True for {self.task_name}."
+                f"sequential_subtasks is True for {self.task_name}."
             )
-        if not self.subtasks_ordered and task_id is None:
+        if not self.sequential_subtasks and task_id is None:
             raise ValueError(
                 f"task_id for {self.estimator_name} {task_name} must be provided "
-                f"if subtasks_ordered is False for {self.task_name}."
+                f"if sequential_subtasks is False for {self.task_name}."
             )
         if task_id is None:
             task_id = len(self._children_map)
@@ -345,7 +345,7 @@ class CallbackContext:
             task_name=task_name,
             task_id=task_id,
             max_subtasks=max_subtasks,
-            subtasks_ordered=subtasks_ordered,
+            sequential_subtasks=sequential_subtasks,
         )
 
     def _call_hooks(self, estimator, hook_name, **kwargs):
