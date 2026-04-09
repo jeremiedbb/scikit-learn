@@ -84,8 +84,7 @@ from sklearn.tests.metadata_routing_common import (
 from sklearn.utils import shuffle
 from sklearn.utils._array_api import (
     _atol_for_type,
-    _convert_to_numpy,
-    _get_namespace_device_dtype_ids,
+    move_to,
     yield_namespace_device_dtype_combinations,
 )
 from sklearn.utils._mocking import CheckingClassifier, MockDataFrame
@@ -2464,35 +2463,6 @@ def test_cross_validate_return_indices(global_random_seed):
 # ======================================================
 
 
-# TODO(1.8): remove `learning_curve`, `validation_curve` and `permutation_test_score`.
-@pytest.mark.parametrize(
-    "func, extra_args",
-    [
-        (learning_curve, {}),
-        (permutation_test_score, {}),
-        (validation_curve, {"param_name": "alpha", "param_range": np.array([1])}),
-    ],
-)
-def test_fit_param_deprecation(func, extra_args):
-    """Check that we warn about deprecating `fit_params`."""
-    with pytest.warns(FutureWarning, match="`fit_params` is deprecated"):
-        func(
-            estimator=ConsumingClassifier(), X=X, y=y, cv=2, fit_params={}, **extra_args
-        )
-
-    with pytest.raises(
-        ValueError, match="`params` and `fit_params` cannot both be provided"
-    ):
-        func(
-            estimator=ConsumingClassifier(),
-            X=X,
-            y=y,
-            fit_params={},
-            params={},
-            **extra_args,
-        )
-
-
 @pytest.mark.parametrize(
     "func, extra_args",
     [
@@ -2742,17 +2712,16 @@ def test_learning_curve_exploit_incremental_learning_routing():
 )
 @pytest.mark.parametrize("cv", [None, 3, 5])
 @pytest.mark.parametrize(
-    "namespace, device_, dtype_name",
+    "namespace, device_name, dtype_name",
     yield_namespace_device_dtype_combinations(),
-    ids=_get_namespace_device_dtype_ids,
 )
 def test_cross_val_predict_array_api_compliance(
-    estimator, cv, namespace, device_, dtype_name
+    estimator, cv, namespace, device_name, dtype_name
 ):
     """Test that `cross_val_predict` functions correctly with the array API
     with both a classifier and a regressor."""
 
-    xp = _array_api_for_tests(namespace, device_)
+    xp, device = _array_api_for_tests(namespace, device_name)
     if is_classifier(estimator):
         X, y = make_classification(
             n_samples=1000, n_features=5, n_classes=3, n_informative=3, random_state=42
@@ -2764,13 +2733,13 @@ def test_cross_val_predict_array_api_compliance(
 
     X_np = X.astype(dtype_name)
     y_np = y.astype(dtype_name)
-    X_xp = xp.asarray(X_np, device=device_)
-    y_xp = xp.asarray(y_np, device=device_)
+    X_xp = xp.asarray(X_np, device=device)
+    y_xp = xp.asarray(y_np, device=device)
 
     with config_context(array_api_dispatch=True):
         pred_xp = cross_val_predict(estimator, X_xp, y_xp, cv=cv)
 
     pred_np = cross_val_predict(estimator, X_np, y_np, cv=cv)
     assert_allclose(
-        _convert_to_numpy(pred_xp, xp), pred_np, atol=_atol_for_type(dtype_name)
+        move_to(pred_xp, xp=np, device="cpu"), pred_np, atol=_atol_for_type(dtype_name)
     )
