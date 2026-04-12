@@ -161,6 +161,7 @@ class RichProgressMonitor(Thread):
             BarColumn(
                 complete_style=Style(color="#F7931E"),
                 finished_style=Style(color="#29ABE2"),
+                pulse_style=Style(color="#F7931E"),
             ),
             _StyledPercentageColumn(),
             _StyledTimeRemainingColumn(elapsed_when_finished=True),
