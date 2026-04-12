@@ -116,24 +116,19 @@ try:
         def get_renderables(self):
             yield self.make_tasks_table(getattr(self, "_ordered_tasks", []))
 
-    class _StyledTimeRemainingColumn(TimeRemainingColumn):
-        """Time column with per-state color styling."""
+    class _StyledColumnMixin:
+        """Apply finished/in-progress color style to rendered text."""
 
         def render(self, task):
             text = super().render(task)
             text.style = "#29ABE2" if task.finished else "#F7931E"
             return text
 
-    class _StyledPercentageColumn(TextColumn):
-        """Percentage column with per-state color styling."""
+    class _StyledTimeRemainingColumn(_StyledColumnMixin, TimeRemainingColumn):
+        """Time column with color styling."""
 
-        def __init__(self):
-            super().__init__("{task.percentage:>3.0f}%")
-
-        def render(self, task):
-            text = super().render(task)
-            text.style = "#29ABE2" if task.percentage >= 100 else "#F7931E"
-            return text
+    class _StyledPercentageColumn(_StyledColumnMixin, TextColumn):
+        """Percentage column with color styling."""
 
 except ImportError:
     pass
@@ -163,7 +158,7 @@ class RichProgressMonitor(Thread):
                 finished_style=Style(color="#29ABE2"),
                 pulse_style=Style(color="#F7931E"),
             ),
-            _StyledPercentageColumn(),
+            _StyledPercentageColumn("{task.percentage:>3.0f}%"),
             _StyledTimeRemainingColumn(elapsed_when_finished=True),
         )
 
