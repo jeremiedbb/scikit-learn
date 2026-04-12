@@ -124,6 +124,17 @@ try:
             text.style = "#29ABE2" if task.finished else "#F7931E"
             return text
 
+    class _StyledPercentageColumn(TextColumn):
+        """Percentage column with per-state color styling."""
+
+        def __init__(self):
+            super().__init__("{task.percentage:>3.0f}%")
+
+        def render(self, task):
+            text = super().render(task)
+            text.style = "#29ABE2" if task.percentage >= 100 else "#F7931E"
+            return text
+
 except ImportError:
     pass
 
@@ -151,7 +162,7 @@ class RichProgressMonitor(Thread):
                 complete_style=Style(color="#F7931E"),
                 finished_style=Style(color="#29ABE2"),
             ),
-            TextColumn("[bright_magenta]{task.percentage:>3.0f}%"),
+            _StyledPercentageColumn(),
             _StyledTimeRemainingColumn(elapsed_when_finished=True),
         )
 
@@ -165,6 +176,8 @@ class RichProgressMonitor(Thread):
                     self._on_task_begin(task_info)
                 else:
                     self._on_task_end(task_info)
+
+            self.progress_ctx.refresh()
 
     def _on_task_begin(self, task_info):
         """Create a progress bar the task and update the list of ordered tasks."""
@@ -265,11 +278,7 @@ class RichTask:
 
     def _format_task_description(self, task_info):
         """Return a formatted description for the task."""
-        colors = ["bright_magenta", "cyan", "dark_orange"]
-
         indent = f"{'  ' * self.depth}"
-        style = f"[{colors[(self.depth) % len(colors)]}]"
-
         task_desc = f"{task_info['estimator_name']} - {task_info['task_name']}"
         id_mark = f" #{task_info['task_id']}" if self.depth > 0 else ""
         source_task_desc = (
@@ -277,8 +286,7 @@ class RichTask:
             if task_info["source_estimator_name"] is not None
             else ""
         )
-
-        return f"{style}{indent}{source_task_desc}{task_desc}{id_mark}"
+        return f"{indent}{source_task_desc}{task_desc}{id_mark}"
 
     def get_descendants(self, path):
         """Return the descendants from this task along the given path."""
