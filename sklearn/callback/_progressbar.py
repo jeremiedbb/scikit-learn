@@ -176,7 +176,7 @@ class RichProgressMonitor(Thread):
             self.progress_ctx.refresh()
 
     def _on_task_begin(self, task_info):
-        """Create a progress bar the task and update the list of ordered tasks."""
+        """Create a progress bar for the task and update the list of ordered tasks."""
         path = task_info.pop("path")
 
         rich_task = RichTask(
