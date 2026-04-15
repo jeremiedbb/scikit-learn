@@ -7,6 +7,7 @@ from functools import partial
 import numpy as np
 import pytest
 
+from sklearn.callback import CallbackSupportMixin, with_callbacks
 from sklearn.callback._callback_context import (
     CallbackContext,
     _from_reconstruction_attributes,
@@ -20,23 +21,36 @@ from sklearn.callback.tests._utils import (
     NotRequiredKwargsCallback,
     NotValidHookCallback,
     ParentFitEstimator,
+    RecordingAutoPropagatedCallback,
+    RecordingCallback,
     StopFitCallback,
-    TestingAutoPropagatedCallback,
-    TestingCallback,
     ThirdPartyEstimator,
 )
 
 
+def _make_callback_ctx(
+    estimator, task_name="fit", task_id=0, max_subtasks=0, sequential_subtasks=True
+):
+    """Helper function to create a callback context with default values.
+
+    To be used instead of estimator._init_callback_context in tests that only check
+    the context tree (without callbacks).
+    """
+    return CallbackContext._from_estimator(
+        estimator, task_name, task_id, max_subtasks, sequential_subtasks
+    )
+
+
 def test_propagate_callback_context():
     """Sanity check for the `propagate_callback_context` method."""
-    not_propagated_callback = TestingCallback()
-    propagated_callback = TestingAutoPropagatedCallback()
+    not_propagated_callback = RecordingCallback()
+    propagated_callback = RecordingAutoPropagatedCallback()
 
     estimator = MaxIterEstimator()
     metaestimator = MetaEstimator(estimator)
     metaestimator.set_callbacks([not_propagated_callback, propagated_callback])
 
-    callback_ctx = CallbackContext._from_estimator(metaestimator, "fit", 0, 0)
+    callback_ctx = _make_callback_ctx(metaestimator)
     callback_ctx.propagate_callback_context(estimator)
 
     assert hasattr(estimator, "_parent_callback_ctx")
@@ -49,7 +63,7 @@ def test_propagate_callback_context_no_callback():
     estimator = MaxIterEstimator()
     metaestimator = MetaEstimator(estimator)
 
-    callback_ctx = CallbackContext._from_estimator(metaestimator, "fit", 0, 0)
+    callback_ctx = _make_callback_ctx(metaestimator)
     assert len(callback_ctx._callbacks) == 0
 
     callback_ctx.propagate_callback_context(estimator)
@@ -63,7 +77,7 @@ def test_auto_propagated_callbacks():
     sub-estimator of a meta-estimator.
     """
     estimator = MaxIterEstimator()
-    estimator.set_callbacks(TestingAutoPropagatedCallback())
+    estimator.set_callbacks(RecordingAutoPropagatedCallback())
     meta_estimator = MetaEstimator(estimator=estimator)
 
     match = (
@@ -76,7 +90,9 @@ def test_auto_propagated_callbacks():
 def _make_task_tree(n_children, n_grandchildren):
     """Helper function to create a tree of tasks with a context for each task."""
     estimator = MaxIterEstimator()
-    root = CallbackContext._from_estimator(estimator, "root task", 0, n_children)
+    root = _make_callback_ctx(
+        estimator, max_subtasks=n_children, sequential_subtasks=False
+    )
 
     for i in range(n_children):
         child = root.subcontext(
@@ -86,11 +102,7 @@ def _make_task_tree(n_children, n_grandchildren):
         )
 
         for j in range(n_grandchildren):
-            grandchild = child.subcontext(
-                task_name="grandchild task",
-                task_id=j,
-                max_subtasks=0,
-            )
+            grandchild = child.subcontext(task_name="grandchild task")
 
     return root
 
@@ -130,11 +142,8 @@ def test_task_tree():
 def test_add_child():
     """Sanity check for the `_add_child` method."""
     estimator = MaxIterEstimator()
-    root = CallbackContext._from_estimator(estimator, "root task", 0, max_subtasks=2)
-
-    first_child = CallbackContext._from_estimator(
-        estimator, "child task", task_id=0, max_subtasks=0
-    )
+    root = _make_callback_ctx(estimator, max_subtasks=2, sequential_subtasks=False)
+    first_child = _make_callback_ctx(estimator, task_name="child task", task_id=0)
 
     root._add_child(first_child)
     assert root.max_subtasks == 2
@@ -142,9 +151,7 @@ def test_add_child():
     assert first_child.task_id == 0
 
     # root already has a child with id 0
-    second_child = CallbackContext._from_estimator(
-        estimator, "child task", task_id=0, max_subtasks=0
-    )
+    second_child = _make_callback_ctx(estimator, task_name="child task", task_id=0)
     with pytest.raises(
         ValueError, match=r"Callback context .* already has a child with task_id=0"
     ):
@@ -155,9 +162,7 @@ def test_add_child():
     assert len(root._children_map) == 2
 
     # root can have at most 2 children
-    third_child = CallbackContext._from_estimator(
-        estimator, "child task", task_id=2, max_subtasks=0
-    )
+    third_child = _make_callback_ctx(estimator, task_name="child task", task_id=2)
 
     with pytest.raises(ValueError, match=r"Cannot add child to callback context"):
         root._add_child(third_child)
@@ -167,22 +172,28 @@ def test_merge_with():
     """Sanity check for the `_merge_with` method."""
     estimator = MaxIterEstimator()
     meta_estimator = MetaEstimator(estimator)
-    outer_root = CallbackContext._from_estimator(
-        meta_estimator, "root", 0, max_subtasks=None
-    )
+    outer_root = _make_callback_ctx(meta_estimator, max_subtasks=None)
 
     # Add a child task within the same estimator
-    outer_child = outer_root.subcontext(task_name="child", task_id=0, max_subtasks=0)
+    outer_child = outer_root.subcontext(
+        task_name="child", max_subtasks=0, sequential_subtasks=True
+    )
 
     # The root task of the inner estimator is merged with (and effectively replaces)
     # a leaf of the outer estimator because they correspond to the same formal task.
-    inner_root = CallbackContext._from_estimator(estimator, "root", 0, None)
+    inner_root = _make_callback_ctx(
+        estimator, max_subtasks=2, sequential_subtasks=False
+    )
     inner_root._merge_with(outer_child)
 
     assert inner_root.parent is outer_root
     assert inner_root.task_id == outer_child.task_id
     assert outer_child not in outer_root._children_map.values()
     assert inner_root in outer_root._children_map.values()
+
+    # info concerning subtasks of the context are not inherited from other context
+    assert inner_root.max_subtasks == 2
+    assert not inner_root.sequential_subtasks
 
     # The name and estimator name of the tasks it was merged with are stored
     assert inner_root.source_task_name == outer_child.task_name
@@ -192,13 +203,13 @@ def test_merge_with():
 def test_merge_with_error_not_leaf():
     """Check that merging with a non-leaf node raises an error."""
     estimator = MaxIterEstimator()
-    inner_root = CallbackContext._from_estimator(estimator, "root", 0, None)
+    inner_root = _make_callback_ctx(estimator)
 
     meta_estimator = MetaEstimator(estimator)
-    outer_root = CallbackContext._from_estimator(meta_estimator, "root", 0, None)
+    outer_root = _make_callback_ctx(meta_estimator, max_subtasks=None)
 
     # Add a child task within the same estimator
-    outer_root.subcontext(task_name="child", task_id=0, max_subtasks=1)
+    outer_root.subcontext(task_name="child")
 
     with pytest.raises(ValueError, match=r"Cannot merge callback context"):
         inner_root._merge_with(outer_root)
@@ -221,7 +232,7 @@ def test_inner_estimator_no_callback_support():
     """
     estimator = NoCallbackEstimator()
     meta_estimator = MetaEstimator(estimator)
-    meta_estimator.set_callbacks(TestingAutoPropagatedCallback())
+    meta_estimator.set_callbacks(RecordingAutoPropagatedCallback())
 
     with pytest.warns(
         UserWarning,
@@ -237,11 +248,13 @@ def test_estimator_without_subtask():
     context's `call_on_fit_task_end` does not cause a problem.
     """
     estimator = NoSubtaskEstimator()
-    estimator.set_callbacks([TestingCallback()])
+    estimator.set_callbacks([RecordingCallback()])
     estimator.fit()
 
 
-@pytest.mark.parametrize("Callback", [TestingAutoPropagatedCallback, TestingCallback])
+@pytest.mark.parametrize(
+    "Callback", [RecordingAutoPropagatedCallback, RecordingCallback]
+)
 def test_callback_hooks_called(Callback):
     """Check the number of callback hook calls in a regular estimator.
 
@@ -274,7 +287,7 @@ def test_meta_estimator_autopropagated_callback_hooks_called(n_jobs):
     """
 
     n_outer, n_inner, max_iter = 2, 3, 5
-    callback = TestingAutoPropagatedCallback()
+    callback = RecordingAutoPropagatedCallback()
     MetaEstimator(
         MaxIterEstimator(max_iter=max_iter),
         n_outer=n_outer,
@@ -303,7 +316,7 @@ def test_meta_estimator_callback_hooks_called(n_jobs):
     task ends from all the sub-estimators.
     """
     n_outer, n_inner, max_iter = 2, 3, 5
-    callback = TestingCallback()
+    callback = RecordingCallback()
     est = MaxIterEstimator(max_iter=max_iter).set_callbacks(callback)
     MetaEstimator(est, n_outer=n_outer, n_inner=n_inner, n_jobs=n_jobs).fit()
 
@@ -322,7 +335,7 @@ def test_autopropagation_to_callback_agnostic_subestimator():
     of the meta-estimator.
     """
     n_outer, n_inner = 2, 3
-    callback = TestingAutoPropagatedCallback()
+    callback = RecordingAutoPropagatedCallback()
     meta_estimator = MetaEstimator(
         NoCallbackEstimator(), n_outer=n_outer, n_inner=n_inner
     ).set_callbacks(callback)
@@ -343,10 +356,10 @@ def test_autopropagation_to_callback_agnostic_subestimator():
 def test_hook_calling_invalid_kwargs_in():
     """Check that passing invalid kwargs to call_on_fit_task_* raises an error."""
     estimator = MaxIterEstimator()
-    context = estimator.set_callbacks(TestingCallback())._init_callback_context()
+    context = estimator.set_callbacks(RecordingCallback())._init_callback_context()
     msg = r"call_on_fit_task_begin .* has received parameters that are not valid"
     with pytest.raises(TypeError, match=msg):
-        context.call_on_fit_task_begin(X=1, y=2, not_valid_kwarg=3)
+        context.call_on_fit_task_begin(estimator=estimator, X=1, y=2, not_valid_kwarg=3)
 
 
 # TODO(callbacks): should be a common test in a dev test suite instead of a check
@@ -357,16 +370,16 @@ def test_hook_calling_invalid_kwargs_out():
     context = estimator.set_callbacks(NotValidHookCallback())._init_callback_context()
     msg = r"on_fit_task_begin .* has parameters that are not valid"
     with pytest.raises(TypeError, match=msg):
-        context.call_on_fit_task_begin(X=1, y=2)
+        context.call_on_fit_task_begin(estimator=estimator, X=1, y=2)
 
 
 def test_hook_calling_unused_kwargs():
     """Check that not provided kwargs are left to their default value (None)."""
-    callback = TestingCallback()
+    callback = RecordingCallback()
     estimator = MaxIterEstimator()
     context = estimator.set_callbacks(callback)._init_callback_context()
     # only provide "X" and "y"
-    context.call_on_fit_task_begin(X=1, y=2)
+    context.call_on_fit_task_begin(estimator=estimator, X=1, y=2)
     assert callback.record[-1]["kwargs"]["metadata"] is None
     assert callback.record[-1]["kwargs"]["fitted_estimator"] is None
 
@@ -374,13 +387,15 @@ def test_hook_calling_unused_kwargs():
 def test_hook_calling_return_value():
     """Check the return value of the hook calls."""
     estimator = MaxIterEstimator()
-    context = estimator.set_callbacks(TestingCallback())._init_callback_context()
-    result = context.call_on_fit_task_end()
-    # TestingCallback.on_fit_task_end does not return a value (interpreted as False)
+    context = estimator.set_callbacks(RecordingCallback())._init_callback_context()
+    result = context.call_on_fit_task_end(estimator=estimator)
+    # RecordingCallback.on_fit_task_end does not return a value (interpreted as False)
     assert result is False
 
-    estimator.set_callbacks([TestingCallback(), StopFitCallback()])
-    result = estimator._init_callback_context().call_on_fit_task_end()
+    estimator.set_callbacks([RecordingCallback(), StopFitCallback()])
+    result = estimator._init_callback_context().call_on_fit_task_end(
+        estimator=estimator
+    )
     # StopFitCallback.on_fit_task_end returns True
     assert result is True
 
@@ -402,16 +417,18 @@ def test_hook_calling_lazy_evaluation():
     callback = NotRequiredKwargsCallback()
     context = estimator.set_callbacks(callback)._init_callback_context()
     context.call_on_fit_task_end(
-        X=partial(eval_kwarg, "X"), metadata=partial(eval_kwarg, "metadata")
+        estimator=estimator,
+        X=partial(eval_kwarg, "X"),
+        metadata=partial(eval_kwarg, "metadata"),
     )
     assert eval_counts["X"] == 1
     assert eval_counts["metadata"] == 0
 
     # kwarg used twice is evaluated only once
     eval_counts = {"X": 0}
-    estimator.set_callbacks([TestingCallback(), TestingCallback()])
+    estimator.set_callbacks([RecordingCallback(), RecordingCallback()])
     context = estimator._init_callback_context()
-    context.call_on_fit_task_begin(X=partial(eval_kwarg, "X"))
+    context.call_on_fit_task_begin(estimator=estimator, X=partial(eval_kwarg, "X"))
     assert eval_counts["X"] == 1
 
 
@@ -422,9 +439,11 @@ def test_hook_calling_lazy_evaluation_reconstruction_attributes():
     fitted estimator that is passed to the callback as "fitted_estimator".
     """
     estimator = MaxIterEstimator()
-    callback = TestingCallback()
+    callback = RecordingCallback()
     context = estimator.set_callbacks(callback)._init_callback_context()
-    context.call_on_fit_task_end(reconstruction_attributes=lambda: {"n_iter_": 1})
+    context.call_on_fit_task_end(
+        estimator=estimator, reconstruction_attributes=lambda: {"n_iter_": 1}
+    )
     assert "reconstruction_attributes" not in callback.record[-1]["kwargs"]
     assert "fitted_estimator" in callback.record[-1]["kwargs"]
 
@@ -444,3 +463,68 @@ def test_from_reconstruction_attributes():
     assert reconstructed_est is not estimator
     assert reconstructed_est.get_params() == estimator.get_params()
     assert reconstructed_est.n_iter_ == 2
+
+
+def test_subcontext_task_id_ordering():
+    """Check that the task_id is automatically assigned in the correct order."""
+    estimator = MaxIterEstimator()
+    context = _make_callback_ctx(estimator, max_subtasks=5, sequential_subtasks=True)
+
+    for i in range(5):
+        subcontext = context.subcontext()
+        assert subcontext.task_id == i
+
+
+def test_subcontext_task_id_ordering_error():
+    """Check errors raised when task_id and sequential_subtasks are inconsistent.
+
+    - if sequential_subtasks is True, children task_ids must be left to None
+    - if sequential_subtasks is False, children task_ids must be provided
+    """
+    estimator = MaxIterEstimator()
+    context = _make_callback_ctx(estimator, max_subtasks=1, sequential_subtasks=True)
+    with pytest.raises(
+        ValueError,
+        match=(
+            "task_id for MaxIterEstimator child_task must be None if "
+            "sequential_subtasks is True for fit."
+        ),
+    ):
+        context.subcontext(task_name="child_task", task_id=0)
+
+    context = _make_callback_ctx(estimator, max_subtasks=1, sequential_subtasks=False)
+    with pytest.raises(
+        ValueError,
+        match=(
+            "task_id for MaxIterEstimator child_task must be provided if "
+            "sequential_subtasks is False for fit."
+        ),
+    ):
+        context.subcontext(task_name="child_task")
+
+
+def test_locally_defined_estimator():
+    """Test a callback with a locally defined estimator class.
+
+    A locally defined estimator is not picklable, putting it in a container managed by
+    the callback manager would break. As a future improvement, the loky manager used as
+    the callback manager could use the loky pickler.
+    """
+
+    class LocallyDefinedEstimator(CallbackSupportMixin):
+        @with_callbacks
+        def fit(self, X=None, y=None):
+            callback_ctx = self._init_callback_context()
+            callback_ctx.call_on_fit_task_begin(estimator=self)
+
+            callback_ctx.call_on_fit_task_end(estimator=self)
+            return self
+
+    estimator = LocallyDefinedEstimator()
+    callback = RecordingCallback()
+    estimator.set_callbacks(callback)
+    estimator.fit()
+    assert callback.count_hooks("setup") == 1
+    assert callback.count_hooks("on_fit_task_begin") == 1
+    assert callback.count_hooks("on_fit_task_end") == 1
+    assert callback.count_hooks("teardown") == 1
