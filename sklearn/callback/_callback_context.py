@@ -277,6 +277,15 @@ class CallbackContext:
             leave_node(node=self, is_last=is_last, path_is_last=path_is_last)
 
     def __repr__(self):
+        return (
+            f"<{self.__class__.__name__}("
+            f"estimator_name={self.estimator_name!r}, "
+            f"task_name={self.task_name!r}, "
+            f"task_id={self.task_id!r}) "
+            f"at {id(self):#x}>"
+        )
+
+    def __str__(self):
         """Return a tree representation rooted at this context."""
         lines = []
 
