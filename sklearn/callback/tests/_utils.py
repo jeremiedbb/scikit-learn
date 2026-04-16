@@ -150,24 +150,6 @@ class NotRequiredKwargsCallback(RecordingCallback):
         super().on_fit_task_end(estimator, context, X=X, y=y)
 
 
-class SaveTree:
-    """A callback that saves the tree."""
-
-    max_propagation_depth = None
-
-    def setup(self, context):
-        pass
-
-    def on_fit_task_begin(self, context):
-        pass
-
-    def on_fit_task_end(self, context):
-        pass
-
-    def teardown(self, context):
-        self.context_tree = context
-
-
 class MaxIterEstimator(CallbackSupportMixin, BaseEstimator):
     """A class that mimics the behavior of an estimator.
 

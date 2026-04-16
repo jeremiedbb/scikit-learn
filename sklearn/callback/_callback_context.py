@@ -278,11 +278,10 @@ class CallbackContext:
 
     def __repr__(self):
         return (
-            f"<{self.__class__.__name__}("
+            f"{self.__class__.__name__}("
             f"estimator_name={self.estimator_name!r}, "
             f"task_name={self.task_name!r}, "
-            f"task_id={self.task_id!r}) "
-            f"at {id(self):#x}>"
+            f"task_id={self.task_id!r})"
         )
 
     def __str__(self):

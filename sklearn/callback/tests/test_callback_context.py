@@ -1,13 +1,16 @@
 # Authors: The scikit-learn developers
 # SPDX-License-Identifier: BSD-3-Clause
 
+import html
+import re
 import sys
 from functools import partial
+from textwrap import dedent
 
 import numpy as np
 import pytest
 
-from sklearn.callback import CallbackSupportMixin, with_callbacks
+from sklearn.callback import CallbackSupportMixin, SaveContextTree, with_callbacks
 from sklearn.callback._callback_context import (
     CallbackContext,
     _from_reconstruction_attributes,
@@ -528,3 +531,67 @@ def test_locally_defined_estimator():
     assert callback.count_hooks("on_fit_task_begin") == 1
     assert callback.count_hooks("on_fit_task_end") == 1
     assert callback.count_hooks("teardown") == 1
+
+
+def test_callback_context_repr():
+    """Check the `__repr__` of a callback context."""
+    cb = SaveContextTree()
+    MaxIterEstimator().set_callbacks(cb).fit()
+
+    expected_repr = (
+        "CallbackContext(estimator_name='MaxIterEstimator', task_name='fit', task_id=0)"
+    )
+    assert repr(cb.context_tree_) == expected_repr
+
+
+@pytest.mark.parametrize("n_jobs", [1, 2])
+@pytest.mark.parametrize("prefer", ["threads", "processes"])
+def test_callback_context_str(n_jobs, prefer):
+    """Check the `__str__` ascii context tree."""
+
+    cb = SaveContextTree()
+    est = MaxIterEstimator(max_iter=2)
+    MetaEstimator(
+        est, n_outer=2, n_inner=2, n_jobs=n_jobs, prefer=prefer
+    ).set_callbacks(cb).fit()
+
+    expected_str = dedent(
+        """\
+        MetaEstimator "fit"
+        ├── MetaEstimator "outer" (0)
+        │   ├── MetaEstimator "inner" (0) | MaxIterEstimator "fit"
+        │   │   ├── MaxIterEstimator "iteration 0" (0)
+        │   │   └── MaxIterEstimator "iteration 1" (1)
+        │   └── MetaEstimator "inner" (1) | MaxIterEstimator "fit"
+        │       ├── MaxIterEstimator "iteration 0" (0)
+        │       └── MaxIterEstimator "iteration 1" (1)
+        └── MetaEstimator "outer" (1)
+            ├── MetaEstimator "inner" (0) | MaxIterEstimator "fit"
+            │   ├── MaxIterEstimator "iteration 0" (0)
+            │   └── MaxIterEstimator "iteration 1" (1)
+            └── MetaEstimator "inner" (1) | MaxIterEstimator "fit"
+                ├── MaxIterEstimator "iteration 0" (0)
+                └── MaxIterEstimator "iteration 1" (1)
+        """
+    )
+    assert str(cb.context_tree_).splitlines() == expected_str.splitlines()
+
+
+@pytest.mark.parametrize("n_jobs", [1, 2])
+@pytest.mark.parametrize("prefer", ["threads", "processes"])
+def test_callback_context_repr_html(n_jobs, prefer):
+    """Check the `_repr_html_` context tree."""
+    cb = SaveContextTree()
+    est = MaxIterEstimator(max_iter=2)
+    MetaEstimator(
+        est, n_outer=2, n_inner=2, n_jobs=n_jobs, prefer=prefer
+    ).set_callbacks(cb).fit()
+
+    repr_html = cb.context_tree_._repr_html_()
+    assert '<div class="sk-context-tree">' in repr_html
+    assert 'content:" [+]"' in repr_html
+    assert 'content:" [-]"' in repr_html
+
+    for line in str(cb.context_tree_).splitlines():
+        ctx_label = re.split("├── |└── ", line)[-1]
+        assert html.escape(ctx_label) in repr_html
