@@ -1,8 +1,6 @@
 # Authors: The scikit-learn developers
 # SPDX-License-Identifier: BSD-3-Clause
 
-import textwrap
-
 import pytest
 
 from sklearn.base import clone
@@ -13,14 +11,12 @@ from sklearn.callback.tests._utils import (
     RecordingAutoPropagatedCallback,
     RecordingCallback,
 )
-from sklearn.utils._testing import assert_run_python_script_without_output
 from sklearn.utils.parallel import Parallel, delayed
 
 
 @pytest.mark.parametrize(
     "callbacks",
     [
-        RecordingCallback(),
         [RecordingCallback()],
         [RecordingCallback(), RecordingAutoPropagatedCallback()],
     ],
@@ -29,17 +25,16 @@ def test_set_callbacks(callbacks):
     """Sanity check for the `set_callbacks` method."""
     estimator = MaxIterEstimator()
 
-    set_callbacks_return = estimator.set_callbacks(callbacks)
+    set_callbacks_return = estimator.set_callbacks(*callbacks)
     assert hasattr(estimator, "_skl_callbacks")
 
-    expected_callbacks = [callbacks] if not isinstance(callbacks, list) else callbacks
-    assert estimator._skl_callbacks == expected_callbacks
+    assert estimator._skl_callbacks == callbacks
 
     assert set_callbacks_return is estimator
 
 
-@pytest.mark.parametrize("callbacks", [None, NotValidCallback(), RecordingCallback])
-def test_set_callbacks_error(callbacks):
+@pytest.mark.parametrize("callback", [None, NotValidCallback(), RecordingCallback])
+def test_set_callbacks_error(callback):
     """Check the error message when not passing a valid callback to `set_callbacks`."""
     estimator = MaxIterEstimator()
 
@@ -47,7 +42,7 @@ def test_set_callbacks_error(callbacks):
         TypeError,
         match="callbacks must be instances following the FitCallback protocol.",
     ):
-        estimator.set_callbacks(callbacks)
+        estimator.set_callbacks(callback)
 
 
 @pytest.mark.parametrize(
@@ -62,6 +57,42 @@ def test_callback_error(fail_at):
 
     assert callback.count_hooks("setup") == 1
     assert callback.count_hooks("teardown") == 1
+
+
+def test_teardown_matches_setup_calls_on_partial_setup_failure():
+    """Check that teardown only runs for callbacks that entered setup."""
+    callback_1 = FailingCallback(fail_at="setup")
+    callback_2 = RecordingCallback()
+
+    estimator = MaxIterEstimator().set_callbacks(callback_1, callback_2)
+    with pytest.raises(ValueError, match="Failing callback failed at setup"):
+        estimator.fit()
+
+    assert callback_1.count_hooks("setup") == 1
+    assert callback_1.count_hooks("teardown") == 1
+
+    # setup was never entered for this callback, so teardown should not be called.
+    assert callback_2.count_hooks("setup") == 0
+    assert callback_2.count_hooks("teardown") == 0
+
+
+def test_multiple_teardown_errors_are_grouped():
+    """Check that all teardown are called even if some fail.
+
+    All errors are raised together in one ExceptionGroup.
+    """
+    callback_1 = FailingCallback(fail_at="teardown")
+    callback_2 = FailingCallback(fail_at="teardown")
+    estimator = MaxIterEstimator().set_callbacks(callback_1, callback_2)
+
+    with pytest.raises(
+        ExceptionGroup, match="The following callback teardown errors occurred"
+    ) as exc_info:
+        estimator.fit()
+
+    assert len(exc_info.value.exceptions) == 2
+    assert callback_1.count_hooks("teardown") == 1
+    assert callback_2.count_hooks("teardown") == 1
 
 
 @pytest.mark.parametrize("n_jobs", [1, 2])
@@ -100,11 +131,16 @@ def test_function_no_callback_support(n_jobs, prefer, Callback):
     assert callback.count_hooks("teardown") == n_fits
 
 
-def test_instantiate_manager_outside_main_module():
-    """Test instantiating the callbacks manager outside the __main__ module."""
-    code = """
-    from sklearn.callback._callback_support import get_callback_manager
+def test_set_callback_empty():
+    """Check that setting no callbacks removes the `_skl_callbacks` attribute."""
+    estimator = MaxIterEstimator()
 
-    get_callback_manager()
-    """
-    assert_run_python_script_without_output(textwrap.dedent(code))
+    estimator.set_callbacks(RecordingCallback())
+    assert hasattr(estimator, "_skl_callbacks")
+
+    estimator.set_callbacks()
+    assert not hasattr(estimator, "_skl_callbacks")
+
+    # calling again doesn't raise
+    estimator.set_callbacks()
+    assert not hasattr(estimator, "_skl_callbacks")

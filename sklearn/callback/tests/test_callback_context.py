@@ -3,7 +3,6 @@
 
 import html
 import re
-import sys
 from functools import partial
 from textwrap import dedent
 
@@ -44,21 +43,46 @@ def _make_callback_ctx(
     )
 
 
-def test_propagate_callback_context():
-    """Sanity check for the `propagate_callback_context` method."""
+def test_propagate_callback_context_autopropagated():
+    """Check that only auto-propagated callbacks are propagated."""
     not_propagated_callback = RecordingCallback()
     propagated_callback = RecordingAutoPropagatedCallback()
 
     estimator = MaxIterEstimator()
     metaestimator = MetaEstimator(estimator)
-    metaestimator.set_callbacks([not_propagated_callback, propagated_callback])
+    metaestimator.set_callbacks(not_propagated_callback, propagated_callback)
+
+    assert not hasattr(estimator, "_skl_callbacks")
 
     callback_ctx = _make_callback_ctx(metaestimator)
-    callback_ctx.propagate_callback_context(estimator)
+    with callback_ctx.propagate_callback_context(estimator):
+        assert hasattr(estimator, "_parent_callback_ctx")
+        assert not_propagated_callback not in estimator._skl_callbacks
+        assert propagated_callback in estimator._skl_callbacks
 
-    assert hasattr(estimator, "_parent_callback_ctx")
-    assert not_propagated_callback not in estimator._skl_callbacks
-    assert propagated_callback in estimator._skl_callbacks
+    assert not hasattr(estimator, "_skl_callbacks")
+    assert not hasattr(estimator, "_parent_callback_ctx")
+
+
+def test_propagate_callback_context_clean_up():
+    """Check that only propagated callbacks are removed on exit."""
+    est_callback = RecordingCallback()
+    estimator = MaxIterEstimator().set_callbacks(est_callback)
+
+    meta_est_callback = RecordingAutoPropagatedCallback()
+    metaestimator = MetaEstimator(estimator)
+    metaestimator.set_callbacks(meta_est_callback)
+
+    assert estimator._skl_callbacks == [est_callback]
+
+    callback_ctx = _make_callback_ctx(metaestimator)
+    with callback_ctx.propagate_callback_context(estimator):
+        assert hasattr(estimator, "_parent_callback_ctx")
+        assert est_callback in estimator._skl_callbacks
+        assert meta_est_callback in estimator._skl_callbacks
+
+    assert estimator._skl_callbacks == [est_callback]
+    assert not hasattr(estimator, "_parent_callback_ctx")
 
 
 def test_propagate_callback_context_no_callback():
@@ -69,10 +93,15 @@ def test_propagate_callback_context_no_callback():
     callback_ctx = _make_callback_ctx(metaestimator)
     assert len(callback_ctx._callbacks) == 0
 
-    callback_ctx.propagate_callback_context(estimator)
+    with callback_ctx.propagate_callback_context(estimator):
+        assert hasattr(estimator, "_parent_callback_ctx")
+        assert not hasattr(metaestimator, "_skl_callbacks")
+        assert not hasattr(estimator, "_skl_callbacks")
 
-    assert not hasattr(metaestimator, "_skl_callbacks")
     assert not hasattr(estimator, "_skl_callbacks")
+    assert not hasattr(estimator, "_parent_callback_ctx")
+    assert not hasattr(metaestimator, "_skl_callbacks")
+    assert not hasattr(metaestimator, "_parent_callback_ctx")
 
 
 def test_auto_propagated_callbacks():
@@ -251,7 +280,7 @@ def test_estimator_without_subtask():
     context's `call_on_fit_task_end` does not cause a problem.
     """
     estimator = NoSubtaskEstimator()
-    estimator.set_callbacks([RecordingCallback()])
+    estimator.set_callbacks(RecordingCallback())
     estimator.fit()
 
 
@@ -274,11 +303,6 @@ def test_callback_hooks_called(Callback):
     assert callback.count_hooks("teardown") == 1
 
 
-@pytest.mark.skipif(
-    sys.version_info < (3, 12, 8),
-    reason="Race conditions can appear because of multiprocessing issues for python"
-    " < 3.12.8.",
-)
 @pytest.mark.parametrize("n_jobs", [1, 2])
 def test_meta_estimator_autopropagated_callback_hooks_called(n_jobs):
     """Check the number of callback hook calls in a meta-estimator.
@@ -305,11 +329,6 @@ def test_meta_estimator_autopropagated_callback_hooks_called(n_jobs):
     assert callback.count_hooks("teardown") == 1
 
 
-@pytest.mark.skipif(
-    sys.version_info < (3, 12, 8),
-    reason="Race conditions can appear because of multiprocessing issues for python"
-    " < 3.12.8.",
-)
 @pytest.mark.parametrize("n_jobs", [1, 2])
 def test_meta_estimator_callback_hooks_called(n_jobs):
     """Check the number of callback hook calls in a meta-estimator.
@@ -356,15 +375,6 @@ def test_autopropagation_to_callback_agnostic_subestimator():
     assert callback.count_hooks("teardown") == 1
 
 
-def test_hook_calling_invalid_kwargs_in():
-    """Check that passing invalid kwargs to call_on_fit_task_* raises an error."""
-    estimator = MaxIterEstimator()
-    context = estimator.set_callbacks(RecordingCallback())._init_callback_context()
-    msg = r"call_on_fit_task_begin .* has received parameters that are not valid"
-    with pytest.raises(TypeError, match=msg):
-        context.call_on_fit_task_begin(estimator=estimator, X=1, y=2, not_valid_kwarg=3)
-
-
 # TODO(callbacks): should be a common test in a dev test suite instead of a check
 # in the hook calls to avoid repeating the same check for each call of the same hook.
 def test_hook_calling_invalid_kwargs_out():
@@ -376,17 +386,6 @@ def test_hook_calling_invalid_kwargs_out():
         context.call_on_fit_task_begin(estimator=estimator, X=1, y=2)
 
 
-def test_hook_calling_unused_kwargs():
-    """Check that not provided kwargs are left to their default value (None)."""
-    callback = RecordingCallback()
-    estimator = MaxIterEstimator()
-    context = estimator.set_callbacks(callback)._init_callback_context()
-    # only provide "X" and "y"
-    context.call_on_fit_task_begin(estimator=estimator, X=1, y=2)
-    assert callback.record[-1]["kwargs"]["metadata"] is None
-    assert callback.record[-1]["kwargs"]["fitted_estimator"] is None
-
-
 def test_hook_calling_return_value():
     """Check the return value of the hook calls."""
     estimator = MaxIterEstimator()
@@ -395,7 +394,7 @@ def test_hook_calling_return_value():
     # RecordingCallback.on_fit_task_end does not return a value (interpreted as False)
     assert result is False
 
-    estimator.set_callbacks([RecordingCallback(), StopFitCallback()])
+    estimator.set_callbacks(RecordingCallback(), StopFitCallback())
     result = estimator._init_callback_context().call_on_fit_task_end(
         estimator=estimator
     )
@@ -429,7 +428,7 @@ def test_hook_calling_lazy_evaluation():
 
     # kwarg used twice is evaluated only once
     eval_counts = {"X": 0}
-    estimator.set_callbacks([RecordingCallback(), RecordingCallback()])
+    estimator.set_callbacks(RecordingCallback(), RecordingCallback())
     context = estimator._init_callback_context()
     context.call_on_fit_task_begin(estimator=estimator, X=partial(eval_kwarg, "X"))
     assert eval_counts["X"] == 1
@@ -507,12 +506,7 @@ def test_subcontext_task_id_ordering_error():
 
 
 def test_locally_defined_estimator():
-    """Test a callback with a locally defined estimator class.
-
-    A locally defined estimator is not picklable, putting it in a container managed by
-    the callback manager would break. As a future improvement, the loky manager used as
-    the callback manager could use the loky pickler.
-    """
+    """Check registering a callback on a locally defined estimator."""
 
     class LocallyDefinedEstimator(CallbackSupportMixin):
         @with_callbacks
@@ -534,14 +528,14 @@ def test_locally_defined_estimator():
 
 
 def test_callback_context_repr():
-    """Check the `__repr__` of a callback context."""
-    cb = SaveContextTree()
-    MaxIterEstimator().set_callbacks(cb).fit()
-
+    """Smoke test for the repr of the callback context."""
+    estimator = MaxIterEstimator()
+    context = _make_callback_ctx(estimator, task_name="mytask", task_id=42)
     expected_repr = (
-        "CallbackContext(estimator_name='MaxIterEstimator', task_name='fit', task_id=0)"
+        "CallbackContext(estimator_name='MaxIterEstimator', task_name='mytask', "
+        "task_id=42)"
     )
-    assert repr(cb.context_tree_) == expected_repr
+    assert repr(context) == expected_repr
 
 
 @pytest.mark.parametrize("n_jobs", [1, 2])

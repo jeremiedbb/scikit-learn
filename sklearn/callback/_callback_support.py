@@ -3,41 +3,24 @@
 
 import functools
 from contextlib import contextmanager
-from threading import Lock
-
-from joblib.externals.loky.backend import get_context
 
 from sklearn.callback._base import AutoPropagatedCallback, FitCallback
 from sklearn.callback._callback_context import CallbackContext
 
 
-class _CallbackManagerState:
-    manager = None
-    lock = Lock()
-
-
-def get_callback_manager():
-    """Return the global multiprocessing manager dedicated to callbacks.
-
-    The manager is initialized lazily on first access and reused afterwards.
-    """
-    if _CallbackManagerState.manager is None:
-        with _CallbackManagerState.lock:
-            if _CallbackManagerState.manager is None:
-                _CallbackManagerState.manager = get_context().Manager()
-
-    return _CallbackManagerState.manager
-
-
 class CallbackSupportMixin:
-    """Mixin class to add callback support to an estimator."""
+    """Mixin class to add callback support to an estimator.
 
-    def set_callbacks(self, callbacks):
+    .. document the private method
+    .. automethod:: _init_callback_context
+    """
+
+    def set_callbacks(self, *callbacks):
         """Set callbacks for the estimator.
 
         Parameters
         ----------
-        callbacks : callback or list of callbacks
+        *callbacks : callback instances
             The callbacks to set.
 
         Returns
@@ -45,9 +28,6 @@ class CallbackSupportMixin:
         self : estimator instance
             The estimator instance itself.
         """
-        if not isinstance(callbacks, list):
-            callbacks = [callbacks]
-
         if not all(
             # isinstance for a Protocol returns True for classes too (not only
             # instances). Hence the additional check for classes.
@@ -58,7 +38,10 @@ class CallbackSupportMixin:
                 "callbacks must be instances following the FitCallback protocol."
             )
 
-        self._skl_callbacks = callbacks
+        if callbacks:
+            self._skl_callbacks = list(callbacks)
+        else:
+            self.__dict__.pop("_skl_callbacks", None)
 
         return self
 
@@ -102,7 +85,9 @@ class CallbackSupportMixin:
             sequential_subtasks=sequential_subtasks,
         )
 
-        # setup callbacks
+        # Setup callbacks. We store callbacks for which setup has started in order to
+        # only tear those down after fit.
+        self._skl_callbacks_to_teardown = []
         for callback in getattr(self, "_skl_callbacks", []):
             # Only call the setup hook of callbacks that are not propagated from a
             # meta-estimator.
@@ -110,6 +95,7 @@ class CallbackSupportMixin:
                 isinstance(callback, AutoPropagatedCallback)
                 and hasattr(self, "_parent_callback_ctx")
             ):
+                self._skl_callbacks_to_teardown.append(callback)
                 callback.setup(estimator=self, context=self._callback_fit_ctx)
 
         return self._callback_fit_ctx
@@ -136,20 +122,24 @@ def callback_management_context(estimator):
         yield
     finally:
         if hasattr(estimator, "_callback_fit_ctx"):
-            for callback in getattr(estimator, "_skl_callbacks", []):
-                # Only call the teardown hook of callbacks that are not propagated from
-                # a meta-estimator.
-                if not (
-                    isinstance(callback, AutoPropagatedCallback)
-                    and hasattr(estimator, "_parent_callback_ctx")
-                ):
+            teardown_errors = []
+            for callback in estimator._skl_callbacks_to_teardown:
+                try:
                     callback.teardown(
                         estimator=estimator, context=estimator._callback_fit_ctx
                     )
+                except Exception as exc:
+                    teardown_errors.append(exc)
 
+            del estimator._skl_callbacks_to_teardown
             del estimator._callback_fit_ctx
-            if hasattr(estimator, "_parent_callback_ctx"):
-                del estimator._parent_callback_ctx
+            if len(teardown_errors) == 1:
+                raise teardown_errors[0]
+            if teardown_errors:
+                raise ExceptionGroup(
+                    "The following callback teardown errors occurred",
+                    teardown_errors,
+                )
 
 
 def with_callbacks(method):

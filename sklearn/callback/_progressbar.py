@@ -1,13 +1,20 @@
 # Authors: The scikit-learn developers
 # SPDX-License-Identifier: BSD-3-Clause
 
-import sys
-import warnings
+from numbers import Integral
+from queue import Queue
 from threading import Thread
 
 from sklearn.callback._callback_context import get_context_path
-from sklearn.callback._callback_support import get_callback_manager
+from sklearn.callback._transport import close_listener, open_listener, send
 from sklearn.utils._optional_dependencies import check_rich_support
+from sklearn.utils._param_validation import Interval, validate_params
+
+# Per-fit local queues and monitors, keyed by the run's `root_uuid`. Both are not
+# picklable so they live here rather than on the callback instance. Entries are added in
+# `setup` and removed in `teardown`.
+_run_queues = {}
+_run_monitors = {}
 
 
 class ProgressBar:
@@ -19,57 +26,52 @@ class ProgressBar:
         The maximum depth of nested levels of estimators to display progress bars for.
         0 means that the progress of only the outermost estimator is displayed.
         If set to None, all levels are displayed.
-
-    Notes
-    -----
-    The use of this callback on python versions inferior to 3.12.8 might lead to
-    unexpected crashes related to multiprocessing bugs on certain platforms.
     """
 
+    @validate_params(
+        {"max_propagation_depth": [Interval(Integral, 0, None, closed="left"), None]},
+        prefer_skip_nested_validation=True,
+    )
     def __init__(self, max_propagation_depth=1):
-        if sys.version_info < (3, 12, 8):
-            warnings.warn(
-                "The use of the ProgressBar callback on python versions inferior "
-                "to 3.12.8 might lead to unexpected crashes related to multiprocessing "
-                "bugs on certain platforms."
-            )
-
         check_rich_support("Progressbar")
 
         self.max_propagation_depth = max_propagation_depth
-        self._manager = get_callback_manager()
-        # Queue proxies need to be shared across callback copies in subprocesses,
-        # while monitor threads must stay process-local (they are not picklable).
-        self._run_queues = self._manager.dict()
-        self._run_monitors = {}
+
+        # Handles to the main-process per-fit listeners, keyed by `root_uuid`.
+        self._listener_handles = {}
 
     def setup(self, estimator, context):
-        if not hasattr(self, "_manager"):
-            # If the outer function call supports callback, it would typically have
-            # initialized the manager and monitor in the same process and we can
-            # directly reuse it. If the same callback is used to collect progress of
-            # sub-estimators in subprocess parallel workers the setup/teardown is not
-            # needed because it is performed only once, typically in the parent process.
-            # However, if the outer function call does not support callbacks explicitly,
-            # we need to reinitialize a working callback state in worker processes:
-            # the callback will work in slightly degraded mode with redundant managers
-            # and progress monitors but this should not crash.
-            self._manager = get_callback_manager()
-            self._run_queues = self._manager.dict()
-            self._run_monitors = {}
+        # Lazily create the per-fit transport state. `setup` runs on the main
+        # process for the common case where `ProgressBar` is registered on (or
+        # auto-propagated from) the outermost estimator. In the degraded case
+        # where the outer function does not support callbacks, this may run
+        # inside a worker process; that worker will then open its own local
+        # listener and the events will be process-local — the callback runs in
+        # slightly degraded mode but does not crash.
+        queue = Queue()
+        # `queue.put` is the message consumer that `send` calls will use to forward
+        # information to the rich monitor thread.
+        self._listener_handles[context.root_uuid] = open_listener(queue.put)
 
-        queue = self._manager.Queue()
         progress_monitor = RichProgressMonitor(queue=queue)
         progress_monitor.start()
-        self._run_queues[context.root_uuid] = queue
-        self._run_monitors[context.root_uuid] = progress_monitor
+
+        _run_queues[context.root_uuid] = queue
+        _run_monitors[context.root_uuid] = progress_monitor
 
     def on_fit_task_begin(self, estimator, context):
-        # Don't pass the context to the queue to avoid pickling the whole context tree.
-        # Instead we pass the minimal information needed to create a progress bar.
-        if context.max_subtasks != 0:
+        # A new progress bar is created at the beginning of each task that is not a
+        # leaf, except if it's also the root task of an estimator.
+        if (
+            context.max_subtasks != 0
+            or context.parent is None
+            or context.source_estimator_name is not None
+        ):
+            # We pass the minimal information to the queue that is necessary to create a
+            # progress bar and not the context to avoid pickling the whole context tree.
             path = [ctx.task_id for ctx in get_context_path(context)]
-            self._run_queues[context.root_uuid].put(
+            send(
+                self._listener_handles[context.root_uuid],
                 {
                     "event": "begin",
                     "path": path,
@@ -79,30 +81,25 @@ class ProgressBar:
                     "estimator_name": context.estimator_name,
                     "source_estimator_name": context.source_estimator_name,
                     "source_task_name": context.source_task_name,
-                }
+                },
             )
 
     def on_fit_task_end(self, estimator, context):
         # The path is enough to update the progress of the task and its ancestors.
-        self._run_queues[context.root_uuid].put(
+        send(
+            self._listener_handles[context.root_uuid],
             {
                 "event": "end",
                 "path": [ctx.task_id for ctx in get_context_path(context)],
-            }
+            },
         )
 
     def teardown(self, estimator, context):
-        # Signal that the queue won't receive any more tasks.
-        self._run_queues[context.root_uuid].put(None)
-        self._run_monitors[context.root_uuid].join()
-
-    def __getstate__(self):
-        state = self.__dict__.copy()
-        state.pop("_manager", None)
-        state.pop("_run_monitors", None)
-        # Note that run queues are pickleable and are expected to be shared between
-        # the parent and worker processes.
-        return state
+        # Fit is finished. Signal that the queue won't receive any more tasks, close
+        # the monitor thread and the listener.
+        _run_queues.pop(context.root_uuid).put(None)
+        _run_monitors.pop(context.root_uuid).join()
+        close_listener(self._listener_handles.pop(context.root_uuid))
 
 
 try:
@@ -142,7 +139,7 @@ class RichProgressMonitor(Thread):
 
     Parameters
     ----------
-    queue : `multiprocessing.Manager.Queue` instance
+    queue : `queue.Queue` instance
         This thread will run until the queue is empty.
     """
 
@@ -194,27 +191,25 @@ class RichProgressMonitor(Thread):
 
     def _on_task_end(self, task_info):
         """Update the progress of the task and its ancestors recursively."""
-        *ancestors, task = self.root_rich_task.get_descendants(task_info["path"])
+        path = task_info.pop("path")
+        *ancestors, task = self.root_rich_task.get_descendants(path)
 
-        if task is not None:
+        if task is None:
+            # a leaf task of the estimator, no progress bar was created for it
+            task = RichTask(self.progress_ctx, task_info, depth=len(ancestors))
+            ancestors[-1].children[path[-1]] = task
+        else:
+            # Task is finished. Render the progress bar as 100% completed regardless of
+            # its progress because a task may execute less tasks than its max_subtasks.
             task.completed = task.total
-            if task.total is None:
-                # Indeterminate task is finished. Set total to an arbitrary
-                # value to render its completion as 100%.
-                self.progress_ctx.update(task.id, completed=1, total=1)
-            else:
-                self.progress_ctx.update(task.id, completed=task.total)
+            self.progress_ctx.update(task.id, completed=1, total=1)
 
         for ancestor in reversed(ancestors):
             if ancestor.total is None:
                 continue
 
-            if not ancestor.children:
-                ancestor.completed += 1
-                self.progress_ctx.update(ancestor.id, advance=1)
-            else:
-                completed = ancestor.progress * ancestor.total
-                self.progress_ctx.update(ancestor.id, completed=completed)
+            completed = ancestor.progress * ancestor.total
+            self.progress_ctx.update(ancestor.id, completed=completed)
 
 
 class RichTask:
@@ -252,14 +247,15 @@ class RichTask:
         For a leaf, it's an empty dictionary.
     """
 
-    def __init__(self, *, progress_ctx, task_info, depth):
+    def __init__(self, progress_ctx, task_info, *, depth):
         self.children = {}
         self.depth = depth
         self.completed = 0
-        self.total = task_info.pop("max_subtasks")
+        self.total = task_info.pop("max_subtasks", 0)
 
-        description = self._format_task_description(task_info)
-        self.id = progress_ctx.add_task(description, total=self.total)
+        if task_info:
+            description = self._format_task_description(task_info)
+            self.id = progress_ctx.add_task(description, total=self.total)
 
     @property
     def progress(self):
@@ -268,8 +264,6 @@ class RichTask:
             return 1.0
         if self.total is None:
             return 0.0
-        if not self.children:
-            return self.completed / self.total
         return sum(child.progress for child in self.children.values()) / self.total
 
     def _format_task_description(self, task_info):
@@ -293,7 +287,8 @@ class RichTask:
         return [self] + self.children[path[1]].get_descendants(path[1:])
 
     def __iter__(self):
-        """Pre-order depth-first traversal."""
-        yield self
-        for child in self.children.values():
-            yield from child
+        """Pre-order depth-first traversal, only including tasks with a progress bar."""
+        if hasattr(self, "id"):
+            yield self
+            for child in self.children.values():
+                yield from child

@@ -11,6 +11,7 @@ from sklearn.callback._callback_context import CallbackContext
 from sklearn.callback._callback_support import CallbackSupportMixin, with_callbacks
 from sklearn.callback._progressbar import ProgressBar
 from sklearn.callback._save_context_tree import SaveContextTree
+from sklearn.callback._scoring_monitor import ScoringMonitor, ScoringMonitorLog
 
 __all__ = [
     "AutoPropagatedCallback",
@@ -19,5 +20,7 @@ __all__ = [
     "FitCallback",
     "ProgressBar",
     "SaveContextTree",
+    "ScoringMonitor",
+    "ScoringMonitorLog",
     "with_callbacks",
 ]
