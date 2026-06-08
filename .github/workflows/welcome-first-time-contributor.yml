@@ -14,7 +14,7 @@ jobs:
 
   post_comment:
     name: welcome
-    if: github.event.pull_request.author_association == 'FIRST_TIME_CONTRIBUTOR'
+    if: contains('FIRST_TIME_CONTRIBUTOR FIRST_TIMER NONE', github.event.pull_request.author_association)
     runs-on: ubuntu-latest
 
     steps:
