@@ -12,6 +12,14 @@ on:
 
 jobs:
 
+  debug:
+    name: debug
+    runs-on: ubuntu-latest
+    steps:
+      - name: Print author_association
+        run: echo "author_association=${{ github.event.pull_request.author_association }}"
+
+
   post_comment:
     name: welcome
     if: contains('FIRST_TIME_CONTRIBUTOR FIRST_TIMER NONE', github.event.pull_request.author_association)
