@@ -43,7 +43,7 @@
 .. |PytestMinVersion| replace:: 7.1.2
 .. |PlotlyMinVersion| replace:: 5.22.0
 
-.. image:: https://raw.githubusercontent.com/jeremiedbb/scikit-learn/logo-tst/doc/logos/scikit-learn-logo-contour.png
+.. figure:: https://raw.githubusercontent.com/jeremiedbb/scikit-learn/logo-tst/doc/logos/scikit-learn-logo-contour.png
   :target: https://scikit-learn.org/
   :align: center
 
